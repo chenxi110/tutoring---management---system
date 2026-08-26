@@ -3,11 +3,15 @@ package com.skt.controller;
 import com.skt.security.RoleAccess;
 import com.skt.service.GradeService;
 import com.skt.service.OperationLogService;
+import com.skt.util.ExcelExportUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @RestController
@@ -281,6 +285,35 @@ public class GradeController {
             err.put("code", 500);
             err.put("msg", "批量导入失败：" + e.getMessage());
             return err;
+        }
+    }
+
+    // 导出成绩Excel
+    @GetMapping("/grades/export")
+    public void exportGrades(@RequestParam(required = false) Long classId,
+                             @RequestParam(required = false) Long studentId,
+                             @RequestParam(required = false) String examName,
+                             @RequestParam(required = false) Long semesterId,
+                             HttpServletRequest req, HttpServletResponse response) {
+        if (RoleAccess.isParent(req)) {
+            response.setStatus(403);
+            return;
+        }
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        List<Map<String, Object>> list = gradeService.list(classId, studentId, examName, semesterId, userId, role);
+        String[] headers = {"学生姓名", "班级", "考试名称", "考试类型", "分数", "总分", "排名", "创建时间"};
+        String[] keys = {"student_name", "class_name", "exam_name", "exam_type", "score", "total_score", "rank", "created_at"};
+        byte[] excelData = ExcelExportUtil.export(headers, keys, list, "成绩列表");
+        try {
+            String fileName = URLEncoder.encode("成绩列表.xlsx", StandardCharsets.UTF_8);
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+            response.setContentLength(excelData.length);
+            response.getOutputStream().write(excelData);
+            response.getOutputStream().flush();
+        } catch (Exception e) {
+            throw new RuntimeException("导出失败: " + e.getMessage(), e);
         }
     }
 

@@ -2,6 +2,7 @@ package com.skt.controller;
 
 import com.skt.security.RoleAccess;
 import com.skt.service.CourseFileService;
+import com.skt.service.OperationLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -25,6 +26,8 @@ public class CourseFileController {
 
     @Autowired
     private CourseFileService courseFileService;
+    @Autowired
+    private OperationLogService operationLogService;
 
     /**
      * 1. 教师下发课件
@@ -41,7 +44,15 @@ public class CourseFileController {
         }
         Long teacherId = RoleAccess.getUserId(req);
         String teacherName = (String) req.getAttribute("displayName");
-        return courseFileService.uploadTeacherFile(file, classId, teacherId, teacherName);
+        Map<String, Object> result = courseFileService.uploadTeacherFile(file, classId, teacherId, teacherName);
+        if (result != null && "200".equals(String.valueOf(result.get("code")))) {
+            String username = (String) req.getAttribute("username");
+            String role = (String) req.getAttribute("role");
+            String ip = req.getRemoteAddr();
+            operationLogService.log(teacherId, username, role, "下发课堂课件",
+                "文件:" + file.getOriginalFilename() + ",班级ID:" + classId + ",大小:" + file.getSize() + "字节", ip);
+        }
+        return result;
     }
 
     /**

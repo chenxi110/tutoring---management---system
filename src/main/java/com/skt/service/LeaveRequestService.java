@@ -21,9 +21,14 @@ public class LeaveRequestService {
         return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
     }
 
-    public List<Map<String, Object>> listForTeacher(Long classId, String status) {
+    public List<Map<String, Object>> listForTeacher(Long classId, String status, Long teacherId, String role) {
         StringBuilder sql = new StringBuilder("SELECT * FROM leave_requests WHERE 1=1");
         List<Object> params = new ArrayList<>();
+        // 教师角色：只能查看自己所带班级的请假
+        if ("teacher".equals(role) && teacherId != null) {
+            sql.append(" AND class_id IN (SELECT id FROM classes WHERE teacher_id=?)");
+            params.add(teacherId);
+        }
         if (classId != null) {
             sql.append(" AND class_id=?");
             params.add(classId);

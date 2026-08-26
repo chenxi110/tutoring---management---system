@@ -60,8 +60,10 @@ public class LeaveRequestController {
             r.put("msg", "无权限");
             return r;
         }
+        Long teacherId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
         r.put("code", 200);
-        r.put("data", leaveService.listForTeacher(classId, status));
+        r.put("data", leaveService.listForTeacher(classId, status, teacherId, role));
         return r;
     }
 

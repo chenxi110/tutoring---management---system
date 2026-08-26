@@ -20,7 +20,9 @@ public class HomeworkController {
         if (RoleAccess.isParent(req)) {
             return RoleAccess.forbidParentWrite("家长账号请使用「我的作业」查看");
         }
-        List<Map<String, Object>> list = homeworkService.list(classId);
+        Long teacherId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        List<Map<String, Object>> list = homeworkService.list(classId, teacherId, role);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         result.put("data", list);

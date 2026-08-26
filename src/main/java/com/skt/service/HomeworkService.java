@@ -14,14 +14,20 @@ public class HomeworkService {
     @Autowired
     private OperationLogService operationLogService;
 
-    public List<Map<String, Object>> list(Long classId) {
-        String sql = "SELECT h.*, c.name as class_name FROM homework h LEFT JOIN classes c ON h.class_id=c.id";
-        if (classId != null) {
-            sql += " WHERE h.class_id=? ORDER BY h.created_at DESC";
-            return jdbc.queryForList(sql, classId);
+    public List<Map<String, Object>> list(Long classId, Long teacherId, String role) {
+        StringBuilder sql = new StringBuilder("SELECT h.*, c.name as class_name FROM homework h LEFT JOIN classes c ON h.class_id=c.id WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        // 教师角色：只能查看自己所带班级的作业
+        if ("teacher".equals(role) && teacherId != null) {
+            sql.append(" AND h.class_id IN (SELECT id FROM classes WHERE teacher_id=?)");
+            params.add(teacherId);
         }
-        sql += " ORDER BY h.created_at DESC";
-        return jdbc.queryForList(sql);
+        if (classId != null) {
+            sql.append(" AND h.class_id=?");
+            params.add(classId);
+        }
+        sql.append(" ORDER BY h.created_at DESC");
+        return jdbc.queryForList(sql.toString(), params.toArray());
     }
 
     public List<Map<String, Object>> listForParent(Long parentId) {

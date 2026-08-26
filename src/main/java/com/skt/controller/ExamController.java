@@ -2,6 +2,7 @@ package com.skt.controller;
 
 import com.skt.security.RoleAccess;
 import com.skt.service.ExamService;
+import com.skt.service.OperationLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +19,8 @@ public class ExamController {
 
     @Autowired
     private ExamService examService;
+    @Autowired
+    private OperationLogService operationLogService;
 
     /**
      * 教师启动考试
@@ -58,7 +61,15 @@ public class ExamController {
             return err;
         }
 
-        return examService.launchExam(teacherId, examCode, classId, title, duration, password, configJson, questions);
+        Map<String, Object> result = examService.launchExam(teacherId, examCode, classId, title, duration, password, configJson, questions);
+        if (result != null && "200".equals(String.valueOf(result.get("code")))) {
+            String username = (String) req.getAttribute("username");
+            String role = (String) req.getAttribute("role");
+            String ip = req.getRemoteAddr();
+            operationLogService.log(teacherId, username, role, "创建并启动考试",
+                "考试:" + title + ",班级ID:" + classId + ",题目数:" + (questions != null ? questions.size() : 0), ip);
+        }
+        return result;
     }
 
     /**
