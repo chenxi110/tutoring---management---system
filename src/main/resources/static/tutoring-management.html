@@ -328,9 +328,9 @@
                     <input type="checkbox" id="rememberPassword">
                     <span>记住密码</span>
                 </label>
+                <div style="font-size:12px;color:#999;line-height:1.6;margin-top:10px;">忘记密码？请联系管理员重置密码</div>
                 <div style="font-size:12px;color:#999;line-height:1.6;margin-top:10px;">提示：教师使用授课账号登录；家长使用家长账号登录，登录后需绑定孩子。</div>
                 <button type="button" class="btn btn-primary login-btn" onclick="handleLogin()">登录</button>
-                <div class="login-hint">默认管理员账号：admin / admin123<br>家长可点击"注册"创建账号</div>
             </div>
             <!-- 注册表单 -->
             <div id="registerForm" class="login-form" style="display:none;">
@@ -2204,39 +2204,52 @@ function startClassroomSession(){
     const cn=sel.value;
     if(!cn){showToast('请选择班级','error');return;}
     if(apiService.isParent()){
-        const classId=cn;
-        const className=selectedOption?selectedOption.textContent:cn;
-        const children=(window.parentData&&window.parentData.children)||[];
-        const classChildren=children.filter(c=>String(c.class_id)===String(classId));
-        currentClassroomSession={
-            classId:Number(classId),
-            className:className,
-            date:new Date().toISOString().split('T')[0],
-            course:selectedOption?selectedOption.dataset.course||'':'',
-            students:classChildren.map(c=>({name:c.name,id:c.id,score:0,picked:false,pickStatus:null,pickTime:null})),
-            isParent:true,
-            pickerHistory:[],
-            quizzes:[],
-            scoreRules:{normal:2,late:1,absent:0,refuse:-1},
-            scoreLog:[],
-            startTime:new Date().toISOString()
-        };
-        document.getElementById('crSessionTitle').textContent=`课堂 - ${className}`;
-        document.getElementById('classroomEntry').style.display='none';
-        document.getElementById('classroomMain').style.display='block';
-        // 家长端：隐藏教师端课堂互动Tab区域，显示学生端课堂互动视图
-        var tabsEl=document.querySelector('#classroomMain .classroom-tabs');
-        var tabContentEl=document.querySelector('#classroomMain .classroom-tab-content');
-        if(tabsEl)tabsEl.style.display='none';
-        if(tabContentEl)tabContentEl.style.display='none';
-        document.getElementById('courseFileSection').style.display='block';
-        // 显示学生端课堂互动视图
-        const firstChild=classChildren[0];
-        if(firstChild){
-            enterStudentClassroom(Number(classId),firstChild.id,firstChild.name,className);
-        }
-        loadCourseFiles();
-        showToast(`已进入 ${className} 的课堂`);
+        // 改为异步，确保parentData加载完成
+        (async ()=>{
+            const classId=cn;
+            const className=selectedOption?selectedOption.textContent:cn;
+            // 确保parentData已加载
+            if(!window.parentData){
+                try{ if(window.DataSync)await DataSync.syncFromServer(); }catch(e){console.error('同步家长数据失败',e);}
+            }
+            const children=(window.parentData&&window.parentData.children)||[];
+            const classChildren=children.filter(c=>String(c.class_id)===String(classId));
+            // 如果没有找到匹配的孩子，用第一个孩子或默认信息
+            let studentId=0, studentName='学生';
+            if(classChildren.length>0){
+                studentId=classChildren[0].id;
+                studentName=classChildren[0].name;
+            }else if(children.length>0){
+                studentId=children[0].id;
+                studentName=children[0].name;
+            }
+            currentClassroomSession={
+                classId:Number(classId),
+                className:className,
+                date:new Date().toISOString().split('T')[0],
+                course:selectedOption?selectedOption.dataset.course||'':'',
+                students:(classChildren.length>0?classChildren:children).map(c=>({name:c.name,id:c.id,score:0,picked:false,pickStatus:null,pickTime:null})),
+                isParent:true,
+                pickerHistory:[],
+                quizzes:[],
+                scoreRules:{normal:2,late:1,absent:0,refuse:-1},
+                scoreLog:[],
+                startTime:new Date().toISOString()
+            };
+            document.getElementById('crSessionTitle').textContent=`课堂 - ${className}`;
+            document.getElementById('classroomEntry').style.display='none';
+            document.getElementById('classroomMain').style.display='block';
+            // 家长端：隐藏教师端课堂互动Tab区域，显示学生端课堂互动视图
+            var tabsEl=document.querySelector('#classroomMain .classroom-tabs');
+            var tabContentEl=document.querySelector('#classroomMain .classroom-tab-content');
+            if(tabsEl)tabsEl.style.display='none';
+            if(tabContentEl)tabContentEl.style.display='none';
+            document.getElementById('courseFileSection').style.display='block';
+            // 显示学生端课堂互动视图（确保一定显示）
+            enterStudentClassroom(Number(classId),studentId,studentName,className);
+            loadCourseFiles();
+            showToast(`已进入 ${className} 的课堂`);
+        })();
     }else{
         const date=document.getElementById('crDate').value;
         if(!date){showToast('请选择日期','error');return;}
