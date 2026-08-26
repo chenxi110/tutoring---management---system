@@ -1,5 +1,6 @@
 package com.skt.controller;
 
+import com.skt.security.RoleAccess;
 import com.skt.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -115,15 +116,14 @@ public class AuthController {
         return authService.updateMyPassword(userId, oldPassword, newPassword, confirmPassword);
     }
 
-    // 获取用户列表（仅教师）
+    // 获取用户列表（仅教师/管理员）
     @GetMapping("/user/list")
     public Map<String, Object> getUserList(HttpServletRequest req) {
-        String role = (String) req.getAttribute("role");
         Map<String, Object> result = new HashMap<>();
-        if (!"teacher".equals(role)) {
+        if (!RoleAccess.isTeacher(req)) {
             result.put("code", 403);
-            result.put("error", "无权限：仅教师可查看用户列表");
-            result.put("msg", "无权限：仅教师可查看用户列表");
+            result.put("error", "无权限：仅教师/管理员可查看用户列表");
+            result.put("msg", "无权限：仅教师/管理员可查看用户列表");
             return result;
         }
         try {

@@ -351,7 +351,7 @@ public class AuthService {
             if (operatorId == null) {
                 return errorMap("未登录，无法操作");
             }
-            if (!"teacher".equals(operatorRole)) {
+            if (!"teacher".equals(operatorRole) && !"admin".equals(operatorRole)) {
                 Map<String, Object> r = new HashMap<>();
                 r.put("code", 403);
                 r.put("error", "无权限：仅教师管理员可重置密码");
