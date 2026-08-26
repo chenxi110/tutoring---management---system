@@ -9,6 +9,8 @@ node_modules/
 # 数据文件（含用户数据）
 data/*.json
 data/*.db
+data/*.db-shm
+data/*.db-wal
 
 # 含真实密钥的本地/生产配置文件（禁止提交 GitHub，防止 API Key / 数据库密钥泄露）
 src/main/resources/application-local.yml
