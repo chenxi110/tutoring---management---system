@@ -306,7 +306,6 @@
         .logout-btn { background: none; border: 1px solid #ddd; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: #666; transition: all 0.2s; white-space: nowrap; }
         .logout-btn:hover { border-color: #ff4d4f; color: #ff4d4f; }
         .msg-badge { position: fixed; top: 16px; right: 16px; background: #ff4d4f; color: #fff; border-radius: 10px; padding: 4px 12px; font-size: 12px; z-index: 100; cursor: pointer; box-shadow: 0 2px 8px rgba(255,77,79,0.4); }
-        .header-unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; line-height: 20px; padding: 0 6px; border-radius: 10px; background: #ff4d4f; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 8px; vertical-align: middle; box-shadow: 0 1px 4px rgba(255,77,79,0.4); }
         .chart-container { width: 100%; height: 300px; background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -397,7 +396,6 @@
             <div class="header-left">
                 <h2 class="header-title" id="pageTitle">仪表盘</h2>
                 <span class="header-date" id="currentDate"></span>
-                <span id="headerUnreadBadge" class="header-unread-badge" style="display:none;" onclick="navigateTo('notifications')"></span>
             </div>
             <div class="header-right">
                 <div class="semester-selector">
@@ -11404,14 +11402,11 @@ function initAppAfterLogin(){
 async function updateUnreadBadge(count){
     if(!apiService.isLoggedIn())return;
     const badge=document.getElementById('msgBadge');
-    const headerBadge=document.getElementById('headerUnreadBadge');
     var updateUI=function(c){
         if(c>0){
             if(badge){badge.textContent=c;badge.style.display='block';}
-            if(headerBadge){headerBadge.textContent=c;headerBadge.style.display='inline-flex';}
         }else{
             if(badge)badge.style.display='none';
-            if(headerBadge)headerBadge.style.display='none';
         }
     };
     if(typeof count==='number'){
