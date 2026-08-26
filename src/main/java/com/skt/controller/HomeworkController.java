@@ -1,0 +1,87 @@
+package com.skt.controller;
+
+import com.skt.security.RoleAccess;
+import com.skt.service.HomeworkService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.*;
+
+@RestController
+@RequestMapping("/api")
+public class HomeworkController {
+
+    @Autowired
+    private HomeworkService homeworkService;
+
+    @GetMapping("/homework")
+    public Map<String, Object> list(@RequestParam(required = false) Long classId, HttpServletRequest req) {
+        if (RoleAccess.isParent(req)) {
+            return RoleAccess.forbidParentWrite("家长账号请使用「我的作业」查看");
+        }
+        List<Map<String, Object>> list = homeworkService.list(classId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("data", list);
+        return result;
+    }
+
+    @GetMapping("/homework/my")
+    public Map<String, Object> listMy(HttpServletRequest req) {
+        if (!RoleAccess.isParent(req)) {
+            return RoleAccess.forbidParentWrite("仅家长账号可查看关联学生作业");
+        }
+        Long parentId = (Long) req.getAttribute("userId");
+        List<Map<String, Object>> list = homeworkService.listForParent(parentId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("data", list);
+        return result;
+    }
+
+    @PostMapping("/homework")
+    public Map<String, Object> create(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        if (RoleAccess.isParent(req)) {
+            return RoleAccess.forbidParentWrite("家长账号无权发布作业");
+        }
+        Long createdBy = (Long) req.getAttribute("userId");
+        Long classId = body.get("classId") != null ? ((Number) body.get("classId")).longValue() : null;
+        String title = (String) body.get("title");
+        String content = (String) body.get("content");
+        String deadline = (String) body.get("deadline");
+        Long id = homeworkService.create(classId, title, content, deadline, createdBy);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("id", id);
+        return result;
+    }
+
+    @PostMapping("/homework/{id}/submit")
+    public Map<String, Object> submit(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师账号可登记作业提交");
+        }
+        Long studentId = body.get("studentId") != null ? ((Number) body.get("studentId")).longValue() : null;
+        String studentName = (String) body.get("studentName");
+        String content = (String) body.get("content");
+        Long subId = homeworkService.submit(id, studentId, studentName, content);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("id", subId);
+        return result;
+    }
+
+    @PutMapping("/homework/submissions/{id}/grade")
+    public Map<String, Object> grade(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师账号可批改作业");
+        }
+        Double score = body.get("score") != null ? ((Number) body.get("score")).doubleValue() : null;
+        String comment = (String) body.get("comment");
+        homeworkService.grade(id, score, comment);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        return result;
+    }
+}

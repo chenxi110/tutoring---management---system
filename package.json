@@ -1,0 +1,25 @@
+{
+  "name": "tutoring-management-system",
+  "version": "1.0.0",
+  "description": "课外辅导班教学辅助管理系统 - 包含AI助手和知识库",
+  "main": "ai-service.js",
+  "scripts": {
+    "start": "node ai-service.js",
+    "dev": "nodemon ai-service.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.2",
+    "cors": "^2.8.5",
+    "docx": "^9.7.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,24 @@
+[Unit]
+Description=上课通教学管理系统 (skt-server)
+Documentation=https://github.com/skt/skt-server
+After=network.target mysql.service mysqld.service
+Wants=mysql.service mysqld.service
+
+[Service]
+Type=simple
+User=skt
+Group=skt
+WorkingDirectory=/opt/skt-server
+# 密钥通过 EnvironmentFile 注入（/etc/skt-server/skt.env，权限 600，root 只读，不进仓库）
+# 文件内如：AI_API_KEY=sk-xxxxxx  DB_PASSWORD=xxx  JWT_SECRET=xxx
+EnvironmentFile=-/etc/skt-server/skt.env
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar /opt/skt-server/skt-server-1.0.0.jar --spring.profiles.active=prod
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/skt-server/app.log
+StandardError=append:/var/log/skt-server/error.log
+
+[Install]
+WantedBy=multi-user.target
+

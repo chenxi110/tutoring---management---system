@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>家长消息中心</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f7fb;
+      color: #222;
+    }
+    .container {
+      max-width: 900px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    h2, h3 { margin: 0 0 16px; }
+    .message-list { display: grid; gap: 12px; }
+    .message-item {
+      background: #fafafa;
+      border: 1px solid #ececec;
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+    }
+    .message-item.unread {
+      border-color: #ffd591;
+      background: #fff8e6;
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: #666;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .reply-box {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+    .reply-item {
+      background: #edf6ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-top: 8px;
+    }
+    .badge {
+      display: inline-block;
+      min-width: 18px;
+      height: 18px;
+      line-height: 18px;
+      border-radius: 9px;
+      background: #ff4d4f;
+      color: #fff;
+      font-size: 11px;
+      text-align: center;
+      padding: 0 5px;
+      margin-left: 8px;
+    }
+    textarea, button {
+      width: 100%;
+      border: 1px solid #d9d9d9;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button {
+      background: #1890ff;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    @media (max-width: 768px) {
+      .container { padding: 0 12px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h2>家长消息中心</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>未读消息</span>
+        <span id="unreadBadge" class="badge" style="display: none;">0</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>消息列表</h3>
+      <div id="parentMessageList" class="message-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('skt_token') || '';
+
+    function ensureLogin() {
+      if (!token) {
+        window.location.href = 'tutoring-management.html';
+        return false;
+      }
+      return true;
+    }
+
+    function getBaseURL() {
+      return localStorage.getItem('skt_api_base') || '/api';
+    }
+
+    function authHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      };
+    }
+
+    async function fetchJson(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          ...authHeaders(),
+          ...(options.headers || {})
+        }
+      });
+      if (res.status === 401) {
+        localStorage.removeItem('skt_token');
+        localStorage.removeItem('skt_user');
+        window.location.href = 'tutoring-management.html';
+        return null;
+      }
+      return res.json();
+    }
+
+    async function loadUnreadCount() {
+      const res = await fetchJson(getBaseURL() + '/messages/unread/count');
+      const count = (res && res.count) || 0;
+      const badge = document.getElementById('unreadBadge');
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.textContent = '0';
+        badge.style.display = 'none';
+      }
+    }
+
+    async function openMessage(messageId) {
+      const res = await fetchJson(getBaseURL() + '/messages');
+      const list = (res && res.data) || [];
+      const target = list.find(item => item.id === messageId);
+      if (!target) return;
+
+      const textarea = document.createElement('textarea');
+      textarea.placeholder = '请输入回复内容';
+      textarea.style.marginTop = '12px';
+      textarea.style.marginBottom = '12px';
+
+      const btn = document.createElement('button');
+      btn.textContent = '提交回复';
+      btn.onclick = async function () {
+        const content = textarea.value.trim();
+        if (!content) {
+          alert('回复内容不能为空');
+          return;
+        }
+
+        const result = await fetchJson(getBaseURL() + '/messages/' + messageId + '/reply', {
+          method: 'POST',
+          body: JSON.stringify({ content: content })
+        });
+
+        if (result && result.code === 200) {
+          alert('回复成功');
+          loadParentMessages();
+          loadUnreadCount();
+        } else {
+          alert((result && result.error) || '回复失败');
+        }
+      };
+
+      const panel = document.createElement('div');
+      panel.innerHTML = '<div style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff;">' +
+        '<div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">' + (target.title || '通知') + '</div>' +
+        '<div style="color:#666; margin-bottom: 10px;">' + (target.content || '') + '</div>' +
+        '<div style="font-size:12px; color:#999;">来自：' + (target.sender_name || '系统') + ' · ' + (target.created_at || '') + '</div>' +
+        '<div style="margin-top:12px;">' +
+        '<div style="font-weight:600; margin-bottom:8px;">历史留言</div>' +
+        ((target.replyList && target.replyList.length) ? target.replyList.map(reply => '<div class="reply-item"><strong>' + (reply.sender_name || '用户') + '：</strong>' + (reply.content || '') + '</div>').join('') : '<div class="reply-item">暂无留言</div>') +
+        '</div>' +
+        '</div>';
+
+      panel.appendChild(textarea);
+      panel.appendChild(btn);
+
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.inset = '0';
+      overlay.style.background = 'rgba(0,0,0,0.3)';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.padding = '16px';
+      overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
+
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      await fetchJson(getBaseURL() + '/messages/' + messageId + '/read', { method: 'PUT' });
+      await loadParentMessages();
+      await loadUnreadCount();
+    }
+
+    async function loadParentMessages() {
+      const res = await fetchJson(getBaseURL() + '/messages');
+      const list = (res && res.data) || [];
+      const box = document.getElementById('parentMessageList');
+
+      if (!list.length) {
+        box.innerHTML = '<div class="message-item">暂无消息</div>';
+        return;
+      }
+
+      box.innerHTML = list.map(item => {
+        const unreadClass = item.status === 'unread' ? 'unread' : '';
+        const badge = item.status === 'unread' ? '<span class="badge">新</span>' : '';
+        return '<div class="message-item ' + unreadClass + '" onclick="openMessage(' + item.id + ')">' +
+          '<div class="meta"><span>' + (item.sender_name || '系统') + '</span><span>' + (item.created_at || '') + '</span></div>' +
+          '<div style="font-weight:700;">' + (item.title || '通知') + badge + '</div>' +
+          '<div style="margin: 10px 0;">' + (item.content || '') + '</div>' +
+          '<div style="font-size:12px; color:#666;">' + (item.status === 'unread' ? '未读' : '已读') + '</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    function init() {
+      if (!ensureLogin()) return;
+      loadUnreadCount();
+      loadParentMessages();
+      setInterval(() => {
+        loadUnreadCount();
+        loadParentMessages();
+      }, 30000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

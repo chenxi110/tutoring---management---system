@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "ai-service.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "ai-service.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "public/tutoring-management.html"
+    }
+  ],
+  "env": {
+    "PORT": "3000"
+  }
+}

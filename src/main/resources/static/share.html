@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学生学情分享</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f5f7fa; color: #333; line-height: 1.6; }
+.share-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+.share-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 30px 20px; border-radius: 12px; margin-bottom: 20px; text-align: center; }
+.share-header h1 { font-size: 24px; margin-bottom: 8px; }
+.share-header p { font-size: 14px; opacity: 0.9; }
+.student-info { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.student-info h2 { font-size: 20px; margin-bottom: 16px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 8px; }
+.info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+.info-row:last-child { border-bottom: none; }
+.info-label { color: #888; font-weight: 500; }
+.info-value { color: #333; font-weight: 600; }
+.section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.section h3 { font-size: 18px; margin-bottom: 16px; color: #333; border-left: 4px solid #667eea; padding-left: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+th { background: #f8f9fa; font-weight: 600; color: #555; }
+tr:hover { background: #f8f9fa; }
+.score-high { color: #52c41a; font-weight: 700; }
+.score-mid { color: #faad14; font-weight: 700; }
+.score-low { color: #ff4d4f; font-weight: 700; }
+.empty-tip { text-align: center; padding: 30px; color: #999; font-size: 14px; }
+.denied { text-align: center; padding: 60px 20px; }
+.denied .icon { font-size: 64px; margin-bottom: 16px; }
+.denied h2 { font-size: 22px; color: #333; margin-bottom: 12px; }
+.denied p { color: #888; font-size: 15px; }
+.loading { text-align: center; padding: 60px; color: #999; }
+.loading .spinner { display: inline-block; width: 40px; height: 40px; border: 4px solid #f0f0f0; border-top-color: #667eea; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.homework-status-done { color: #52c41a; }
+.homework-status-pending { color: #faad14; }
+.homework-status-none { color: #ff4d4f; }
+.footer { text-align: center; padding: 20px; color: #ccc; font-size: 12px; }
+@media (max-width: 600px) {
+    .share-container { padding: 12px; }
+    .share-header { padding: 20px 16px; }
+    .student-info, .section { padding: 16px; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 8px; }
+}
+</style>
+</head>
+<body>
+<div class="share-container" id="app">
+<div class="loading" id="loading">
+<div class="spinner"></div>
+<p>正在加载学情信息...</p>
+</div>
+</div>
+
+<script>
+function getQueryParam(name) {
+    var urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatScore(score, total) {
+    if (score === null || score === undefined) return '-';
+    var s = parseFloat(score);
+    var t = total ? parseFloat(total) : 100;
+    var pct = (s / t) * 100;
+    var cls = pct >= 80 ? 'score-high' : (pct >= 60 ? 'score-mid' : 'score-low');
+    return '<span class="' + cls + '">' + s + '</span>' + (total ? ' / ' + t : '');
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return escapeHtml(dateStr);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function renderDenied(msg) {
+    var app = document.getElementById('app');
+    app.innerHTML = '<div class="denied">' +
+        '<div class="icon">&#128683;</div>' +
+        '<h2>访问被拒绝</h2>' +
+        '<p>' + escapeHtml(msg || '分享链接无效或已失效') + '</p>' +
+        '</div>';
+    document.title = '访问被拒绝';
+}
+
+function renderStudent(student) {
+    var html = '';
+
+    html += '<div class="share-header">';
+    html += '<h1>学生学情分享</h1>';
+    html += '<p>' + escapeHtml(student.name) + (student.className ? ' - ' + escapeHtml(student.className) : '') + '</p>';
+    html += '</div>';
+
+    html += '<div class="student-info">';
+    html += '<h2>基本信息</h2>';
+    html += '<div class="info-row"><span class="info-label">学生姓名</span><span class="info-value">' + escapeHtml(student.name) + '</span></div>';
+    if (student.className) {
+        html += '<div class="info-row"><span class="info-label">班级</span><span class="info-value">' + escapeHtml(student.className) + '</span></div>';
+    }
+    if (student.classCourse) {
+        html += '<div class="info-row"><span class="info-label">课程</span><span class="info-value">' + escapeHtml(student.classCourse) + '</span></div>';
+    }
+    if (student.enrollmentDate) {
+        html += '<div class="info-row"><span class="info-label">入学日期</span><span class="info-value">' + escapeHtml(student.enrollmentDate) + '</span></div>';
+    }
+    html += '</div>';
+
+    if (student.grades && student.grades.length > 0) {
+        html += '<div class="section">';
+        html += '<h3>考试成绩</h3>';
+        html += '<table><thead><tr><th>考试名称</th><th>类型</th><th>分数</th><th>备注</th><th>时间</th></tr></thead><tbody>';
+        student.grades.forEach(function(g) {
+            var examTypeMap = {unit_test:'单元测试', midterm:'期中考试', final:'期末考试', quiz:'小测验', monthly:'月考'};
+            var examType = examTypeMap[g.exam_type] || g.exam_type || '-';
+            html += '<tr>';
+            html += '<td>' + escapeHtml(g.exam_name) + '</td>';
+            html += '<td>' + escapeHtml(examType) + '</td>';
+            html += '<td>' + formatScore(g.score, g.total_score) + '</td>';
+            html += '<td>' + escapeHtml(g.remark || '-') + '</td>';
+            html += '<td>' + formatDate(g.created_at) + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div>';
+    } else {
+        html += '<div class="section"><h3>考试成绩</h3><div class="empty-tip">暂无考试成绩记录</div></div>';
+    }
+
+    if (student.records && student.records.length > 0) {
+        html += '<div class="section">';
+        html += '<h3>上课记录</h3>';
+        html += '<table><thead><tr><th>日期</th><th>课程</th><th>课时</th><th>类型</th><th>备注</th></tr></thead><tbody>';
+        student.records.forEach(function(r) {
+            html += '<tr>';
+            html += '<td>' + escapeHtml(r.date) + '</td>';
+            html += '<td>' + escapeHtml(r.course || r.class_name || '-') + '</td>';
+            html += '<td>' + escapeHtml(r.sessions || '1') + '</td>';
+            html += '<td>' + escapeHtml(r.type || '-') + '</td>';
+            html += '<td>' + escapeHtml(r.remark || '-') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div>';
+    } else {
+        html += '<div class="section"><h3>上课记录</h3><div class="empty-tip">暂无上课记录</div></div>';
+    }
+
+    if (student.homework && student.homework.length > 0) {
+        html += '<div class="section">';
+        html += '<h3>作业情况</h3>';
+        html += '<table><thead><tr><th>作业名称</th><th>截止日期</th><th>提交状态</th><th>评分</th></tr></thead><tbody>';
+        student.homework.forEach(function(h) {
+            var status = h.submitted_at ? '<span class="homework-status-done">已提交</span>' : '<span class="homework-status-pending">未提交</span>';
+            var score = h.score !== null && h.score !== undefined ? formatScore(h.score, 100) : '-';
+            html += '<tr>';
+            html += '<td>' + escapeHtml(h.title) + '</td>';
+            html += '<td>' + escapeHtml(h.deadline || '-') + '</td>';
+            html += '<td>' + status + '</td>';
+            html += '<td>' + score + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div>';
+    } else {
+        html += '<div class="section"><h3>作业情况</h3><div class="empty-tip">暂无作业记录</div></div>';
+    }
+
+    html += '<div class="footer">本页面为只读学情分享，数据仅供参考</div>';
+
+    document.getElementById('app').innerHTML = html;
+}
+
+async function init() {
+    var token = getQueryParam('token');
+    if (!token) {
+        renderDenied('缺少分享凭证，请通过完整的分享链接访问');
+        return;
+    }
+
+    try {
+        var resp = await fetch('/api/share/validate?token=' + encodeURIComponent(token));
+        var data = await resp.json();
+        if (data.code === 200 && data.student) {
+            renderStudent(data.student);
+        } else {
+            renderDenied(data.msg || data.error || '分享链接无效');
+        }
+    } catch (e) {
+        renderDenied('网络错误，请稍后重试');
+    }
+}
+
+init();
+</script>
+</body>
+</html>

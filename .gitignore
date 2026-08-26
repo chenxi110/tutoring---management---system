@@ -1,0 +1,58 @@
+# 依赖
+node_modules/
+
+# 环境变量（含密钥，禁止提交）
+.env
+.env.local
+.env.*.local
+
+# 数据文件（含用户数据）
+data/*.json
+data/*.db
+
+# 含真实密钥的本地/生产配置文件（禁止提交 GitHub，防止 API Key / 数据库密钥泄露）
+src/main/resources/application-local.yml
+src/main/resources/application-prod.yml
+application-local.yml
+application-private.yml
+deploy/skt.env
+
+# 构建产物（含编译 class 与 jar，禁止提交）
+target/
+
+# 日志
+*.log
+*.err
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 用户上传文件
+upload/
+uploads/
+
+# IDE 配置
+.vscode/
+.idea/
+*.iml
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+temp_*.js
+check_backticks.js
+_extracted.txt
+runcp.txt
+app.boot.*
+_final_frontend.html
+上课通-源程序-前端HTML*.html
+软著源码文档.html
+软著风险自查清单.html
+上课通-源程序文档.html
+dump_front.py
+analyze_doc.py
+analyze_front.py
+
