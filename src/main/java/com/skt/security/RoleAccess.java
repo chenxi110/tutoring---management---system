@@ -10,7 +10,13 @@ public final class RoleAccess {
 
     public static boolean isTeacher(HttpServletRequest req) {
         Object role = req == null ? null : req.getAttribute("role");
-        return "teacher".equals(role == null ? null : role.toString());
+        String r = role == null ? null : role.toString();
+        return "teacher".equals(r) || "admin".equals(r);
+    }
+
+    public static boolean isAdmin(HttpServletRequest req) {
+        Object role = req == null ? null : req.getAttribute("role");
+        return "admin".equals(role == null ? null : role.toString());
     }
 
     public static boolean isParent(HttpServletRequest req) {

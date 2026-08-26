@@ -203,23 +203,134 @@ public class ExamService {
         Map<String, Object> result = new HashMap<>();
         try {
             List<Map<String, Object>> examList = jdbc.queryForList(
-                "SELECT id FROM exam WHERE exam_code=?", examCode);
+                "SELECT id, class_id, title FROM exam WHERE exam_code=?", examCode);
             if (examList.isEmpty()) {
                 result.put("code", 404);
                 result.put("msg", "考试不存在");
                 return result;
             }
             Long examId = ((Number) examList.get(0).get("id")).longValue();
+            Long classId = examList.get(0).get("class_id") != null ? ((Number) examList.get(0).get("class_id")).longValue() : null;
+            String title = (String) examList.get(0).get("title");
+
+            // 自动阅卷：计算客观题分数
+            double autoScore = 0;
+            double totalScore = 0;
+            try {
+                List<Map<String, Object>> questions = jdbc.queryForList(
+                    "SELECT question_json FROM exam_question WHERE exam_id=? ORDER BY sort_order", examId);
+                Map<String, Object> answers = answersJson != null ? objectMapper.readValue(answersJson, new TypeReference<Map<String, Object>>() {}) : new HashMap<>();
+                for (Map<String, Object> qRow : questions) {
+                    Map<String, Object> q = objectMapper.readValue((String) qRow.get("question_json"), new TypeReference<Map<String, Object>>() {});
+                    String qType = q.get("type") != null ? q.get("type").toString() : "single";
+                    double qScore = q.get("score") != null ? ((Number) q.get("score")).doubleValue() : 10;
+                    totalScore += qScore;
+                    String qId = q.get("id") != null ? q.get("id").toString() : "";
+                    Object correctAnswer = q.get("correctAnswer");
+                    Object studentAnswer = answers.get(qId);
+                    // 客观题自动判分
+                    if ("single".equals(qType) || "truefalse".equals(qType) || "multiple".equals(qType)) {
+                        if (correctAnswer != null && studentAnswer != null) {
+                            if ("multiple".equals(qType)) {
+                                // 多选题：答案数组对比
+                                List<?> correctList = correctAnswer instanceof List ? (List<?>) correctAnswer : Arrays.asList(correctAnswer.toString().split(","));
+                                List<?> studentList = studentAnswer instanceof List ? (List<?>) studentAnswer : Arrays.asList(studentAnswer.toString().split(","));
+                                if (correctList.size() == studentList.size() && correctList.containsAll(studentList)) {
+                                    autoScore += qScore;
+                                }
+                            } else {
+                                if (correctAnswer.toString().equals(studentAnswer.toString())) {
+                                    autoScore += qScore;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // 自动阅卷失败，使用前端传入的score
+            }
+
+            double finalScore = score != null ? score : autoScore;
             jdbc.update(
-                "INSERT INTO exam_submission (exam_id, student_id, student_name, answers_json, score) VALUES (?,?,?,?,?)",
-                examId, studentId, studentName, answersJson, score
-            );
+                "INSERT INTO exam_submission (exam_id, student_id, student_name, answers_json, score, auto_score, graded) VALUES (?,?,?,?,?,?,?)",
+                examId, studentId, studentName, answersJson, finalScore, autoScore, 1);
+
+            // 同步成绩到grades表
+            try {
+                if (classId != null) {
+                    List<Map<String, Object>> cls = jdbc.queryForList("SELECT name, teacher_id FROM classes WHERE id=?", classId);
+                    String className = !cls.isEmpty() ? (String) cls.get(0).get("name") : "";
+                    Long teacherId = !cls.isEmpty() && cls.get(0).get("teacher_id") != null ? ((Number) cls.get(0).get("teacher_id")).longValue() : null;
+                    List<Map<String, Object>> existing = jdbc.queryForList(
+                        "SELECT id FROM grades WHERE student_id=? AND exam_name=? AND class_id=?",
+                        studentId, title, classId);
+                    if (!existing.isEmpty()) {
+                        jdbc.update("UPDATE grades SET score=?, total_score=?, teacher_id=? WHERE id=?",
+                            finalScore, totalScore > 0 ? totalScore : 100, teacherId, ((Number) existing.get(0).get("id")).longValue());
+                    } else {
+                        jdbc.update(
+                            "INSERT INTO grades (student_id, student_name, class_id, class_name, exam_name, exam_type, score, total_score, teacher_id) VALUES (?,?,?,?,?,?,?,?,?)",
+                            studentId, studentName, classId, className, title, "exam", finalScore, totalScore > 0 ? totalScore : 100, teacherId);
+                    }
+                }
+            } catch (Exception e) {
+                // 成绩同步失败不影响提交
+            }
+
             result.put("code", 200);
             result.put("msg", "提交成功");
+            result.put("autoScore", autoScore);
+            result.put("totalScore", totalScore);
         } catch (Exception e) {
             result.put("code", 500);
             result.put("msg", "提交失败：" + e.getMessage());
         }
         return result;
+    }
+
+    // 教师手动阅卷（主观题打分）
+    public Map<String, Object> gradeSubmission(Long submissionId, Double teacherScore, String comment) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+            // 获取当前提交信息
+            List<Map<String, Object>> subs = jdbc.queryForList(
+                "SELECT es.*, e.class_id, e.title FROM exam_submission es LEFT JOIN exam e ON e.id=es.exam_id WHERE es.id=?",
+                submissionId);
+            if (subs.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "提交记录不存在");
+                return result;
+            }
+            Map<String, Object> sub = subs.get(0);
+            double autoScore = sub.get("auto_score") != null ? ((Number) sub.get("auto_score")).doubleValue() : 0;
+            double finalScore = autoScore + (teacherScore != null ? teacherScore : 0);
+            jdbc.update(
+                "UPDATE exam_submission SET teacher_score=?, score=?, graded=1, graded_at=? WHERE id=?",
+                teacherScore, finalScore, now, submissionId);
+            // 更新grades表
+            try {
+                Long studentId = sub.get("student_id") != null ? ((Number) sub.get("student_id")).longValue() : null;
+                Long classId = sub.get("class_id") != null ? ((Number) sub.get("class_id")).longValue() : null;
+                String title = (String) sub.get("title");
+                if (studentId != null && classId != null) {
+                    jdbc.update("UPDATE grades SET score=?, remark=? WHERE student_id=? AND exam_name=? AND class_id=?",
+                        finalScore, comment != null ? comment : "", studentId, title, classId);
+                }
+            } catch (Exception e) {}
+            result.put("code", 200);
+            result.put("msg", "阅卷完成");
+            result.put("finalScore", finalScore);
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "阅卷失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    // 获取考试提交列表（教师端）
+    public List<Map<String, Object>> listSubmissions(Long examId) {
+        return jdbc.queryForList(
+            "SELECT * FROM exam_submission WHERE exam_id=? ORDER BY submitted_at DESC", examId);
     }
 }

@@ -307,7 +307,9 @@
         .logout-btn:hover { border-color: #ff4d4f; color: #ff4d4f; }
         .msg-badge { position: fixed; top: 16px; right: 16px; background: #ff4d4f; color: #fff; border-radius: 10px; padding: 4px 12px; font-size: 12px; z-index: 100; cursor: pointer; box-shadow: 0 2px 8px rgba(255,77,79,0.4); }
         .header-unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; line-height: 20px; padding: 0 6px; border-radius: 10px; background: #ff4d4f; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 8px; vertical-align: middle; box-shadow: 0 1px 4px rgba(255,77,79,0.4); }
+        .chart-container { width: 100%; height: 300px; background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
     <!-- 登录页面 -->
@@ -376,6 +378,8 @@
             <div class="nav-item parent-only" data-page="parent-message"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/></svg><span>消息中心</span></div>
             <div class="nav-item" data-page="finance"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg><span>财务台账</span></div>
             <div class="nav-item" data-page="export"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span>导出打印</span></div>
+            <div class="nav-item teacher-only" data-page="leave-requests"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>请假审批</span></div>
+            <div class="nav-item teacher-only" data-page="operation-logs"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg><span>操作日志</span></div>
             <div class="nav-item" data-page="ai"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span>AI助手</span></div>
         </nav>
     </aside>
@@ -421,6 +425,20 @@
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">最近上课记录</h3><button class="btn btn-sm btn-secondary" onclick="navigateTo('records')">查看全部</button></div>
                     <div class="table-wrapper" id="recentRecords"></div>
+                </div>
+                <!-- 教学数据看板 -->
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">📊 教学数据看板</h3><button class="btn btn-sm btn-secondary" onclick="renderDashboardCharts()">刷新图表</button></div>
+                    <div class="stats-grid" style="margin:16px;">
+                        <div class="stat-card"><div class="stat-value" id="dashAttendanceRate">-</div><div class="stat-label">班级出勤率</div></div>
+                        <div class="stat-card success"><div class="stat-value" id="dashHomeworkRate">-</div><div class="stat-label">作业提交率</div></div>
+                        <div class="stat-card warning"><div class="stat-value" id="dashExamPassRate">-</div><div class="stat-label">考试通过率</div></div>
+                        <div class="stat-card danger"><div class="stat-value" id="dashAvgScore">-</div><div class="stat-label">平均成绩</div></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 16px 16px;">
+                        <div id="chartGradeTrend" class="chart-container"></div>
+                        <div id="chartSubjectAvg" class="chart-container"></div>
+                    </div>
                 </div>
             </div>
             <div class="page" id="page-records">
@@ -574,6 +592,39 @@
                     <div class="card-header"><h3 class="card-title">📋 操作日志</h3><button class="btn btn-sm btn-secondary" onclick="loadOperationLog()">刷新</button></div>
                     <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">最近500条关键操作记录。</div>
                     <div class="table-wrapper" style="max-height:400px;overflow-y:auto;"><table><thead><tr><th>时间</th><th>操作</th><th>详情</th></tr></thead><tbody id="operationLogTableBody"></tbody></table></div>
+                </div>
+            </div>
+            <!-- 操作日志页面 -->
+            <div class="page" id="page-operation-logs">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">📋 操作审计日志</h3>
+                        <div class="quick-actions">
+                            <input type="text" class="form-control" id="opLogSearch" placeholder="搜索操作类型" style="width:200px;">
+                            <button class="btn btn-primary" onclick="loadOperationLogs()">查询</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper" style="max-height:600px;overflow-y:auto;">
+                        <table><thead><tr><th>时间</th><th>操作人</th><th>角色</th><th>操作类型</th><th>详情</th><th>IP</th></tr></thead>
+                        <tbody id="operationLogsTableBody"></tbody></table>
+                    </div>
+                    <div style="padding:12px;text-align:center;color:#999;font-size:13px;" id="opLogPager"></div>
+                </div>
+            </div>
+            <!-- 请假审批页面 -->
+            <div class="page" id="page-leave-requests">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">🏖️ 请假审批管理</h3>
+                        <div class="quick-actions">
+                            <select class="form-control" id="leaveFilterStatus" style="width:120px;">
+                                <option value="">全部状态</option><option value="pending">待审批</option>
+                                <option value="approved">已批准</option><option value="rejected">已拒绝</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="loadLeaveRequests()">刷新</button>
+                            <button class="btn btn-success teacher-only" onclick="openLeaveSubmitModal()" id="leaveSubmitBtn">+ 提交请假</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper"><table><thead><tr><th>学生</th><th>班级</th><th>请假日期</th><th>类型</th><th>原因</th><th>状态</th><th>提交时间</th><th>操作</th></tr></thead>
+                    <tbody id="leaveRequestsTableBody"></tbody></table></div>
                 </div>
             </div>
             <div class="page" id="page-schedule">
@@ -2074,7 +2125,7 @@ function navigateTo(page){
     try{
         // 家长访问教师专属页面拦截
         if(apiService.isParent()){
-            const teacherOnlyPages=['records','students','classes','semesters','settings','finance','grades','export','ai','statistics','schedule'];
+            const teacherOnlyPages=['records','students','classes','semesters','settings','finance','grades','export','ai','statistics','schedule','operation-logs'];
             if(teacherOnlyPages.includes(page)){
                 showToast('无访问权限','error');
                 return;
@@ -2112,7 +2163,9 @@ function navigateTo(page){
             semesters:'学期管理',
             settings:'设置',
             classes:'班级管理',
-            ai:'AI助手'
+            ai:'AI助手',
+            'operation-logs':'操作审计日志',
+            'leave-requests':'请假审批管理'
         };
         const titleEl=document.getElementById('pageTitle');
         if(titleEl)titleEl.textContent=titles[page]||page;
@@ -2137,7 +2190,9 @@ function navigateTo(page){
             'parent-message':()=>{ window.location.href='parent-message.html'; },
             finance:()=>loadFinanceRecords(),
             export:()=>loadExportPage(),
-            ai:()=>loadAI()
+            ai:()=>loadAI(),
+            'operation-logs':()=>loadOperationLogs(),
+            'leave-requests':()=>loadLeaveRequests()
         };
         const loader=pageLoaders[page];
         if(loader){
@@ -4932,6 +4987,8 @@ function loadDashboard(){
     }
     // 异步从API获取更精确的下节课信息
     updateNextClassFromAPI();
+    // 渲染数据可视化图表
+    setTimeout(()=>{try{renderDashboardCharts();}catch(e){console.error('图表渲染失败:',e);}},300);
 }
 
 // 从API获取下节课（角色区分：教师看自己课表，家长看孩子课表）
@@ -6660,6 +6717,190 @@ async function submitChangePassword(){
     }catch(e){
         showToast('修改失败：'+e.message,'error');
     }
+}
+
+// ===== 仪表盘数据可视化图表 =====
+function renderDashboardCharts(){
+    // 统计卡片数据
+    const allGrades=appData.grades||[];
+    const allRecords=appData.records||[];
+    const allStudents=Object.values(appData.students||{}).flat();
+    const totalStudents=allStudents.length;
+    // 出勤率
+    const presentCount=allRecords.filter(r=>r.type==='present'||!r.type).length;
+    const absentCount=allRecords.filter(r=>r.type==='absent').length;
+    const attendanceRate=totalStudents>0?Math.round((1-absentCount/Math.max(totalStudents*30,1))*100):95;
+    document.getElementById('dashAttendanceRate').textContent=attendanceRate+'%';
+    // 作业提交率
+    const allHomework=appData.homework||[];
+    const homeworkSubs=allHomework.filter(h=>h.submissions&&h.submissions.length>0).length;
+    document.getElementById('dashHomeworkRate').textContent=allHomework.length>0?Math.round(homeworkSubs/allHomework.length*100)+'%':'-';
+    // 考试通过率
+    const passCount=allGrades.filter(g=>g.score>=60).length;
+    document.getElementById('dashExamPassRate').textContent=allGrades.length>0?Math.round(passCount/allGrades.length*100)+'%':'-';
+    // 平均成绩
+    const avgScore=allGrades.length>0?Math.round(allGrades.reduce((s,g)=>s+(g.score||0),0)/allGrades.length):'-';
+    document.getElementById('dashAvgScore').textContent=avgScore;
+
+    // ECharts图表
+    if(typeof echarts==='undefined')return;
+    // 成绩趋势图
+    const trendChart=echarts.init(document.getElementById('chartGradeTrend'));
+    const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const currentMonth=new Date().getMonth();
+    const trendData=months.slice(0,currentMonth+1).map((m,i)=>{
+        const monthGrades=allGrades.filter(g=>{try{return new Date(g.created_at||g.date).getMonth()===i;}catch(e){return false;}});
+        return monthGrades.length>0?Math.round(monthGrades.reduce((s,g)=>s+(g.score||0),0)/monthGrades.length):0;
+    });
+    trendChart.setOption({
+        title:{text:'班级成绩趋势',left:'center',textStyle:{fontSize:14}},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'category',data:months.slice(0,currentMonth+1)},
+        yAxis:{type:'value',min:0,max:100},
+        series:[{data:trendData,type:'line',smooth:true,itemStyle:{color:'#1890ff'},areaStyle:{color:'rgba(24,144,255,0.1)'}}]
+    });
+    // 各科平均分柱状图
+    const subjChart=echarts.init(document.getElementById('chartSubjectAvg'));
+    const subjectScores={};
+    allGrades.forEach(g=>{const subj=g.exam_name||'其他';if(!subjectScores[subj])subjectScores[subj]=[];subjectScores[subj].push(g.score||0);});
+    const subjNames=Object.keys(subjectScores).slice(0,6);
+    const subjAvgs=subjNames.map(s=>Math.round(subjectScores[s].reduce((a,b)=>a+b,0)/subjectScores[s].length));
+    subjChart.setOption({
+        title:{text:'各科平均分',left:'center',textStyle:{fontSize:14}},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'category',data:subjNames,axisLabel:{rotate:30,fontSize:10}},
+        yAxis:{type:'value',min:0,max:100},
+        series:[{data:subjAvgs,type:'bar',itemStyle:{color:'#52c41a'},barWidth:'50%'}]
+    });
+    window.addEventListener('resize',()=>{trendChart.resize();subjChart.resize();});
+}
+
+// ===== 操作审计日志 =====
+let opLogCurrentPage=1;
+async function loadOperationLogs(page=1){
+    opLogCurrentPage=page;
+    const tb=document.getElementById('operationLogsTableBody');
+    if(!tb)return;
+    const search=document.getElementById('opLogSearch')?document.getElementById('opLogSearch').value:'';
+    tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">加载中...</td></tr>';
+    try{
+        const res=await fetch('/api/operation-logs?operation='+encodeURIComponent(search)+'&page='+page+'&size=50',{headers:{'Authorization':'Bearer '+localStorage.getItem('skt_token')}});
+        const data=await res.json();
+        if(data.code===200&&data.data){
+            if(data.data.length===0){
+                tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">暂无操作日志</td></tr>';
+            }else{
+                tb.innerHTML=data.data.map(log=>`<tr>
+                    <td style="font-size:12px;">${log.created_at||''}</td>
+                    <td>${escapeHtml(log.username||'')}</td>
+                    <td><span style="background:${log.role==='admin'?'#fff3e0':log.role==='teacher'?'#e3f2fd':'#f3e5f5'};color:${log.role==='admin'?'#e65100':log.role==='teacher'?'#1565c0':'#6a1b9a'};padding:2px 8px;border-radius:4px;font-size:11px;">${log.role||''}</span></td>
+                    <td>${escapeHtml(log.operation||'')}</td>
+                    <td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(log.detail||'')}">${escapeHtml(log.detail||'')}</td>
+                    <td style="font-size:11px;color:#999;">${log.ip||'-'}</td>
+                </tr>`).join('');
+            }
+            const totalPages=Math.ceil(data.total/50);
+            document.getElementById('opLogPager').textContent='共 '+data.total+' 条记录，第 '+page+'/'+totalPages+' 页';
+        }else{
+            tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#f44336;">加载失败</td></tr>';
+        }
+    }catch(e){
+        tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#f44336;">加载失败：'+e.message+'</td></tr>';
+    }
+}
+
+// ===== 请假审批 =====
+async function loadLeaveRequests(){
+    const tb=document.getElementById('leaveRequestsTableBody');
+    if(!tb)return;
+    const status=document.getElementById('leaveFilterStatus')?document.getElementById('leaveFilterStatus').value:'';
+    tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">加载中...</td></tr>';
+    try{
+        const res=await fetch('/api/leave-requests?status='+encodeURIComponent(status),{headers:{'Authorization':'Bearer '+localStorage.getItem('skt_token')}});
+        const data=await res.json();
+        if(data.code===200&&data.data){
+            if(data.data.length===0){
+                tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">暂无请假申请</td></tr>';
+            }else{
+                const isTeacher=apiService&&apiService.isTeacher&&apiService.isTeacher();
+                tb.innerHTML=data.data.map(lr=>{
+                    const statusBadge=lr.status==='approved'?'<span style="background:#f6ffed;color:#52c41a;padding:2px 8px;border-radius:4px;font-size:12px;">已批准</span>':
+                        lr.status==='rejected'?'<span style="background:#fff2f0;color:#ff4d4f;padding:2px 8px;border-radius:4px;font-size:12px;">已拒绝</span>':
+                        '<span style="background:#fffbe6;color:#faad14;padding:2px 8px;border-radius:4px;font-size:12px;">待审批</span>';
+                    const typeMap={sick:'病假',personal:'事假',other:'其他'};
+                    let actions='';
+                    if(isTeacher&&lr.status==='pending'){
+                        actions=`<button class="btn btn-sm btn-success" style="margin-right:4px;" onclick="approveLeave(${lr.id},true)">批准</button>
+                            <button class="btn btn-sm btn-danger" onclick="approveLeave(${lr.id},false)">拒绝</button>`;
+                    }else if(lr.approve_comment){
+                        actions='<span style="font-size:12px;color:#999;">'+escapeHtml(lr.approve_comment)+'</span>';
+                    }
+                    return `<tr>
+                        <td>${escapeHtml(lr.student_name||'')}</td>
+                        <td>${escapeHtml(lr.class_name||'')}</td>
+                        <td>${lr.leave_date||''}</td>
+                        <td>${typeMap[lr.leave_type]||lr.leave_type||'其他'}</td>
+                        <td style="font-size:12px;max-width:200px;">${escapeHtml(lr.reason||'')}</td>
+                        <td>${statusBadge}</td>
+                        <td style="font-size:12px;">${lr.created_at||''}</td>
+                        <td>${actions}</td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+    }catch(e){
+        tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:#f44336;">加载失败：'+e.message+'</td></tr>';
+    }
+}
+
+async function approveLeave(id,approved){
+    const comment=prompt(approved?'请输入批准意见（可选）':'请输入拒绝原因（可选）','');
+    if(comment===null)return;
+    try{
+        const res=await fetch('/api/leave-requests/'+id+'/approve',{
+            method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('skt_token')},
+            body:JSON.stringify({approved:approved,comment:comment})
+        });
+        const data=await res.json();
+        if(data.code===200){showToast(data.msg||'操作成功','success');loadLeaveRequests();}
+        else{showToast(data.msg||'操作失败','error');}
+    }catch(e){showToast('操作失败：'+e.message,'error');}
+}
+
+function openLeaveSubmitModal(){
+    const students=apiService&&apiService.user&&apiService.user.role==='parent'?(appData.parentInfo&&appData.parentInfo.children||[]):[];
+    const studentOptions=students.map(s=>`<option value="${s.id}" data-class="${s.class_id||''}" data-classname="${escapeAttr(s.class_name||'')}">${escapeHtml(s.name||'')}</option>`).join('');
+    const modalHtml=`<div id="leaveSubmitModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:8px;padding:24px;width:420px;max-width:90%;">
+            <h3 style="margin:0 0 16px;">提交请假申请</h3>
+            <div style="margin-bottom:12px;"><label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">学生</label><select class="form-control" id="leaveStudent">${studentOptions}</select></div>
+            <div style="margin-bottom:12px;"><label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">请假日期</label><input type="date" class="form-control" id="leaveDate"></div>
+            <div style="margin-bottom:12px;"><label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">请假类型</label><select class="form-control" id="leaveType"><option value="sick">病假</option><option value="personal">事假</option><option value="other">其他</option></select></div>
+            <div style="margin-bottom:16px;"><label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">请假原因</label><textarea class="form-control" id="leaveReason" rows="3" placeholder="请详细描述请假原因"></textarea></div>
+            <div style="text-align:right;"><button class="btn btn-secondary" style="margin-right:8px;" onclick="document.getElementById('leaveSubmitModal').remove()">取消</button><button class="btn btn-primary" onclick="submitLeaveRequest()">提交</button></div>
+        </div></div>`;
+    document.body.insertAdjacentHTML('beforeend',modalHtml);
+}
+
+async function submitLeaveRequest(){
+    const sel=document.getElementById('leaveStudent');
+    const studentId=sel.value;
+    const studentName=sel.options[sel.selectedIndex].text;
+    const classId=sel.options[sel.selectedIndex].dataset.class;
+    const className=sel.options[sel.selectedIndex].dataset.classname;
+    const leaveDate=document.getElementById('leaveDate').value;
+    const leaveType=document.getElementById('leaveType').value;
+    const reason=document.getElementById('leaveReason').value;
+    if(!studentId||!leaveDate||!reason){showToast('请填写完整信息','error');return;}
+    try{
+        const res=await fetch('/api/leave-requests',{
+            method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('skt_token')},
+            body:JSON.stringify({studentId:parseInt(studentId),studentName:studentName,classId:parseInt(classId)||null,className:className,leaveDate:leaveDate,leaveType:leaveType,reason:reason})
+        });
+        const data=await res.json();
+        if(data.code===200){showToast(data.msg||'提交成功','success');document.getElementById('leaveSubmitModal').remove();loadLeaveRequests();}
+        else{showToast(data.msg||'提交失败','error');}
+    }catch(e){showToast('提交失败：'+e.message,'error');}
 }
 
 function loadClasses(){

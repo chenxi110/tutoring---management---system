@@ -46,7 +46,46 @@ public class HomeworkService {
     }
 
     public void grade(Long submissionId, Double score, String comment) {
-        jdbc.update("UPDATE homework_submissions SET score=?, comment=? WHERE id=?",
-            score, comment != null ? comment : "", submissionId);
+        String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        jdbc.update("UPDATE homework_submissions SET score=?, comment=?, graded_at=? WHERE id=?",
+            score, comment != null ? comment : "", now, submissionId);
+
+        // 同步成绩到grades表
+        try {
+            List<Map<String, Object>> subs = jdbc.queryForList(
+                "SELECT hs.*, h.title as homework_title, h.class_id, c.name as class_name, c.teacher_id " +
+                "FROM homework_submissions hs " +
+                "LEFT JOIN homework h ON h.id=hs.homework_id " +
+                "LEFT JOIN classes c ON c.id=h.class_id " +
+                "WHERE hs.id=?", submissionId);
+            if (!subs.isEmpty()) {
+                Map<String, Object> sub = subs.get(0);
+                Long studentId = sub.get("student_id") != null ? ((Number) sub.get("student_id")).longValue() : null;
+                String studentName = (String) sub.get("student_name");
+                Long classId = sub.get("class_id") != null ? ((Number) sub.get("class_id")).longValue() : null;
+                String className = (String) sub.get("class_name");
+                String homeworkTitle = (String) sub.get("homework_title");
+                Long teacherId = sub.get("teacher_id") != null ? ((Number) sub.get("teacher_id")).longValue() : null;
+
+                if (studentId != null && classId != null) {
+                    String examName = "作业:" + (homeworkTitle != null ? homeworkTitle : "未命名");
+                    // 检查是否已存在该学生该作业的成绩记录
+                    List<Map<String, Object>> existing = jdbc.queryForList(
+                        "SELECT id FROM grades WHERE student_id=? AND exam_name=? AND class_id=?",
+                        studentId, examName, classId);
+                    if (!existing.isEmpty()) {
+                        Long gradeId = ((Number) existing.get(0).get("id")).longValue();
+                        jdbc.update("UPDATE grades SET score=?, remark=?, teacher_id=? WHERE id=?",
+                            score, comment != null ? comment : "", teacherId, gradeId);
+                    } else {
+                        jdbc.update(
+                            "INSERT INTO grades (student_id, student_name, class_id, class_name, exam_name, exam_type, score, total_score, teacher_id, remark) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                            studentId, studentName, classId, className, examName, "homework", score, 100.0, teacherId, comment != null ? comment : "");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 成绩同步失败不影响批改主流程
+        }
     }
 }

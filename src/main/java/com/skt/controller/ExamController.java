@@ -95,4 +95,29 @@ public class ExamController {
         }
         return examService.submitExam(examCode, studentId, studentName, answersJson, score);
     }
+
+    // 教师手动阅卷（主观题打分）
+    @PostMapping("/submissions/{id}/grade")
+    public Map<String, Object> gradeSubmission(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师/管理员可阅卷");
+        }
+        Double teacherScore = body.get("teacherScore") != null ? ((Number) body.get("teacherScore")).doubleValue() : null;
+        String comment = body.get("comment") != null ? body.get("comment").toString() : null;
+        return examService.gradeSubmission(id, teacherScore, comment);
+    }
+
+    // 获取考试提交列表
+    @GetMapping("/{examId}/submissions")
+    public Map<String, Object> listSubmissions(@PathVariable Long examId, HttpServletRequest req) {
+        Map<String, Object> r = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            r.put("code", 403);
+            r.put("msg", "仅教师/管理员可查看提交列表");
+            return r;
+        }
+        r.put("code", 200);
+        r.put("data", examService.listSubmissions(examId));
+        return r;
+    }
 }
