@@ -1,0 +1,52 @@
+# ============================================================
+# 上课通教学管理系统 - Zeabur 部署配置
+# 文档：https://docs.zeabur.com/deploy/docker-compose
+# ============================================================
+
+# Zeabur 会自动识别项目根目录的 docker-compose.yml
+# 本文件用于声明服务依赖关系和环境变量
+# 实际部署配置请参考 docker-compose.yml
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    env:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: skt_db
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot 应用服务
+  app:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/skt_db?useSSL=false&serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_general_ci&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      TZ: Asia/Shanghai
+    ports:
+      - 8081
+    volumes:
+      - upload_data:/app/upload/courseFile
+
+volumes:
+  mysql_data:
+  upload_data:
