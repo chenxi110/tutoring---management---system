@@ -58,3 +58,49 @@ dump_front.py
 analyze_doc.py
 analyze_front.py
 
+# 临时截图/录屏（根目录散落的截图）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+!src/main/resources/static/**/*.png
+!src/main/resources/static/**/*.jpg
+!demo-resources/**/*.png
+!demo-resources/**/*.jpg
+
+# 临时导出文件
+*.pdf
+*.xlsx
+*.xls
+*.docx
+*.doc
+!doc-graduation-design/**/*.pdf
+!doc-graduation-design/**/*.xlsx
+!doc-graduation-design/**/*.docx
+!demo-resources/**/*.xlsx
+!demo-resources/**/*.pdf
+
+# 临时文本/草稿
+*.tmp
+*.bak
+*.backup
+*-old.*
+*-备份.*
+*_v1.*
+*_旧版.*
+草稿*.md
+临时*.md
+debug*.txt
+
+# 本地日志目录
+logs/
+*.log.*
+
+# Maven本地配置
+settings.xml
+
+# 开机自启动临时文件
+*.vbs
+!doc-graduation-design/**/*.vbs
+

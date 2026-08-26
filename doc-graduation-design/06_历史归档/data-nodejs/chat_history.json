@@ -1,0 +1,408 @@
+[
+  {
+    "id": "1784454216545",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "??,??????????",
+    "timestamp": "2026-07-19T09:43:36.545Z"
+  },
+  {
+    "id": "1784454216546",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "AI响应错误",
+    "timestamp": "2026-07-19T09:43:36.545Z"
+  },
+  {
+    "id": "1784454451262",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "??,??????????",
+    "timestamp": "2026-07-19T09:47:31.262Z"
+  },
+  {
+    "id": "1784454451264",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "这是一个很好的问题，让我为您详细解答...\n\n💡 如果您需要更详细的回答，请配置一个付费AI提供商或添加相关知识到知识库中。",
+    "timestamp": "2026-07-19T09:47:31.263Z"
+  },
+  {
+    "id": "1784454461007",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "???????",
+    "timestamp": "2026-07-19T09:47:41.007Z"
+  },
+  {
+    "id": "1784454461008",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "我理解您的需求，让我想想最佳方案...\n\n💡 如果您需要更详细的回答，请配置一个付费AI提供商或添加相关知识到知识库中。",
+    "timestamp": "2026-07-19T09:47:41.007Z"
+  },
+  {
+    "id": "1784454472712",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "?????",
+    "timestamp": "2026-07-19T09:47:52.712Z"
+  },
+  {
+    "id": "1784454472713",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "根据我的知识库，关于这个主题有以下信息...\n\n💡 如果您需要更详细的回答，请配置一个付费AI提供商或添加相关知识到知识库中。",
+    "timestamp": "2026-07-19T09:47:52.712Z"
+  },
+  {
+    "id": "1784454484992",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "hello",
+    "timestamp": "2026-07-19T09:48:04.992Z"
+  },
+  {
+    "id": "1784454484993",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "你好！我是您的智能助教助手，可以帮助您生成试题、管理知识库、解答问题。请问有什么可以帮助您的？",
+    "timestamp": "2026-07-19T09:48:04.992Z"
+  },
+  {
+    "id": "1784454495854",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "????",
+    "timestamp": "2026-07-19T09:48:15.854Z"
+  },
+  {
+    "id": "1784454495855",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "这是一个很好的问题，让我为您详细解答...\n\n💡 如果您需要更详细的回答，请配置一个付费AI提供商或添加相关知识到知识库中。",
+    "timestamp": "2026-07-19T09:48:15.854Z"
+  },
+  {
+    "id": "1784454507490",
+    "sessionId": "test123",
+    "role": "user",
+    "content": "??????",
+    "timestamp": "2026-07-19T09:48:27.490Z"
+  },
+  {
+    "id": "1784454507491",
+    "sessionId": "test123",
+    "role": "assistant",
+    "content": "让我帮您整理一下思路...\n\n💡 如果您需要更详细的回答，请配置一个付费AI提供商或添加相关知识到知识库中。",
+    "timestamp": "2026-07-19T09:48:27.490Z"
+  },
+  {
+    "id": "1785031879776",
+    "sessionId": "test_session_1",
+    "role": "user",
+    "content": "??",
+    "timestamp": "2026-07-26T02:11:19.776Z"
+  },
+  {
+    "id": "1785031879777",
+    "sessionId": "test_session_1",
+    "role": "assistant",
+    "content": "抱歉，我暂时无法准确回答这个问题。\n\n🔍 您可以：\n1. 在\"知识库\"中添加相关知识\n2. 配置外部AI服务获取更强大的问答能力\n3. 尝试问我一些教学相关的问题\n\n常见问题示例：\n• \"帮我出一道数学题\"\n• \"如何管理课堂纪律\"\n• \"Python循环怎么用\"\n• \"有什么好的学习方法\"",
+    "timestamp": "2026-07-26T02:11:19.776Z"
+  },
+  {
+    "id": "1785031891947",
+    "sessionId": "test_session_2",
+    "role": "user",
+    "content": "????????",
+    "timestamp": "2026-07-26T02:11:31.947Z"
+  },
+  {
+    "id": "1785031891948",
+    "sessionId": "test_session_2",
+    "role": "assistant",
+    "content": "我理解您的问题。作为一个本地AI助手，我擅长处理教学相关的问题。\n\n📚 我可以帮您：\n• 生成各类试题\n• 解答教学方法问题\n• 提供学习建议\n• 回答编程基础问题\n\n请尝试更具体地描述您的问题！",
+    "timestamp": "2026-07-26T02:11:31.947Z"
+  },
+  {
+    "id": "1785031951452",
+    "sessionId": "test_session_3",
+    "role": "user",
+    "content": "??",
+    "timestamp": "2026-07-26T02:12:31.452Z"
+  },
+  {
+    "id": "1785031951453",
+    "sessionId": "test_session_3",
+    "role": "assistant",
+    "content": "抱歉，我暂时无法准确回答这个问题。\n\n🔍 您可以：\n1. 在\"知识库\"中添加相关知识\n2. 配置外部AI服务获取更强大的问答能力\n3. 尝试问我一些教学相关的问题\n\n常见问题示例：\n• \"帮我出一道数学题\"\n• \"如何管理课堂纪律\"\n• \"Python循环怎么用\"\n• \"有什么好的学习方法\"",
+    "timestamp": "2026-07-26T02:12:31.452Z"
+  },
+  {
+    "id": "1785032006584",
+    "sessionId": "test_001",
+    "role": "user",
+    "content": "你好",
+    "timestamp": "2026-07-26T02:13:26.584Z"
+  },
+  {
+    "id": "1785032006585",
+    "sessionId": "test_001",
+    "role": "assistant",
+    "content": "你好！我是您的智能助教助手 🤖\n\n我可以帮您：\n• 📝 生成试题和练习题\n• 📚 管理和查询知识库\n• 💡 解答教学相关问题\n• 📊 提供教学建议\n\n请问有什么可以帮助您的？",
+    "timestamp": "2026-07-26T02:13:26.584Z"
+  },
+  {
+    "id": "1785032006589",
+    "sessionId": "test_002",
+    "role": "user",
+    "content": "帮我出一道数学题",
+    "timestamp": "2026-07-26T02:13:26.589Z"
+  },
+  {
+    "id": "1785032006590",
+    "sessionId": "test_002",
+    "role": "assistant",
+    "content": "📚 数学学习建议：\n\n1. **基础练习**：每天坚持15-20分钟的计算题训练\n2. **错题本**：记录做错的题目，定期回顾\n3. **理解概念**：不仅要会算，还要理解原理\n4. **举一反三**：做一道题，学会一类题\n\n💡 需要生成数学练习题吗？告诉我具体主题（如：分数、方程、几何）",
+    "timestamp": "2026-07-26T02:13:26.589Z"
+  },
+  {
+    "id": "1785032006610",
+    "sessionId": "test_003",
+    "role": "user",
+    "content": "Python循环怎么用",
+    "timestamp": "2026-07-26T02:13:26.610Z"
+  },
+  {
+    "id": "1785032006611",
+    "sessionId": "test_003",
+    "role": "assistant",
+    "content": "💻 **编程学习小贴士**\n\n**Python 基础概念：**\n\n**1. 变量：** 存储数据的容器\n```python\nname = \"张三\"\nage = 15\nprint(f\"{name}今年{age}岁\")\n```\n\n**2. 循环：** 重复执行代码\n```python\nfor i in range(5):\n    print(f\"第{i+1}次循环\")\n```\n\n**3. 函数：** 可复用的代码块\n```python\ndef greet(name):\n    return f\"你好，{name}！\"\n\nprint(greet(\"同学\"))\n```\n\n💡 想要学习更多编程知识吗？可以告诉我你想了解的具体内容",
+    "timestamp": "2026-07-26T02:13:26.610Z"
+  },
+  {
+    "id": "1785032006679",
+    "sessionId": "test_004",
+    "role": "user",
+    "content": "现在几点了",
+    "timestamp": "2026-07-26T02:13:26.679Z"
+  },
+  {
+    "id": "1785032006680",
+    "sessionId": "test_004",
+    "role": "assistant",
+    "content": "🕐 当前时间：2026/7/26 10:13:26\n\n📅 日期：2026年7月26日\n⏰ 时间：10时13分",
+    "timestamp": "2026-07-26T02:13:26.679Z"
+  },
+  {
+    "id": "1785032006684",
+    "sessionId": "test_conv",
+    "role": "user",
+    "content": "我想了解数学",
+    "timestamp": "2026-07-26T02:13:26.684Z"
+  },
+  {
+    "id": "1785032006685",
+    "sessionId": "test_conv",
+    "role": "assistant",
+    "content": "📚 数学学习建议：\n\n1. **基础练习**：每天坚持15-20分钟的计算题训练\n2. **错题本**：记录做错的题目，定期回顾\n3. **理解概念**：不仅要会算，还要理解原理\n4. **举一反三**：做一道题，学会一类题\n\n💡 需要生成数学练习题吗？告诉我具体主题（如：分数、方程、几何）",
+    "timestamp": "2026-07-26T02:13:26.684Z"
+  },
+  {
+    "id": "1785032006692",
+    "sessionId": "test_conv",
+    "role": "user",
+    "content": "那有什么学习技巧吗",
+    "timestamp": "2026-07-26T02:13:26.692Z"
+  },
+  {
+    "id": "1785032006693",
+    "sessionId": "test_conv",
+    "role": "assistant",
+    "content": "📚 **教学管理建议**\n\n**1. 课堂管理技巧：**\n• 建立明确的课堂规则\n• 使用多样化的教学方法\n• 适时给予学生正向反馈\n• 保持课堂节奏紧凑\n\n**2. 学生激励方法：**\n• 设立合理的奖励机制\n• 关注每个学生的进步\n• 创造良性竞争环境\n• 培养学生的学习兴趣\n\n**3. 家校沟通：**\n• 定期与家长沟通学生情况\n• 组织家长会和开放日\n• 建立家长微信群/QQ群\n• 共同关注学生成长\n\n💡 更多教学资源可以在\"知识库\"中查找",
+    "timestamp": "2026-07-26T02:13:26.692Z"
+  },
+  {
+    "id": "1785032115429",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "你好",
+    "timestamp": "2026-07-26T02:15:15.429Z"
+  },
+  {
+    "id": "1785032115430",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "你好！我是您的智能助教助手 🤖\n\n我可以帮您：\n• 📝 生成试题和练习题\n• 📚 管理和查询知识库\n• 💡 解答教学相关问题\n• 📊 提供教学建议\n\n请问有什么可以帮助您的？",
+    "timestamp": "2026-07-26T02:15:15.429Z"
+  },
+  {
+    "id": "1785032115436",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "帮我出一道数学题",
+    "timestamp": "2026-07-26T02:15:15.436Z"
+  },
+  {
+    "id": "1785032115437",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "📚 数学学习建议：\n\n1. **基础练习**：每天坚持15-20分钟的计算题训练\n2. **错题本**：记录做错的题目，定期回顾\n3. **理解概念**：不仅要会算，还要理解原理\n4. **举一反三**：做一道题，学会一类题\n\n💡 需要生成数学练习题吗？告诉我具体主题（如：分数、方程、几何）",
+    "timestamp": "2026-07-26T02:15:15.436Z"
+  },
+  {
+    "id": "1785032115450",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "Python循环怎么用",
+    "timestamp": "2026-07-26T02:15:15.450Z"
+  },
+  {
+    "id": "1785032115451",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "💻 **编程学习小贴士**\n\n**Python 基础概念：**\n\n**1. 变量：** 存储数据的容器\n```python\nname = \"张三\"\nage = 15\nprint(f\"{name}今年{age}岁\")\n```\n\n**2. 循环：** 重复执行代码\n```python\nfor i in range(5):\n    print(f\"第{i+1}次循环\")\n```\n\n**3. 函数：** 可复用的代码块\n```python\ndef greet(name):\n    return f\"你好，{name}！\"\n\nprint(greet(\"同学\"))\n```\n\n💡 想要学习更多编程知识吗？可以告诉我你想了解的具体内容",
+    "timestamp": "2026-07-26T02:15:15.450Z"
+  },
+  {
+    "id": "1785032115457",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "如何管理课堂纪律",
+    "timestamp": "2026-07-26T02:15:15.457Z"
+  },
+  {
+    "id": "1785032115458",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "📚 **教学管理建议**\n\n**1. 课堂管理技巧：**\n• 建立明确的课堂规则\n• 使用多样化的教学方法\n• 适时给予学生正向反馈\n• 保持课堂节奏紧凑\n\n**2. 学生激励方法：**\n• 设立合理的奖励机制\n• 关注每个学生的进步\n• 创造良性竞争环境\n• 培养学生的学习兴趣\n\n**3. 家校沟通：**\n• 定期与家长沟通学生情况\n• 组织家长会和开放日\n• 建立家长微信群/QQ群\n• 共同关注学生成长\n\n💡 更多教学资源可以在\"知识库\"中查找",
+    "timestamp": "2026-07-26T02:15:15.457Z"
+  },
+  {
+    "id": "1785032115464",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "有什么好的学习方法",
+    "timestamp": "2026-07-26T02:15:15.464Z"
+  },
+  {
+    "id": "1785032115465",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "📚 **教学管理建议**\n\n**1. 课堂管理技巧：**\n• 建立明确的课堂规则\n• 使用多样化的教学方法\n• 适时给予学生正向反馈\n• 保持课堂节奏紧凑\n\n**2. 学生激励方法：**\n• 设立合理的奖励机制\n• 关注每个学生的进步\n• 创造良性竞争环境\n• 培养学生的学习兴趣\n\n**3. 家校沟通：**\n• 定期与家长沟通学生情况\n• 组织家长会和开放日\n• 建立家长微信群/QQ群\n• 共同关注学生成长\n\n💡 更多教学资源可以在\"知识库\"中查找",
+    "timestamp": "2026-07-26T02:15:15.464Z"
+  },
+  {
+    "id": "1785032115482",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "现在几点了",
+    "timestamp": "2026-07-26T02:15:15.482Z"
+  },
+  {
+    "id": "1785032115483",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "🕐 当前时间：2026/7/26 10:15:15\n\n📅 日期：2026年7月26日\n⏰ 时间：10时15分",
+    "timestamp": "2026-07-26T02:15:15.482Z"
+  },
+  {
+    "id": "1785032115485",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "谢谢你",
+    "timestamp": "2026-07-26T02:15:15.485Z"
+  },
+  {
+    "id": "1785032115486",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "不客气！😊 很高兴能帮助您。如果还有其他问题，随时可以问我！",
+    "timestamp": "2026-07-26T02:15:15.485Z"
+  },
+  {
+    "id": "1785032115506",
+    "sessionId": "intent_test",
+    "role": "user",
+    "content": "再见",
+    "timestamp": "2026-07-26T02:15:15.506Z"
+  },
+  {
+    "id": "1785032115507",
+    "sessionId": "intent_test",
+    "role": "assistant",
+    "content": "再见！👋 祝您教学顺利，学生进步！",
+    "timestamp": "2026-07-26T02:15:15.506Z"
+  },
+  {
+    "id": "1785032115513",
+    "sessionId": "multi_turn_test",
+    "role": "user",
+    "content": "我想学习编程",
+    "timestamp": "2026-07-26T02:15:15.513Z"
+  },
+  {
+    "id": "1785032115514",
+    "sessionId": "multi_turn_test",
+    "role": "assistant",
+    "content": "💻 **编程学习小贴士**\n\n**Python 基础概念：**\n\n**1. 变量：** 存储数据的容器\n```python\nname = \"张三\"\nage = 15\nprint(f\"{name}今年{age}岁\")\n```\n\n**2. 循环：** 重复执行代码\n```python\nfor i in range(5):\n    print(f\"第{i+1}次循环\")\n```\n\n**3. 函数：** 可复用的代码块\n```python\ndef greet(name):\n    return f\"你好，{name}！\"\n\nprint(greet(\"同学\"))\n```\n\n💡 想要学习更多编程知识吗？可以告诉我你想了解的具体内容",
+    "timestamp": "2026-07-26T02:15:15.513Z"
+  },
+  {
+    "id": "1785032115521",
+    "sessionId": "multi_turn_test",
+    "role": "user",
+    "content": "那Python难学吗",
+    "timestamp": "2026-07-26T02:15:15.521Z"
+  },
+  {
+    "id": "1785032115522",
+    "sessionId": "multi_turn_test",
+    "role": "assistant",
+    "content": "💻 **编程学习小贴士**\n\n**Python 基础概念：**\n\n**1. 变量：** 存储数据的容器\n```python\nname = \"张三\"\nage = 15\nprint(f\"{name}今年{age}岁\")\n```\n\n**2. 循环：** 重复执行代码\n```python\nfor i in range(5):\n    print(f\"第{i+1}次循环\")\n```\n\n**3. 函数：** 可复用的代码块\n```python\ndef greet(name):\n    return f\"你好，{name}！\"\n\nprint(greet(\"同学\"))\n```\n\n💡 想要学习更多编程知识吗？可以告诉我你想了解的具体内容",
+    "timestamp": "2026-07-26T02:15:15.521Z"
+  },
+  {
+    "id": "1785032115535",
+    "sessionId": "kb_test",
+    "role": "user",
+    "content": "教学方法",
+    "timestamp": "2026-07-26T02:15:15.535Z"
+  },
+  {
+    "id": "1785032115536",
+    "sessionId": "kb_test",
+    "role": "assistant",
+    "content": "📚 **教学管理建议**\n\n**1. 课堂管理技巧：**\n• 建立明确的课堂规则\n• 使用多样化的教学方法\n• 适时给予学生正向反馈\n• 保持课堂节奏紧凑\n\n**2. 学生激励方法：**\n• 设立合理的奖励机制\n• 关注每个学生的进步\n• 创造良性竞争环境\n• 培养学生的学习兴趣\n\n**3. 家校沟通：**\n• 定期与家长沟通学生情况\n• 组织家长会和开放日\n• 建立家长微信群/QQ群\n• 共同关注学生成长\n\n💡 更多教学资源可以在\"知识库\"中查找",
+    "timestamp": "2026-07-26T02:15:15.535Z"
+  },
+  {
+    "id": "1785032115538",
+    "sessionId": "md_test",
+    "role": "user",
+    "content": "讲一下变量",
+    "timestamp": "2026-07-26T02:15:15.538Z"
+  },
+  {
+    "id": "1785032115539",
+    "sessionId": "md_test",
+    "role": "assistant",
+    "content": "💻 **编程学习小贴士**\n\n**Python 基础概念：**\n\n**1. 变量：** 存储数据的容器\n```python\nname = \"张三\"\nage = 15\nprint(f\"{name}今年{age}岁\")\n```\n\n**2. 循环：** 重复执行代码\n```python\nfor i in range(5):\n    print(f\"第{i+1}次循环\")\n```\n\n**3. 函数：** 可复用的代码块\n```python\ndef greet(name):\n    return f\"你好，{name}！\"\n\nprint(greet(\"同学\"))\n```\n\n💡 想要学习更多编程知识吗？可以告诉我你想了解的具体内容",
+    "timestamp": "2026-07-26T02:15:15.538Z"
+  },
+  {
+    "id": "1787140654724",
+    "sessionId": "session_1787140654565",
+    "role": "user",
+    "content": "📝 帮我出一道数学题",
+    "timestamp": "2026-08-19T11:57:34.724Z"
+  },
+  {
+    "id": "1787140654725",
+    "sessionId": "session_1787140654565",
+    "role": "assistant",
+    "content": "📚 数学学习建议：\n\n1. **基础练习**：每天坚持15-20分钟的计算题训练\n2. **错题本**：记录做错的题目，定期回顾\n3. **理解概念**：不仅要会算，还要理解原理\n4. **举一反三**：做一道题，学会一类题\n\n💡 需要生成数学练习题吗？告诉我具体主题（如：分数、方程、几何）",
+    "timestamp": "2026-08-19T11:57:34.724Z"
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1784454068185,
+    "provider": "freegpt",
+    "apiKey": "free",
+    "model": "gpt-3.5-turbo",
+    "baseUrl": "",
+    "active": 0,
+    "createdAt": "2026-07-19T09:41:08.185Z"
+  },
+  {
+    "id": 1784454206899,
+    "provider": "freechat",
+    "apiKey": "free",
+    "model": "deepseek-chat",
+    "baseUrl": "",
+    "active": 0,
+    "createdAt": "2026-07-19T09:43:26.899Z"
+  },
+  {
+    "id": 1784454309737,
+    "provider": "doubao-free",
+    "apiKey": "free",
+    "model": "doubao-pro",
+    "baseUrl": "",
+    "active": 1,
+    "createdAt": "2026-07-19T09:45:09.737Z"
+  }
+]
