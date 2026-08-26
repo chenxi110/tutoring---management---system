@@ -232,12 +232,10 @@ public class ExamService {
                     if ("single".equals(qType) || "truefalse".equals(qType) || "multiple".equals(qType)) {
                         if (correctAnswer != null && studentAnswer != null) {
                             if ("multiple".equals(qType)) {
-                                // 多选题：答案数组对比
+                                // 多选题：部分得分规则（选对部分得比例分，错选/多选得0分）
                                 List<?> correctList = correctAnswer instanceof List ? (List<?>) correctAnswer : Arrays.asList(correctAnswer.toString().split(","));
                                 List<?> studentList = studentAnswer instanceof List ? (List<?>) studentAnswer : Arrays.asList(studentAnswer.toString().split(","));
-                                if (correctList.size() == studentList.size() && correctList.containsAll(studentList)) {
-                                    autoScore += qScore;
-                                }
+                                autoScore += calculateMultipleChoiceScore(correctList, studentList, qScore);
                             } else {
                                 if (correctAnswer.toString().equals(studentAnswer.toString())) {
                                     autoScore += qScore;
@@ -332,5 +330,33 @@ public class ExamService {
     public List<Map<String, Object>> listSubmissions(Long examId) {
         return jdbc.queryForList(
             "SELECT * FROM exam_submission WHERE exam_id=? ORDER BY submitted_at DESC", examId);
+    }
+
+    /**
+     * 多选题部分得分计算
+     * 规则：选对部分得对应比例分，错选/多选得0分
+     * 示例：正确选项ABC（2分），选AB得1分，选A得0.5分，选AD得0分
+     * @param correctList 正确选项列表
+     * @param studentList 学生答案列表
+     * @param fullScore 题目满分
+     * @return 得分
+     */
+    public static double calculateMultipleChoiceScore(List<?> correctList, List<?> studentList, double fullScore) {
+        if (correctList == null || correctList.isEmpty() || studentList == null || studentList.isEmpty()) {
+            return 0;
+        }
+        Set<Object> correctSet = new HashSet<>(correctList);
+        for (Object ans : studentList) {
+            if (!correctSet.contains(ans)) {
+                return 0;
+            }
+        }
+        int correctCount = 0;
+        for (Object ans : studentList) {
+            if (correctSet.contains(ans)) {
+                correctCount++;
+            }
+        }
+        return Math.round((correctCount * fullScore / correctList.size()) * 100.0) / 100.0;
     }
 }

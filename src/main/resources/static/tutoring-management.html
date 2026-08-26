@@ -1803,11 +1803,11 @@ async function loadAppDataFromServer() {
                 safeSetLocalStorage('tutoringAppData', JSON.stringify(appData));
                 createLocalBackup();
             } catch(e) { /* 缓存保存失败不影响主流程 */ }
-            console.log('[InitData] 从服务器加载数据成功');
+
             return true;
         }
     } catch (e) {
-        console.warn('[InitData] 服务器加载失败，回退到本地缓存:', e.message);
+
     }
     return false;
 }
@@ -1822,10 +1822,10 @@ function loadAppDataFromLocal(key) {
     if (!s) return false;
     try {
         appData = JSON.parse(s);
-        console.log(`[InitData] 从 ${key} 加载数据成功`);
+
         return true;
     } catch (e) {
-        console.error(`[InitData] ${key} JSON解析失败:`, e);
+
         return false;
     }
 }
@@ -2009,7 +2009,7 @@ async function initData() {
         initSemesterSelector();
         
     } catch (e) {
-        console.error('initData失败:', e);
+
         throw e;
     }
 }
@@ -2222,7 +2222,7 @@ function navigateTo(page){
             document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');});
             targetPage.classList.add('active');
         }else{
-            console.warn(`页面 ${page} 不存在`);
+
         }
         
         // 更新页面标题
@@ -2281,7 +2281,7 @@ function navigateTo(page){
             try{
                 loader();
             }catch(e){
-                console.error(`加载页面 ${page} 失败:`,e.stack||e);
+
                 showToast(`页面加载异常: ${page}`,'error');
                 // 尝试在页面容器中显示错误提示，而非白屏
                 const pageEl=document.getElementById(`page-${page}`);
@@ -2290,10 +2290,10 @@ function navigateTo(page){
                 }
             }
         }else{
-            console.warn(`未知页面: ${page}`);
+
         }
     }catch(e){
-        console.error(`导航到 ${page} 失败:`,e);
+
         showToast(`页面加载失败: ${page}`,'error');
     }
 }
@@ -2363,7 +2363,7 @@ function startClassroomSession(){
             const className=selectedOption?selectedOption.textContent:cn;
             // 确保parentData已加载
             if(!window.parentData){
-                try{ if(window.DataSync)await DataSync.syncFromServer(); }catch(e){console.error('同步家长数据失败',e);}
+                try{ if(window.DataSync)await DataSync.syncFromServer(); }catch(e){}
             }
             const children=(window.parentData&&window.parentData.children)||[];
             const classChildren=children.filter(c=>String(c.class_id)===String(classId));
@@ -2555,7 +2555,7 @@ async function uploadTeacherFile(input){
                     }
                 }
                 if(notifiedParents.size>0)showToast(`已通知${notifiedParents.size}位家长`);
-            }catch(e){console.error('发送文件通知失败',e);}
+            }catch(e){}
         }else{
             showToast(res.error||'上传失败','error');
         }
@@ -2741,7 +2741,7 @@ function fetchStudentClassroomState(){
         }
         // 更新排行榜
         renderStudentLeaderboard(session);
-    }catch(e){console.error('拉取课堂状态失败',e);}
+    }catch(e){}
 }
 // 学生签到
 function renderStudentSignin(signin){
@@ -2784,7 +2784,7 @@ function studentDoSignin(){
         showToast('签到成功！+2积分','success');
         // 发送SSE通知教师端
         sendClassroomEvent('student_signin',{studentId:studentClassroomState.studentId,studentName:studentClassroomState.studentName,classId:studentClassroomState.classId});
-    }catch(e){showToast('签到失败','error');console.error(e);}
+    }catch(e){showToast('签到失败','error');}
 }
 // 学生举手
 function studentRaiseHand(){
@@ -2802,7 +2802,7 @@ function studentRaiseHand(){
         document.getElementById('studentRaiseHandBtn').textContent='✅ 已举手';
         document.getElementById('studentRaiseHandBtn').disabled=true;
         sendClassroomEvent('student_raisehand',{studentId:studentClassroomState.studentId,studentName:studentClassroomState.studentName,classId:studentClassroomState.classId});
-    }catch(e){showToast('举手失败','error');console.error(e);}
+    }catch(e){showToast('举手失败','error');}
 }
 // 学生分组
 function renderStudentGroup(group){
@@ -2878,7 +2878,7 @@ function studentSubmitQuiz(quizId){
         showToast(`提交成功！得分：${score}分，+${Math.floor(score/10)}积分`,'success');
         document.getElementById('studentQuizArea').innerHTML=`<div style="text-align:center;padding:40px;"><div style="font-size:48px;margin-bottom:20px;">✅</div><div style="font-size:20px;font-weight:600;color:#52c41a;">提交成功！</div><div style="font-size:16px;color:#666;margin-top:10px;">本次得分：${score}分</div></div>`;
         sendClassroomEvent('student_quiz_submit',{studentId:studentClassroomState.studentId,studentName:studentClassroomState.studentName,classId:studentClassroomState.classId,quizId,score});
-    }catch(e){showToast('提交失败','error');console.error(e);}
+    }catch(e){showToast('提交失败','error');}
 }
 // 学生排行榜
 function renderStudentLeaderboard(session){
@@ -2915,7 +2915,7 @@ function sendClassroomEvent(eventType,data){
         const events=JSON.parse(localStorage.getItem(eventKey)||'[]');
         events.push(eventData);
         localStorage.setItem(eventKey,JSON.stringify(events));
-    }catch(e){console.error('发送课堂事件失败',e);}
+    }catch(e){}
 }
 // 教师端轮询学生事件
 function pollStudentClassroomEvents(){
@@ -2951,7 +2951,7 @@ function pollStudentClassroomEvents(){
         });
         // 清空已处理事件
         localStorage.setItem(eventKey,'[]');
-    }catch(e){console.error('处理学生事件失败',e);}
+    }catch(e){}
 }
 // 教师端保存课堂状态到localStorage（供学生端读取）
 function saveClassroomSessionToStorage(){
@@ -4360,20 +4360,20 @@ function initStudentHomeworkMode(){
 }
 function enterHomework(hwId){
     const name=document.getElementById('hwStudentName').value.trim();
-    if(!name){alert('请输入您的姓名');return;}
+    if(!name){showToast('请输入您的姓名','error');return;}
     document.getElementById('hwLogin').style.display='none';
     document.getElementById('hwSubmitPage').style.display='block';
 }
 function submitHomeworkAnswer(hwId){
     const name=document.getElementById('hwStudentName').value.trim();
-    if(!name){alert('请输入姓名');return;}
+    if(!name){showToast('请输入姓名','error');return;}
     const answerText=document.getElementById('hwAnswerText').value.trim();
-    if(!answerText){alert('请输入作业答案');return;}
+    if(!answerText){showToast('请输入作业答案','error');return;}
     // 读取附件（以 Base64 存储，限制总大小）
     const fileInput=document.getElementById('hwAttachment');
     const files=fileInput&&fileInput.files?Array.from(fileInput.files):[];
     if(files.length>0&&files.reduce((s,f)=>s+f.size,0)>5*1024*1024){
-        alert('附件总大小不能超过 5MB');return;
+        showToast('附件总大小不能超过5MB','error');return;
     }
     showLoading('正在提交作业...');
     const processFiles=(fileList,idx,results)=>{
@@ -4398,14 +4398,14 @@ function submitHomeworkAnswer(hwId){
 }
 function finishHomeworkSubmit(hwId,studentName,answerText,attachments){
     const data=JSON.parse(localStorage.getItem('tutoringAppData')||'{}');
-    if(!data.homework){hideLoading();alert('作业不存在');return;}
+    if(!data.homework){hideLoading();showToast('作业不存在','error');return;}
     const hw=data.homework.find(h=>h.id===hwId);
-    if(!hw){hideLoading();alert('作业不存在');return;}
+    if(!hw){hideLoading();showToast('作业不存在','error');return;}
     if(!hw.submissions)hw.submissions=[];
     // 去重：如果已提交且不允许重试，则阻止
     const existing=hw.submissions.find(s=>s.studentName===studentName);
     if(existing&&!hw.allowRetry){
-        hideLoading();alert('您已提交过此作业，且教师未开启重复作答');return;
+        hideLoading();showToast('您已提交过此作业，教师未开启重复作答','error');return;
     }
     if(existing&&hw.allowRetry){
         hw.submissions=hw.submissions.filter(s=>s.studentName!==studentName);
@@ -5070,7 +5070,7 @@ function loadDashboard(){
     // 异步从API获取更精确的下节课信息
     updateNextClassFromAPI();
     // 渲染数据可视化图表
-    setTimeout(()=>{try{renderDashboardCharts();}catch(e){console.error('图表渲染失败:',e);}},300);
+    setTimeout(()=>{try{renderDashboardCharts();}catch(e){}},300);
 }
 
 // 从API获取下节课（角色区分：教师看自己课表，家长看孩子课表）
@@ -6287,7 +6287,7 @@ function editStudent(cn,i,oldName){
                 apiService.updateStudent(sid,{name:cleaned,classId:getClassIdByName(cn)}).then(()=>{
                     delete appData.studentIds[key];
                     appData.studentIds[cn+'|'+cleaned]=sid;
-                }).catch(e=>console.warn('学生更新到服务器失败:',e.message));
+                }).catch(e=>);
             }
         }
     }
@@ -6308,12 +6308,12 @@ function deleteStudent(cn,i,name){
             if(sid){
                 apiService.deleteStudent(sid).then(()=>{
                     delete appData.studentIds[key];
-                }).catch(e=>console.warn('学生删除从服务器失败:',e.message));
+                }).catch(e=>);
             }
         }
     });
 }
-async function showBatchImport(cn){const names=prompt('批量导入学生姓名（每行一个）：');if(names){const nl=names.split(/[\n\r]/).map(s=>normalizeStudentNameInput(s)).filter(s=>s);if(nl.length>0){const students=getStudentsForClass(cn);let added=0;const newNames=[];nl.forEach(n=>{if(!students.includes(n)){students.push(n);added++;newNames.push(n);}});setStudentsForClass(cn,students);saveData();loadStudents();if(apiService.isLoggedIn()&&apiService.isTeacher()){const classId=getClassIdByName(cn);if(classId){for(const n of newNames){try{const res=await apiService.createStudent({name:n,classId:classId});if(res.code===200&&res.id){if(!appData.studentIds)appData.studentIds={};appData.studentIds[cn+'|'+n]=res.id;}}catch(e){console.warn('批量导入学生同步失败:',n,e.message);}}}}showToast(`添加了 ${added} 名学生`);}}}
+async function showBatchImport(cn){const names=prompt('批量导入学生姓名（每行一个）：');if(names){const nl=names.split(/[\n\r]/).map(s=>normalizeStudentNameInput(s)).filter(s=>s);if(nl.length>0){const students=getStudentsForClass(cn);let added=0;const newNames=[];nl.forEach(n=>{if(!students.includes(n)){students.push(n);added++;newNames.push(n);}});setStudentsForClass(cn,students);saveData();loadStudents();if(apiService.isLoggedIn()&&apiService.isTeacher()){const classId=getClassIdByName(cn);if(classId){for(const n of newNames){try{const res=await apiService.createStudent({name:n,classId:classId});if(res.code===200&&res.id){if(!appData.studentIds)appData.studentIds={};appData.studentIds[cn+'|'+n]=res.id;}}catch(e){}}}}showToast(`添加了 ${added} 名学生`);}}}
 /* 学生转班 */
 let transferCtx={fromClass:'',index:-1,studentName:''};
 function openTransferStudentModal(fromClass,idx,studentName){
@@ -7294,7 +7294,7 @@ async function safeInit(){
         if(dashEl)window._originalDashboardHTML=dashEl.innerHTML;
         await initData();
     }catch(e){
-        console.error('数据初始化失败:',e);
+
         showToast('数据初始化失败，已重置为默认数据','error');
         // 重置为默认数据
         initEmptyAppData();
@@ -7308,30 +7308,30 @@ async function safeInit(){
             initParentMode();
             return; // 家长模式不需要加载教师界面
         }catch(e){
-            console.error('家长模式初始化失败:',e);
+
         }
     }
     
     try{
         loadDashboard();
     }catch(e){
-        console.error('仪表盘加载失败:',e);
+
         showToast('仪表盘加载失败','error');
     }
     
     // 清理过期回收站数据
-    try{ cleanExpiredRecycleBin(); }catch(e){ console.error('回收站清理失败:',e); }
+    try{ cleanExpiredRecycleBin(); }catch(e){  }
     
     try{
         initStudentExamMode();
     }catch(e){
-        console.error('学生考试模式初始化失败:',e);
+
     }
 
     try{
         initStudentHomeworkMode();
     }catch(e){
-        console.error('学生作业模式初始化失败:',e);
+
     }
     
     showToast('系统初始化完成');
@@ -8117,7 +8117,7 @@ function loadAI(){
         loadAIConfig();
         initChatUI();
     }catch(e){
-        console.error('AI页面初始化失败:',e);
+
     }
 }
 
@@ -8916,7 +8916,7 @@ async function loadGrades(){
         // 加载统计数据
         loadGradeStats(classId,examName);
     }catch(e){
-        console.error('加载成绩失败:',e);
+
         _gradesCache=[];
         renderGradesTable([]);
         showToast('加载成绩失败','error');
@@ -9085,7 +9085,7 @@ function showGradeModal(id){
                 studentSel.innerHTML=optionsHtml;
             }
         }catch(e){
-            console.error('加载学生列表失败:',e);
+
             studentSel.innerHTML='<option value="">加载失败</option>';
         }
     }
@@ -9146,7 +9146,7 @@ async function saveGradeRecord(id){
         if(overlay)overlay.remove();
         loadGrades();
     }catch(e){
-        console.error('保存成绩失败:',e);
+
         showToast(e.message || '保存失败','error');
     }
 }
@@ -9158,7 +9158,7 @@ function deleteGrade(id){
             showToast('成绩已删除');
             loadGrades();
         }catch(e){
-            console.error('删除成绩失败:',e);
+
             showToast('删除失败：'+(e.message||'未知错误'),'error');
         }
     });
@@ -9282,7 +9282,7 @@ async function saveBatchGrades(){
         // 跳转到成绩管理并刷新
         navigateTo('grades');
     }catch(e){
-        console.error('批量录入失败:',e);
+
         showToast('批量录入失败：'+(e.message||'未知错误'),'error');
     }
 }
@@ -10880,7 +10880,7 @@ async function confirmBindStudent(btn){
     const rawParentPhone=document.getElementById('bindParentPhone').value;
     const studentName=normalizeStudentNameInput(rawStudentName);
     const parentPhone=normalizePhoneInput(rawParentPhone);
-    console.log('[confirmBindStudent] rawStudentName=', rawStudentName, 'rawParentPhone=', rawParentPhone);
+
     if(!studentName){showToast('请输入孩子姓名','error');return;}
     if(!parentPhone){showToast('请输入家长手机号','error');return;}
     if(!/^1\d{10}$/.test(parentPhone)){showToast('手机号格式错误，请输入正确的11位手机号','error');return;}
@@ -10889,19 +10889,19 @@ async function confirmBindStudent(btn){
     try{
         const res=await apiService.bindStudent(studentName,parentPhone);
         if(res.code===200){
-            try{showToast('绑定成功！');}catch(e){console.warn('showToast error:',e);}
+            try{showToast('绑定成功！');}catch(e){}
             btn.closest('.modal-overlay').remove();
             await DataSync.syncFromServer();
             loadParentDashboard();
         }else{
             const msg = (res && (res.msg || res.error)) || '绑定失败';
-            try{showToast(msg,'error');}catch(e){console.warn('showToast error:',e);}
+            try{showToast(msg,'error');}catch(e){}
             btn.disabled=false;
             btn.textContent='绑定';
         }
     }catch(e){
         const msg = e && e.message ? e.message : '绑定失败';
-        try{showToast(msg,'error');}catch(e2){console.warn('showToast error:',e2);}
+        try{showToast(msg,'error');}catch(e2){}
         btn.disabled=false;
         btn.textContent='绑定';
     }
@@ -11270,7 +11270,7 @@ function hideLogin(){
 
 function logout(){
     if(!confirm('确定要退出登录吗？'))return;
-    console.log('[上课通] logout called');
+
     clearSidebarRoleCaches();
     document.querySelectorAll('.nav-item').forEach(function(node){node.remove();});
     document.querySelectorAll('.page').forEach(function(node){node.classList.remove('active');});
@@ -11293,7 +11293,7 @@ function logout(){
 }
 
 function initAppAfterLogin(){
-    console.log('[上课通] initAppAfterLogin called, user=',apiService.user);
+
     clearSidebarRoleCaches();
     apiService.connectSSE();
     renderSidebarMenu(apiService.user && apiService.user.role ? apiService.user.role : 'teacher');
@@ -11301,7 +11301,7 @@ function initAppAfterLogin(){
     // 更新头部用户信息：追加/替换 user-menu，不触碰 semester-selector
     const headerRight=document.querySelector('.header-right');
     if(!headerRight){
-        console.error('[上课通] .header-right DOM not found!');
+
         return;
     }
     // 先移除旧的 user-menu（防止重复追加）
@@ -11311,15 +11311,15 @@ function initAppAfterLogin(){
         var roleName=apiService.user.role==='teacher'?'教师':'家长';
         var badgeClass=apiService.user.role==='teacher'?'role-teacher':'role-parent';
         var displayName=escapeHtml(apiService.user.displayName||apiService.user.username||'');
-        console.log('[上课通] rendering user menu: '+displayName+' ('+roleName+')');
+        
         var menuDiv=document.createElement('div');
         menuDiv.className='user-menu';
         menuDiv.style.cssText='display:flex !important; visibility:visible !important; z-index:10; align-items:center; gap:12px; flex-shrink:0;';
         menuDiv.innerHTML='<div class="user-info" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;"><span class="user-name" style="font-size:14px; font-weight:600; color:#333;">'+displayName+'</span><span class="login-role-badge '+badgeClass+'" style="display:inline-block; padding:2px 10px; border-radius:10px; font-size:12px;">'+roleName+'</span></div><button class="logout-btn" onclick="logout()" style="background:none; border:1px solid #ddd; border-radius:6px; padding:6px 14px; font-size:13px; cursor:pointer; color:#666;">退出</button>';
         headerRight.appendChild(menuDiv);
-        console.log('[上课通] user menu appended to .header-right');
+
     }else{
-        console.warn('[上课通] apiService.user is null/undefined, skipping user menu');
+
     }
 
     // 角色控制：renderSidebarMenu 已按角色渲染不同菜单项
@@ -11332,7 +11332,7 @@ function initAppAfterLogin(){
             // 异步加载数据，加载完成后刷新页面
             initData().then(()=>{
                 try{navigateTo('dashboard');}catch(e){}
-            }).catch(e=>{console.error('initData失败:',e);});
+            }).catch(e=>{});
         }
         // 确保关键字段存在（防止 initData 异步加载期间访问报错）
         if(!appData)appData={};
@@ -11353,7 +11353,7 @@ function initAppAfterLogin(){
             initSemesterSelector();
             navigateTo('dashboard');
         }catch(e){
-            console.error('仪表盘初始化失败:',e);
+
         }
 
         // 后台从服务器同步数据
@@ -11369,11 +11369,11 @@ function initAppAfterLogin(){
                         navigateTo('dashboard');
                     }
                 }catch(e){
-                    console.warn('同步后刷新页面失败:',e);
+
                 }
             }
         }).catch(e=>{
-            console.warn('数据同步失败，使用本地缓存:',e.message);
+
         });
     }
 
