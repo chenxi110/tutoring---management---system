@@ -531,6 +531,22 @@
                 </div>
             </div>
             <div class="page" id="page-settings">
+                <!-- 修改密码（所有角色可见） -->
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">🔐 修改密码</h3></div>
+                    <div style="padding:16px;max-width:480px;">
+                        <div class="form-group" style="margin-bottom:12px;"><label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">旧密码</label><input type="password" class="form-control" id="changePwdOld" placeholder="请输入当前密码"></div>
+                        <div class="form-group" style="margin-bottom:12px;"><label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">新密码</label><input type="password" class="form-control" id="changePwdNew" placeholder="至少6位"></div>
+                        <div class="form-group" style="margin-bottom:12px;"><label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">确认新密码</label><input type="password" class="form-control" id="changePwdConfirm" placeholder="再次输入新密码"></div>
+                        <button class="btn btn-primary" onclick="submitChangePassword()">确认修改</button>
+                    </div>
+                </div>
+                <!-- 用户管理（仅教师可见） -->
+                <div class="card teacher-only" id="userManagementCard" style="display:none;">
+                    <div class="card-header"><h3 class="card-title">👥 用户管理</h3><button class="btn btn-sm btn-secondary" onclick="loadUserList()">刷新</button></div>
+                    <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可重置任意用户密码为初始密码123456。</div>
+                    <div class="table-wrapper"><table><thead><tr><th>ID</th><th>账号</th><th>姓名</th><th>角色</th><th>手机号</th><th>操作</th></tr></thead><tbody id="userListTableBody"></tbody></table></div>
+                </div>
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">课时费单价设置</h3></div>
                     <div id="coursePriceSettings"></div>
@@ -6530,6 +6546,10 @@ function loadSettings(){
     loadCourseTypesList();
     loadRecycleBin();
     loadOperationLog();
+    // 教师角色加载用户列表
+    if(apiService && apiService.isTeacher && apiService.isTeacher()){
+        loadUserList();
+    }
 }
 function loadCourseTypesList(){
     const ctl=document.getElementById('courseTypesList');
@@ -6561,6 +6581,86 @@ function deleteCourseType(name){
     openConfirmModal(`确定要删除课程类型 "${name}" 吗？`,()=>{appData.config.courseTypes=appData.config.courseTypes.filter(t=>t!==name);saveData();closeConfirmModal();loadCourseTypesList();showToast('删除成功');});
 }
 function saveCoursePrices(){document.querySelectorAll('#coursePriceSettings input').forEach(input=>{const course=input.id.replace('price_','').replace(/_/g,' ');appData.config.coursePrices[course]=parseFloat(input.value)||0;});saveData();showToast('保存成功');loadSettings();}
+
+// ===== 用户管理与密码功能 =====
+async function loadUserList(){
+    const tb=document.getElementById('userListTableBody');
+    if(!tb)return;
+    if(!apiService.isTeacher()){
+        document.getElementById('userManagementCard').style.display='none';
+        return;
+    }
+    document.getElementById('userManagementCard').style.display='';
+    tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">加载中...</td></tr>';
+    try{
+        const data=await apiService.getUsers();
+        if(data.code===200 && data.data){
+            const users=data.data;
+            if(users.length===0){
+                tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">暂无用户</td></tr>';
+                return;
+            }
+            tb.innerHTML=users.map(u=>{
+                const roleName=u.role==='teacher'?'教师':'家长';
+                const roleBadge=u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>';
+                return `<tr>
+                    <td>${u.id}</td>
+                    <td>${escapeHtml(u.username||'')}</td>
+                    <td>${escapeHtml(u.display_name||u.displayName||'')}</td>
+                    <td>${roleBadge}</td>
+                    <td>${escapeHtml(u.phone||'')}</td>
+                    <td><button class="btn btn-sm btn-warning" onclick="resetUserPassword(${u.id},'${escapeAttr(u.username||'')}')">重置密码</button></td>
+                </tr>`;
+            }).join('');
+        }else{
+            tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#f44336;">加载失败：'+(data.error||data.msg||'未知错误')+'</td></tr>';
+        }
+    }catch(e){
+        tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:#f44336;">加载失败：'+e.message+'</td></tr>';
+    }
+}
+
+function resetUserPassword(userId,username){
+    openConfirmModal(`确定重置用户「${username}」的密码为初始密码 123456 吗？`,async ()=>{
+        closeConfirmModal();
+        try{
+            const data=await apiService.resetPassword(userId);
+            if(data.code===200){
+                showToast('密码已重置为123456','success');
+                logOperation('重置密码','用户ID:'+userId+',账号:'+username);
+            }else{
+                showToast(data.error||data.msg||'重置失败','error');
+            }
+        }catch(e){
+            showToast('重置失败：'+e.message,'error');
+        }
+    });
+}
+
+async function submitChangePassword(){
+    const oldPwd=document.getElementById('changePwdOld').value;
+    const newPwd=document.getElementById('changePwdNew').value;
+    const confirmPwd=document.getElementById('changePwdConfirm').value;
+    if(!oldPwd){showToast('请输入旧密码','error');return;}
+    if(!newPwd){showToast('请输入新密码','error');return;}
+    if(newPwd.length<6){showToast('新密码至少6位','error');return;}
+    if(newPwd!==confirmPwd){showToast('两次输入的新密码不一致','error');return;}
+    if(oldPwd===newPwd){showToast('新密码不能与旧密码相同','error');return;}
+    try{
+        const data=await apiService.updateMyPassword(oldPwd,newPwd,confirmPwd);
+        if(data.code===200){
+            showToast('密码修改成功，请重新登录','success');
+            document.getElementById('changePwdOld').value='';
+            document.getElementById('changePwdNew').value='';
+            document.getElementById('changePwdConfirm').value='';
+            setTimeout(()=>{logout();},1500);
+        }else{
+            showToast(data.error||data.msg||'修改失败','error');
+        }
+    }catch(e){
+        showToast('修改失败：'+e.message,'error');
+    }
+}
 
 function loadClasses(){
     const sem=getCurrentSemester();

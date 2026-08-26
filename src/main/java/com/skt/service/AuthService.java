@@ -339,4 +339,84 @@ public class AuthService {
         m.put("error", msg);
         return m;
     }
+
+    // 获取所有用户列表（仅教师可调用，由Controller校验权限）
+    public List<Map<String, Object>> getAllUsers() {
+        return jdbc.queryForList("SELECT id, username, display_name, role, phone, created_at FROM users ORDER BY id ASC");
+    }
+
+    // 重置用户密码为初始密码123456（仅教师管理员可调用）
+    public Map<String, Object> resetPassword(Long targetUserId, Long operatorId, String operatorRole) {
+        try {
+            if (operatorId == null) {
+                return errorMap("未登录，无法操作");
+            }
+            if (!"teacher".equals(operatorRole)) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：仅教师管理员可重置密码");
+                r.put("msg", "无权限：仅教师管理员可重置密码");
+                return r;
+            }
+            if (targetUserId == null) {
+                return errorMap("缺少用户ID");
+            }
+            List<Map<String, Object>> users = jdbc.queryForList("SELECT id, username, role FROM users WHERE id=?", targetUserId);
+            if (users.isEmpty()) {
+                return errorMap("用户不存在");
+            }
+            String initialPassword = "123456";
+            String hash = encoder.encode(initialPassword);
+            jdbc.update("UPDATE users SET password_hash=? WHERE id=?", hash, targetUserId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "密码已重置为初始密码123456");
+            result.put("data", Map.of("userId", targetUserId, "username", users.get(0).get("username")));
+            return result;
+        } catch (Exception ex) {
+            return errorMap("重置密码失败：" + ex.getMessage());
+        }
+    }
+
+    // 修改本人密码（所有角色可用）
+    public Map<String, Object> updateMyPassword(Long userId, String oldPassword, String newPassword, String confirmPassword) {        try {
+            if (userId == null) {
+                return errorMap("未登录，无法修改密码");
+            }
+            if (oldPassword == null || oldPassword.trim().isEmpty()) {
+                return errorMap("旧密码不能为空");
+            }
+            if (newPassword == null || newPassword.trim().isEmpty()) {
+                return errorMap("新密码不能为空");
+            }
+            if (newPassword.trim().length() < 6) {
+                return errorMap("新密码长度不能少于6位");
+            }
+            if (newPassword.trim().length() > 100) {
+                return errorMap("新密码长度不能超过100位");
+            }
+            if (confirmPassword == null || !newPassword.trim().equals(confirmPassword.trim())) {
+                return errorMap("两次输入的新密码不一致");
+            }
+            if (oldPassword.trim().equals(newPassword.trim())) {
+                return errorMap("新密码不能与旧密码相同");
+            }
+            List<Map<String, Object>> users = jdbc.queryForList("SELECT * FROM users WHERE id=?", userId);
+            if (users.isEmpty()) {
+                return errorMap("用户不存在");
+            }
+            Map<String, Object> user = users.get(0);
+            if (!encoder.matches(oldPassword.trim(), (String) user.get("password_hash"))) {
+                return errorMap("旧密码错误");
+            }
+            String hash = encoder.encode(newPassword.trim());
+            jdbc.update("UPDATE users SET password_hash=? WHERE id=?", hash, userId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "密码修改成功，请使用新密码重新登录");
+            return result;
+        } catch (Exception ex) {
+            return errorMap("修改密码失败：" + ex.getMessage());
+        }
+    }
 }

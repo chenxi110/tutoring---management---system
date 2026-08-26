@@ -91,4 +91,51 @@ public class AuthController {
         }
         return authService.unbindParent(parentId, studentId);
     }
+
+    // 重置用户密码（仅教师管理员）
+    @PostMapping("/user/resetPwd")
+    public Map<String, Object> resetPassword(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Long operatorId = (Long) req.getAttribute("userId");
+        String operatorRole = (String) req.getAttribute("role");
+        Long targetUserId = null;
+        if (body != null && body.get("userId") != null) {
+            try { targetUserId = Long.valueOf(String.valueOf(body.get("userId"))); }
+            catch (NumberFormatException e) { targetUserId = null; }
+        }
+        return authService.resetPassword(targetUserId, operatorId, operatorRole);
+    }
+
+    // 修改本人密码（所有角色）
+    @PostMapping("/user/updateMyPwd")
+    public Map<String, Object> updateMyPassword(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        String oldPassword = body == null || body.get("oldPassword") == null ? null : String.valueOf(body.get("oldPassword"));
+        String newPassword = body == null || body.get("newPassword") == null ? null : String.valueOf(body.get("newPassword"));
+        String confirmPassword = body == null || body.get("confirmPassword") == null ? null : String.valueOf(body.get("confirmPassword"));
+        return authService.updateMyPassword(userId, oldPassword, newPassword, confirmPassword);
+    }
+
+    // 获取用户列表（仅教师）
+    @GetMapping("/user/list")
+    public Map<String, Object> getUserList(HttpServletRequest req) {
+        String role = (String) req.getAttribute("role");
+        Map<String, Object> result = new HashMap<>();
+        if (!"teacher".equals(role)) {
+            result.put("code", 403);
+            result.put("error", "无权限：仅教师可查看用户列表");
+            result.put("msg", "无权限：仅教师可查看用户列表");
+            return result;
+        }
+        try {
+            List<Map<String, Object>> users = authService.getAllUsers();
+            result.put("code", 200);
+            result.put("data", users);
+            return result;
+        } catch (Exception ex) {
+            result.put("code", 500);
+            result.put("error", "获取用户列表失败：" + ex.getMessage());
+            result.put("msg", "获取用户列表失败");
+            return result;
+        }
+    }
 }

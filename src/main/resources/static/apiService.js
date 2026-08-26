@@ -377,6 +377,25 @@ class ApiService {
             return { migrated: false, error: e.message };
         }
     }
+
+    // 获取用户列表（仅教师）
+    async getUsers() {
+        return await this.request('GET', '/user/list');
+    }
+
+    // 重置用户密码为123456（仅教师管理员）
+    async resetPassword(userId) {
+        return await this.request('POST', '/user/resetPwd', { userId: userId });
+    }
+
+    // 修改本人密码（所有角色）
+    async updateMyPassword(oldPassword, newPassword, confirmPassword) {
+        return await this.request('POST', '/user/updateMyPwd', {
+            oldPassword: oldPassword,
+            newPassword: newPassword,
+            confirmPassword: confirmPassword
+        });
+    }
 }
 
 var apiService = new ApiService();
