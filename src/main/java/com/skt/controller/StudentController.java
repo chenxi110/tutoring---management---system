@@ -9,111 +9,109 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/student")
 public class StudentController {
 
     @Autowired
     private StudentService studentService;
 
-    @GetMapping("/classes/{classId}/students")
-    public Map<String, Object> listByClass(@PathVariable Long classId, HttpServletRequest req) {
-        if (RoleAccess.isParent(req)) {
-            return RoleAccess.forbidTeacherOnly("家长账号无权查看班级学生列表");
-        }
-        List<Map<String, Object>> list = studentService.listByClass(classId);
+    // 学生个人信息
+    @GetMapping("/info")
+    public Map<String, Object> getInfo(HttpServletRequest req) {
         Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("data", list);
-        return result;
-    }
-
-    @GetMapping("/students")
-    public Map<String, Object> listAll(@RequestParam(required = false) Long classId, HttpServletRequest req) {
-        if (RoleAccess.isParent(req)) {
-            Long parentId = RoleAccess.getUserId(req);
-            List<Map<String, Object>> list = studentService.listByParent(parentId);
-            Map<String, Object> result = new HashMap<>();
-            result.put("code", 200);
-            result.put("data", list);
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (!"student".equals(role)) {
+            result.put("code", 403);
+            result.put("msg", "仅学生可访问");
             return result;
         }
-        List<Map<String, Object>> list = studentService.listAll(classId);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("data", list);
-        return result;
-    }
-
-    @GetMapping("/students/{id}")
-    public Map<String, Object> getDetail(@PathVariable Long id, HttpServletRequest req) {
-        if (RoleAccess.isParent(req)) {
-            Long parentId = RoleAccess.getUserId(req);
-            List<Map<String, Object>> children = studentService.listByParent(parentId);
-            boolean isBound = children.stream().anyMatch(c -> {
-                Object sid = c.get("id");
-                return sid instanceof Number && ((Number) sid).longValue() == id;
-            });
-            if (!isBound) {
-                return RoleAccess.forbidTeacherOnly("家长只能查看已绑定孩子的信息");
-            }
-        }
-        Map<String, Object> student = studentService.getDetail(id);
-        Map<String, Object> result = new HashMap<>();
-        if (student == null) {
+        Map<String, Object> info = studentService.getStudentInfo(userId);
+        if (info == null) {
             result.put("code", 404);
-            result.put("error", "学生不存在");
-        } else {
-            result.put("code", 200);
-            result.put("data", student);
+            result.put("msg", "学生信息不存在，请联系管理员绑定");
+            return result;
         }
+        result.put("code", 200);
+        result.put("data", info);
         return result;
     }
 
-    @PostMapping("/students")
-    public Map<String, Object> create(@RequestBody Map<String, Object> body, HttpServletRequest req) {
-        if (RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("家长账号无权新增学生信息");
-        }
-        String name = (String) body.get("name");
-        Long classId = body.get("classId") != null ? ((Number) body.get("classId")).longValue() : null;
-        String phone = (String) body.get("phone");
-        String parentPhone = (String) body.get("parentPhone");
-        String parentName = (String) body.get("parentName");
-        String parentRelation = (String) body.get("parentRelation");
-        Long id = studentService.create(name, classId, phone, parentPhone, parentName, parentRelation);
+    // 学生成绩
+    @GetMapping("/grades")
+    public Map<String, Object> getGrades(HttpServletRequest req) {
         Map<String, Object> result = new HashMap<>();
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (!"student".equals(role)) {
+            result.put("code", 403);
+            result.put("msg", "仅学生可访问");
+            return result;
+        }
+        Map<String, Object> info = studentService.getStudentInfo(userId);
+        if (info == null) { result.put("code", 404); result.put("msg", "学生信息不存在"); return result; }
+        Long studentId = ((Number) info.get("id")).longValue();
         result.put("code", 200);
-        result.put("id", id);
+        result.put("data", studentService.getStudentGrades(studentId));
         return result;
     }
 
-    @PutMapping("/students/{id}")
-    public Map<String, Object> update(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
-        if (RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("家长账号无权修改学生信息");
-        }
-        String name = (String) body.get("name");
-        Long classId = body.get("classId") != null ? ((Number) body.get("classId")).longValue() : null;
-        String phone = (String) body.get("phone");
-        String parentPhone = (String) body.get("parentPhone");
-        String parentName = (String) body.get("parentName");
-        String parentRelation = (String) body.get("parentRelation");
-        String status = (String) body.get("status");
-        String tags = (String) body.get("tags");
-        studentService.update(id, name, classId, phone, parentPhone, parentName, parentRelation, status, tags);
+    // 学生作业
+    @GetMapping("/homework")
+    public Map<String, Object> getHomework(HttpServletRequest req) {
         Map<String, Object> result = new HashMap<>();
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (!"student".equals(role)) {
+            result.put("code", 403);
+            result.put("msg", "仅学生可访问");
+            return result;
+        }
+        Map<String, Object> info = studentService.getStudentInfo(userId);
+        if (info == null) { result.put("code", 404); result.put("msg", "学生信息不存在"); return result; }
+        Long studentId = ((Number) info.get("id")).longValue();
+        Long classId = info.get("class_id") != null ? ((Number) info.get("class_id")).longValue() : null;
         result.put("code", 200);
+        result.put("data", studentService.getStudentHomework(studentId, classId));
         return result;
     }
 
-    @DeleteMapping("/students/{id}")
-    public Map<String, Object> delete(@PathVariable Long id, HttpServletRequest req) {
-        if (RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("家长账号无权删除学生信息");
-        }
-        studentService.delete(id);
+    // 学生出勤
+    @GetMapping("/attendance")
+    public Map<String, Object> getAttendance(HttpServletRequest req) {
         Map<String, Object> result = new HashMap<>();
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (!"student".equals(role)) {
+            result.put("code", 403);
+            result.put("msg", "仅学生可访问");
+            return result;
+        }
+        Map<String, Object> info = studentService.getStudentInfo(userId);
+        if (info == null) { result.put("code", 404); result.put("msg", "学生信息不存在"); return result; }
+        Long studentId = ((Number) info.get("id")).longValue();
         result.put("code", 200);
+        result.put("data", studentService.getStudentAttendance(studentId));
+        return result;
+    }
+
+    // 学生课堂行为统计
+    @GetMapping("/behavior-stats")
+    public Map<String, Object> getBehaviorStats(HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (!"student".equals(role)) {
+            result.put("code", 403);
+            result.put("msg", "仅学生可访问");
+            return result;
+        }
+        Map<String, Object> info = studentService.getStudentInfo(userId);
+        if (info == null) { result.put("code", 404); result.put("msg", "学生信息不存在"); return result; }
+        Long studentId = ((Number) info.get("id")).longValue();
+        Long classId = info.get("class_id") != null ? ((Number) info.get("class_id")).longValue() : null;
+        result.put("code", 200);
+        result.put("data", studentService.getStudentBehaviorStats(studentId, classId));
         return result;
     }
 }

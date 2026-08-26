@@ -1,36 +1,39 @@
 package com.skt.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice
+@ControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
-    @ExceptionHandler(NoResourceFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, Object> handleNoResourceFound(NoResourceFoundException e) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 404);
-        result.put("msg", "资源不存在");
-        return result;
-    }
-
     @ExceptionHandler(Exception.class)
-    public Map<String, Object> handleException(Exception e) {
-        log.error("[全局异常] {}", e.getMessage(), e);
+    public ResponseEntity<Map<String, Object>> handleException(Exception e) {
         Map<String, Object> result = new HashMap<>();
         result.put("code", 500);
-        result.put("msg", "服务器内部错误，请稍后重试");
-        return result;
+        result.put("msg", "服务器内部错误：" + e.getMessage());
+        result.put("error", e.getClass().getSimpleName());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 413);
+        result.put("msg", "文件大小超过限制");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(result);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException e) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 400);
+        result.put("msg", "参数错误：" + e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
     }
 }

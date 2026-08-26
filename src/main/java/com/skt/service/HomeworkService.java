@@ -11,6 +11,8 @@ public class HomeworkService {
 
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private OperationLogService operationLogService;
 
     public List<Map<String, Object>> list(Long classId) {
         String sql = "SELECT h.*, c.name as class_name FROM homework h LEFT JOIN classes c ON h.class_id=c.id";
@@ -82,6 +84,11 @@ public class HomeworkService {
                             "INSERT INTO grades (student_id, student_name, class_id, class_name, exam_name, exam_type, score, total_score, teacher_id, remark) VALUES (?,?,?,?,?,?,?,?,?,?)",
                             studentId, studentName, classId, className, examName, "homework", score, 100.0, teacherId, comment != null ? comment : "");
                     }
+                }
+                // 操作日志
+                if (teacherId != null) {
+                    operationLogService.log(teacherId, "teacher_"+teacherId, "teacher", "作业批改",
+                        "批改作业提交ID="+submissionId+", 分数="+score+", 评语="+comment, null);
                 }
             }
         } catch (Exception e) {

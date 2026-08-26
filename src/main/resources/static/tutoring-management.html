@@ -380,6 +380,15 @@
             <div class="nav-item" data-page="export"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span>导出打印</span></div>
             <div class="nav-item teacher-only" data-page="leave-requests"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>请假审批</span></div>
             <div class="nav-item teacher-only" data-page="operation-logs"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg><span>操作日志</span></div>
+            <div class="nav-item teacher-only" data-page="analysis"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg><span>学情分析</span></div>
+            <div class="nav-item teacher-only" data-page="knowledge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg><span>知识图谱</span></div>
+            <div class="nav-item teacher-only" data-page="wrong-questions"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg><span>错题本</span></div>
+            <div class="nav-item teacher-only" data-page="ai-report"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>AI学情报告</span></div>
+            <div class="nav-item" data-page="evaluation"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>教学评价</span></div>
+            <div class="nav-item student-only" data-page="student-grades"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg><span>我的成绩</span></div>
+            <div class="nav-item student-only" data-page="student-homework"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg><span>我的作业</span></div>
+            <div class="nav-item student-only" data-page="student-attendance"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg><span>我的出勤</span></div>
+            <div class="nav-item student-only" data-page="student-points"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><span>我的积分</span></div>
             <div class="nav-item" data-page="ai"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span>AI助手</span></div>
         </nav>
     </aside>
@@ -1133,6 +1142,79 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <!-- 学情分析页面 -->
+            <div class="page" id="page-analysis">
+                <div class="page-header"><h3>学情分析</h3><p>基于成绩、作业、出勤、课堂行为数据的综合学情分析</p></div>
+                <div class="filter-bar">
+                    <select id="analysisClassSelect" onchange="loadAnalysisClass()"><option value="">选择班级</option></select>
+                    <select id="analysisStudentSelect" onchange="loadStudentAnalysis()"><option value="">选择学生</option></select>
+                    <button class="btn btn-primary" onclick="generateAIReport()">生成AI学情报告</button>
+                </div>
+                <div id="analysisContent" style="margin-top:20px;">
+                    <div class="empty-state">请选择班级和学生查看学情分析</div>
+                </div>
+            </div>
+            <!-- 知识图谱页面 -->
+            <div class="page" id="page-knowledge">
+                <div class="page-header"><h3>知识图谱</h3><p>学科知识点体系与学生掌握情况</p></div>
+                <div class="filter-bar">
+                    <select id="knowledgeSubjectSelect" onchange="loadKnowledgeTree()"><option value="">全部学科</option><option value="数学">数学</option><option value="语文">语文</option><option value="英语">英语</option><option value="物理">物理</option><option value="化学">化学</option><option value="Python">Python</option></select>
+                    <button class="btn btn-primary" onclick="openAddKnowledgeModal()">+ 添加知识点</button>
+                </div>
+                <div id="knowledgeTreeContainer" style="margin-top:20px;"></div>
+            </div>
+            <!-- 错题本页面 -->
+            <div class="page" id="page-wrong-questions">
+                <div class="page-header"><h3>错题本</h3><p>学生错题收集与掌握程度跟踪</p></div>
+                <div class="filter-bar">
+                    <select id="wrongQuestionClassSelect" onchange="loadWrongQuestionStudents()"><option value="">选择班级</option></select>
+                    <select id="wrongQuestionStudentSelect" onchange="loadWrongQuestions()"><option value="">选择学生</option></select>
+                    <select id="wrongQuestionSubjectSelect" onchange="loadWrongQuestions()"><option value="">全部学科</option><option value="数学">数学</option><option value="语文">语文</option><option value="英语">英语</option><option value="物理">物理</option><option value="化学">化学</option></select>
+                    <button class="btn btn-primary" onclick="openAddWrongQuestionModal()">+ 添加错题</button>
+                </div>
+                <div id="wrongQuestionStats" style="margin:20px 0;"></div>
+                <div class="table-wrapper"><table><thead><tr><th>学科</th><th>知识点</th><th>题目</th><th>错误次数</th><th>掌握程度</th><th>最近错误</th><th>操作</th></tr></thead><tbody id="wrongQuestionTableBody"></tbody></table></div>
+            </div>
+            <!-- AI学情报告页面 -->
+            <div class="page" id="page-ai-report">
+                <div class="page-header"><h3>AI学情报告</h3><p>AI自动生成的学生学情分析报告</p></div>
+                <div class="filter-bar">
+                    <select id="reportClassSelect" onchange="loadReportStudents()"><option value="">选择班级</option></select>
+                    <select id="reportStudentSelect" onchange="loadReportList()"><option value="">选择学生</option></select>
+                    <button class="btn btn-primary" onclick="generateReportFromPage()">生成新报告</button>
+                </div>
+                <div id="reportListContainer" style="margin-top:20px;"></div>
+                <div id="reportDetailContainer" style="margin-top:20px;display:none;"></div>
+            </div>
+            <!-- 教学评价页面 -->
+            <div class="page" id="page-evaluation">
+                <div class="page-header"><h3>教学评价</h3><p>家长/学生对课程和教师的评价反馈</p></div>
+                <div class="filter-bar">
+                    <select id="evaluationClassSelect" onchange="loadEvaluations()"><option value="">选择班级</option></select>
+                </div>
+                <div id="evaluationStats" style="margin:20px 0;"></div>
+                <div class="table-wrapper"><table><thead><tr><th>学生</th><th>课程</th><th>评分</th><th>评价内容</th><th>标签</th><th>评价时间</th></tr></thead><tbody id="evaluationTableBody"></tbody></table></div>
+            </div>
+            <!-- 学生端-我的成绩 -->
+            <div class="page" id="page-student-grades">
+                <div class="page-header"><h3>我的成绩</h3><p>查看个人考试成绩和成绩趋势</p></div>
+                <div id="studentGradesContent"></div>
+            </div>
+            <!-- 学生端-我的作业 -->
+            <div class="page" id="page-student-homework">
+                <div class="page-header"><h3>我的作业</h3><p>查看作业列表和提交状态</p></div>
+                <div id="studentHomeworkContent"></div>
+            </div>
+            <!-- 学生端-我的出勤 -->
+            <div class="page" id="page-student-attendance">
+                <div class="page-header"><h3>我的出勤</h3><p>查看个人出勤记录</p></div>
+                <div id="studentAttendanceContent"></div>
+            </div>
+            <!-- 学生端-我的积分 -->
+            <div class="page" id="page-student-points">
+                <div class="page-header"><h3>我的课堂积分</h3><p>课堂表现积分和排行榜</p></div>
+                <div id="studentPointsContent"></div>
             </div>
         </div>
     </main>
@@ -11403,6 +11485,320 @@ async function quickMarkRead(id,el){
         initAppAfterLogin();
     }
 })();
+
+/* ========== 学情分析模块 ========== */
+function loadAnalysisClass(){
+    const classId=document.getElementById('analysisClassSelect').value;
+    const studentSelect=document.getElementById('analysisStudentSelect');
+    studentSelect.innerHTML='<option value="">选择学生</option>';
+    if(!classId)return;
+    if(window.classList){
+        const cls=window.classList.find(c=>c.id==classId);
+        if(cls&&cls.students){
+            cls.students.forEach(s=>{
+                studentSelect.innerHTML+=`<option value="${s.id}">${s.name}</option>`;
+            });
+        }
+    }
+}
+function loadStudentAnalysis(){
+    const studentId=document.getElementById('analysisStudentSelect').value;
+    const classId=document.getElementById('analysisClassSelect').value;
+    if(!studentId){document.getElementById('analysisContent').innerHTML='<div class="empty-state">请选择学生</div>';return;}
+    apiService.get(`/api/analysis/student/${studentId}?classId=${classId}`).then(res=>{
+        if(res.code===200){
+            const d=res.data;
+            let html=`<div class="stats-grid">`;
+            html+=`<div class="stat-card"><div class="stat-value">${d.overallScore||0}</div><div class="stat-label">综合评分</div></div>`;
+            html+=`<div class="stat-card success"><div class="stat-value">${d.avgScore||'-'}</div><div class="stat-label">平均成绩</div></div>`;
+            html+=`<div class="stat-card warning"><div class="stat-value">${d.homeworkSubmitRate||0}%</div><div class="stat-label">作业提交率</div></div>`;
+            html+=`<div class="stat-card"><div class="stat-value">${d.attendanceRate||100}%</div><div class="stat-label">出勤率</div></div>`;
+            html+=`</div>`;
+            if(d.gradeTrend&&d.gradeTrend.length>0){
+                html+=`<div class="card" style="margin-top:20px;"><div class="card-header"><h4>成绩趋势</h4></div><div class="card-body"><div id="analysisGradeChart" style="height:300px;"></div></div></div>`;
+            }
+            if(d.classroomBehavior){
+                html+=`<div class="card" style="margin-top:20px;"><div class="card-header"><h4>课堂参与度</h4></div><div class="card-body"><div class="stats-grid">`;
+                html+=`<div class="stat-card"><div class="stat-value">${d.classroomBehavior.signinCount||0}</div><div class="stat-label">签到次数</div></div>`;
+                html+=`<div class="stat-card"><div class="stat-value">${d.classroomBehavior.raiseHandCount||0}</div><div class="stat-label">举手次数</div></div>`;
+                html+=`<div class="stat-card"><div class="stat-value">${d.classroomBehavior.answerCount||0}</div><div class="stat-label">答题次数</div></div>`;
+                html+=`<div class="stat-card success"><div class="stat-value">${d.classroomBehavior.totalScore||0}</div><div class="stat-label">课堂积分</div></div>`;
+                html+=`</div></div></div>`;
+            }
+            if(d.suggestions&&d.suggestions.length>0){
+                html+=`<div class="card" style="margin-top:20px;"><div class="card-header"><h4>改进建议</h4></div><div class="card-body"><ul>`;
+                d.suggestions.forEach(s=>{html+=`<li style="margin:8px 0;">${s}</li>`;});
+                html+=`</ul></div></div>`;
+            }
+            document.getElementById('analysisContent').innerHTML=html;
+            if(d.gradeTrend&&d.gradeTrend.length>0&&window.echarts){
+                const chart=echarts.init(document.getElementById('analysisGradeChart'));
+                chart.setOption({xAxis:{type:'category',data:d.gradeTrend.map(g=>g.exam||'考试')},yAxis:{type:'value',max:100},series:[{type:'line',data:d.gradeTrend.map(g=>g.score),smooth:true,itemStyle:{color:'#5b8def'}}],tooltip:{trigger:'axis'}});
+            }
+        }
+    }).catch(e=>{document.getElementById('analysisContent').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+function generateAIReport(){
+    const studentId=document.getElementById('analysisStudentSelect').value;
+    const classId=document.getElementById('analysisClassSelect').value;
+    if(!studentId){showToast('请先选择学生','warning');return;}
+    apiService.post('/api/ai-analysis/generate',{studentId:parseInt(studentId),classId:parseInt(classId),reportType:'custom'}).then(res=>{
+        if(res.code===200){
+            showToast('AI学情报告生成成功','success');
+            if(res.data.reportContent){
+                alert(res.data.reportContent);
+            }
+        }else{showToast(res.msg||'生成失败','error');}
+    }).catch(e=>showToast('生成失败','error'));
+}
+
+/* ========== 知识图谱模块 ========== */
+function loadKnowledgeTree(){
+    const subject=document.getElementById('knowledgeSubjectSelect').value;
+    apiService.get(`/api/knowledge/tree?subject=${encodeURIComponent(subject)}`).then(res=>{
+        if(res.code===200){
+            const tree=res.data||[];
+            let html='<div class="card"><div class="card-body">';
+            if(tree.length===0){html+='<div class="empty-state">暂无知识点数据，点击"添加知识点"开始构建知识体系</div>';}
+            tree.forEach(node=>{html+=renderKnowledgeNode(node,0);});
+            html+='</div></div>';
+            document.getElementById('knowledgeTreeContainer').innerHTML=html;
+        }
+    }).catch(e=>{document.getElementById('knowledgeTreeContainer').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+function renderKnowledgeNode(node,level){
+    let html=`<div style="margin-left:${level*20}px;padding:8px 0;border-bottom:1px solid #eee;">`;
+    html+=`<strong>${node.name}</strong> <span style="color:#999;font-size:12px;">${node.subject||''} 难度:${'★'.repeat(node.difficulty||1)}</span>`;
+    if(node.description){html+=`<div style="color:#666;font-size:13px;margin-top:4px;">${node.description}</div>`;}
+    html+='</div>';
+    if(node.children&&node.children.length>0){
+        node.children.forEach(child=>{html+=renderKnowledgeNode(child,level+1);});
+    }
+    return html;
+}
+function openAddKnowledgeModal(){
+    const name=prompt('请输入知识点名称：');
+    if(!name)return;
+    const subject=prompt('请输入学科（如：数学/语文/英语）：','数学');
+    const difficulty=parseInt(prompt('请输入难度（1-5）：','2'))||2;
+    const description=prompt('请输入知识点描述（可选）：','')||'';
+    apiService.post('/api/knowledge/add',{name,subject,description,difficulty,parentId:0,sortOrder:0}).then(res=>{
+        if(res.code===200){showToast('知识点添加成功','success');loadKnowledgeTree();}
+        else{showToast(res.msg||'添加失败','error');}
+    }).catch(e=>showToast('添加失败','error'));
+}
+
+/* ========== 错题本模块 ========== */
+function loadWrongQuestionStudents(){
+    const classId=document.getElementById('wrongQuestionClassSelect').value;
+    const studentSelect=document.getElementById('wrongQuestionStudentSelect');
+    studentSelect.innerHTML='<option value="">选择学生</option>';
+    if(!classId||!window.classList)return;
+    const cls=window.classList.find(c=>c.id==classId);
+    if(cls&&cls.students){cls.students.forEach(s=>{studentSelect.innerHTML+=`<option value="${s.id}">${s.name}</option>`;});}
+}
+function loadWrongQuestions(){
+    const studentId=document.getElementById('wrongQuestionStudentSelect').value;
+    const subject=document.getElementById('wrongQuestionSubjectSelect').value;
+    if(!studentId){document.getElementById('wrongQuestionTableBody').innerHTML='';return;}
+    apiService.get(`/api/wrong-question/list?studentId=${studentId}&subject=${encodeURIComponent(subject)}`).then(res=>{
+        if(res.code===200){
+            const list=res.data||[];
+            let html='';
+            list.forEach(q=>{
+                const mastery=q.mastery_level||0;
+                const masteryColor=mastery>=80?'#52c41a':mastery>=50?'#faad14':'#ff4d4f';
+                html+=`<tr><td>${q.subject||''}</td><td>${q.knowledge_point_name||'-'}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${q.question_text||''}">${q.question_text||''}</td><td>${q.wrong_count||1}</td><td><span style="color:${masteryColor};">${mastery}%</span></td><td>${q.last_wrong_at?q.last_wrong_at.substring(0,10):'-'}</td><td><button class="btn btn-sm" onclick="updateMastery(${q.id})">更新掌握</button></td></tr>`;
+            });
+            document.getElementById('wrongQuestionTableBody').innerHTML=html||'<tr><td colspan="7" style="text-align:center;color:#999;">暂无错题记录</td></tr>';
+            // 加载统计
+            apiService.get(`/api/wrong-question/stats?studentId=${studentId}`).then(r=>{
+                if(r.code===200){
+                    const s=r.data||{};
+                    document.getElementById('wrongQuestionStats').innerHTML=`<div class="stats-grid"><div class="stat-card"><div class="stat-value">${s.totalCount||0}</div><div class="stat-label">错题总数</div></div><div class="stat-card success"><div class="stat-value">${s.masteredCount||0}</div><div class="stat-label">已掌握</div></div><div class="stat-card warning"><div class="stat-value">${s.masteryRate||0}%</div><div class="stat-label">掌握率</div></div></div>`;
+                }
+            });
+        }
+    }).catch(e=>{document.getElementById('wrongQuestionTableBody').innerHTML='<tr><td colspan="7" style="text-align:center;color:#999;">加载失败</td></tr>';});
+}
+function updateMastery(id){
+    const level=parseInt(prompt('请输入掌握程度（0-100）：','50'))||0;
+    apiService.post('/api/wrong-question/update-mastery',{id,masteryLevel:level}).then(res=>{
+        if(res.code===200){showToast('掌握程度已更新','success');loadWrongQuestions();}
+        else{showToast(res.msg||'更新失败','error');}
+    }).catch(e=>showToast('更新失败','error'));
+}
+function openAddWrongQuestionModal(){
+    const studentId=document.getElementById('wrongQuestionStudentSelect').value;
+    if(!studentId){showToast('请先选择学生','warning');return;}
+    const subject=prompt('请输入学科：','数学');
+    const questionText=prompt('请输入题目内容：');
+    if(!questionText)return;
+    const studentAnswer=prompt('请输入学生答案（可选）：','')||'';
+    const correctAnswer=prompt('请输入正确答案（可选）：','')||'';
+    const analysis=prompt('请输入解析（可选）：','')||'';
+    apiService.post('/api/wrong-question/add',{studentId:parseInt(studentId),subject,questionText,studentAnswer,correctAnswer,analysis,source:'manual'}).then(res=>{
+        if(res.code===200){showToast('错题添加成功','success');loadWrongQuestions();}
+        else{showToast(res.msg||'添加失败','error');}
+    }).catch(e=>showToast('添加失败','error'));
+}
+
+/* ========== AI学情报告模块 ========== */
+function loadReportStudents(){
+    const classId=document.getElementById('reportClassSelect').value;
+    const studentSelect=document.getElementById('reportStudentSelect');
+    studentSelect.innerHTML='<option value="">选择学生</option>';
+    if(!classId||!window.classList)return;
+    const cls=window.classList.find(c=>c.id==classId);
+    if(cls&&cls.students){cls.students.forEach(s=>{studentSelect.innerHTML+=`<option value="${s.id}">${s.name}</option>`;});}
+}
+function loadReportList(){
+    const studentId=document.getElementById('reportStudentSelect').value;
+    if(!studentId){document.getElementById('reportListContainer').innerHTML='';return;}
+    apiService.get(`/api/ai-analysis/list?studentId=${studentId}`).then(res=>{
+        if(res.code===200){
+            const list=res.data||[];
+            let html='<div class="card"><div class="card-header"><h4>历史报告</h4></div><div class="card-body">';
+            if(list.length===0){html+='<div class="empty-state">暂无报告，点击"生成新报告"开始</div>';}
+            list.forEach(r=>{
+                html+=`<div style="padding:12px;border-bottom:1px solid #eee;cursor:pointer;" onclick="viewReport(${r.id})">`;
+                html+=`<strong>${r.student_name||''} - ${r.report_type==='weekly'?'周报':r.report_type==='monthly'?'月报':'自定义报告'}</strong>`;
+                html+=`<span style="float:right;color:#999;">${r.created_at?r.created_at.substring(0,10):''}</span>`;
+                html+=`<div style="color:#666;font-size:13px;margin-top:4px;">综合评分：${r.overall_score||0}分 | 趋势：${r.grade_trend==='up'?'上升':r.grade_trend==='down'?'下降':'稳定'}</div>`;
+                html+='</div>';
+            });
+            html+='</div></div>';
+            document.getElementById('reportListContainer').innerHTML=html;
+        }
+    }).catch(e=>{document.getElementById('reportListContainer').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+function viewReport(id){
+    apiService.get(`/api/ai-analysis/${id}`).then(res=>{
+        if(res.code===200){
+            const r=res.data||{};
+            document.getElementById('reportDetailContainer').style.display='block';
+            document.getElementById('reportDetailContainer').innerHTML=`<div class="card"><div class="card-header"><h4>报告详情</h4><button class="btn btn-sm" onclick="document.getElementById('reportDetailContainer').style.display='none'">关闭</button></div><div class="card-body"><pre style="white-space:pre-wrap;font-family:inherit;">${r.report_content||''}</pre></div></div>`;
+        }
+    }).catch(e=>showToast('加载失败','error'));
+}
+function generateReportFromPage(){
+    const studentId=document.getElementById('reportStudentSelect').value;
+    const classId=document.getElementById('reportClassSelect').value;
+    if(!studentId){showToast('请先选择学生','warning');return;}
+    apiService.post('/api/ai-analysis/generate',{studentId:parseInt(studentId),classId:parseInt(classId),reportType:'custom'}).then(res=>{
+        if(res.code===200){showToast('报告生成成功','success');loadReportList();}
+        else{showToast(res.msg||'生成失败','error');}
+    }).catch(e=>showToast('生成失败','error'));
+}
+
+/* ========== 教学评价模块 ========== */
+function loadEvaluations(){
+    const classId=document.getElementById('evaluationClassSelect').value;
+    if(!classId){document.getElementById('evaluationTableBody').innerHTML='';return;}
+    apiService.get(`/api/evaluation/class/${classId}`).then(res=>{
+        if(res.code===200){
+            const list=res.data||[];
+            let html='';
+            list.forEach(e=>{
+                const stars='★'.repeat(e.score||0)+'☆'.repeat(5-(e.score||0));
+                html+=`<tr><td>${e.student_name||''}</td><td>${e.course_name||'-'}</td><td style="color:#faad14;">${stars}</td><td style="max-width:300px;">${e.content||''}</td><td>${e.tags||''}</td><td>${e.created_at?e.created_at.substring(0,10):''}</td></tr>`;
+            });
+            document.getElementById('evaluationTableBody').innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:#999;">暂无评价记录</td></tr>';
+        }
+    }).catch(e=>{document.getElementById('evaluationTableBody').innerHTML='<tr><td colspan="6" style="text-align:center;color:#999;">加载失败</td></tr>';});
+}
+
+/* ========== 学生端模块 ========== */
+function loadStudentGrades(){
+    apiService.get('/api/student/grades').then(res=>{
+        if(res.code===200){
+            const list=res.data||[];
+            let html='<div class="stats-grid">';
+            if(list.length>0){
+                const avg=list.reduce((s,g)=>s+(g.score||0),0)/list.length;
+                const max=Math.max(...list.map(g=>g.score||0));
+                html+=`<div class="stat-card"><div class="stat-value">${avg.toFixed(1)}</div><div class="stat-label">平均分</div></div>`;
+                html+=`<div class="stat-card success"><div class="stat-value">${max}</div><div class="stat-label">最高分</div></div>`;
+                html+=`<div class="stat-card"><div class="stat-value">${list.length}</div><div class="stat-label">考试次数</div></div>`;
+            }
+            html+='</div>';
+            html+='<div class="table-wrapper" style="margin-top:20px;"><table><thead><tr><th>考试名称</th><th>科目</th><th>成绩</th><th>班级排名</th><th>考试时间</th></tr></thead><tbody>';
+            list.forEach(g=>{html+=`<tr><td>${g.exam_name||'-'}</td><td>${g.subject||'-'}</td><td><strong>${g.score||0}</strong></td><td>${g.class_rank||'-'}</td><td>${g.created_at?g.created_at.substring(0,10):'-'}</td></tr>`;});
+            html+='</tbody></table></div>';
+            document.getElementById('studentGradesContent').innerHTML=html||'<div class="empty-state">暂无成绩记录</div>';
+        }
+    }).catch(e=>{document.getElementById('studentGradesContent').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+function loadStudentHomework(){
+    apiService.get('/api/student/homework').then(res=>{
+        if(res.code===200){
+            const list=res.data||[];
+            let html='<div class="table-wrapper"><table><thead><tr><th>作业标题</th><th>科目</th><th>发布时间</th><th>截止时间</th><th>提交状态</th><th>成绩</th><th>评语</th></tr></thead><tbody>';
+            list.forEach(h=>{
+                const submitted=h.submit_content||h.submitted_at;
+                html+=`<tr><td>${h.title||'-'}</td><td>${h.subject||'-'}</td><td>${h.created_at?h.created_at.substring(0,10):'-'}</td><td>${h.deadline?h.deadline.substring(0,10):'-'}</td><td>${submitted?'<span style="color:#52c41a;">已提交</span>':'<span style="color:#ff4d4f;">未提交</span>'}</td><td>${h.score||'-'}</td><td>${h.comment||'-'}</td></tr>`;
+            });
+            html+='</tbody></table></div>';
+            document.getElementById('studentHomeworkContent').innerHTML=html||'<div class="empty-state">暂无作业记录</div>';
+        }
+    }).catch(e=>{document.getElementById('studentHomeworkContent').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+function loadStudentAttendance(){
+    apiService.get('/api/student/attendance').then(res=>{
+        if(res.code===200){
+            const list=res.data||[];
+            let html='<div class="table-wrapper"><table><thead><tr><th>日期</th><th>课程</th><th>状态</th><th>备注</th></tr></thead><tbody>';
+            list.forEach(r=>{
+                const statusText=r.type==='absent'?'<span style="color:#ff4d4f;">缺勤</span>':'<span style="color:#52c41a;">出勤</span>';
+                html+=`<tr><td>${r.date||'-'}</td><td>${r.course||'-'}</td><td>${statusText}</td><td>${r.remark||'-'}</td></tr>`;
+            });
+            html+='</tbody></table></div>';
+            document.getElementById('studentAttendanceContent').innerHTML=html||'<div class="empty-state">暂无出勤记录</div>';
+        }
+    }).catch(e=>{document.getElementById('studentAttendanceContent').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+function loadStudentPoints(){
+    apiService.get('/api/student/behavior-stats').then(res=>{
+        if(res.code===200){
+            const d=res.data||{};
+            let html='<div class="stats-grid">';
+            html+=`<div class="stat-card success"><div class="stat-value">${d.totalScore||0}</div><div class="stat-label">课堂总积分</div></div>`;
+            html+=`<div class="stat-card"><div class="stat-value">${d.signinCount||0}</div><div class="stat-label">签到次数</div></div>`;
+            html+=`<div class="stat-card warning"><div class="stat-value">${d.raiseHandCount||0}</div><div class="stat-label">举手次数</div></div>`;
+            html+=`<div class="stat-card"><div class="stat-value">${d.answerCount||0}</div><div class="stat-label">答题次数</div></div>`;
+            html+='</div>';
+            html+='<div class="card" style="margin-top:20px;"><div class="card-header"><h4>课堂积分说明</h4></div><div class="card-body"><ul><li>签到：每次+1分</li><li>举手回答：每次+2分</li><li>课堂答题正确：每次+3分</li><li>作业优秀：每次+5分</li></ul></div></div>';
+            document.getElementById('studentPointsContent').innerHTML=html;
+        }
+    }).catch(e=>{document.getElementById('studentPointsContent').innerHTML='<div class="empty-state">加载失败</div>';});
+}
+
+/* ========== 页面路由扩展 ========== */
+const _originalNavigateTo=window.navigateTo;
+window.navigateTo=function(page){
+    if(_originalNavigateTo)_originalNavigateTo(page);
+    setTimeout(()=>{
+        if(page==='analysis'){loadAnalysisClass();}
+        if(page==='knowledge'){loadKnowledgeTree();}
+        if(page==='wrong-questions'){loadWrongQuestionStudents();}
+        if(page==='ai-report'){loadReportStudents();}
+        if(page==='evaluation'){loadEvaluations();}
+        if(page==='student-grades'){loadStudentGrades();}
+        if(page==='student-homework'){loadStudentHomework();}
+        if(page==='student-attendance'){loadStudentAttendance();}
+        if(page==='student-points'){loadStudentPoints();}
+    },100);
+};
+
+/* 学生角色菜单显示 */
+const _originalInitApp=window.initAppAfterLogin;
+window.initAppAfterLogin=function(){
+    if(_originalInitApp)_originalInitApp();
+    const role=localStorage.getItem('skt_role')||apiService.getUserRole();
+    document.querySelectorAll('.student-only').forEach(el=>{
+        el.style.display=role==='student'?'flex':'none';
+    });
+};
 </script>
 </body>
 </html>

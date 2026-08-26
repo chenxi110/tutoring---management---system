@@ -16,6 +16,8 @@ public class AuthService {
     private JdbcTemplate jdbc;
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private OperationLogService operationLogService;
 
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
@@ -368,6 +370,9 @@ public class AuthService {
             String initialPassword = "123456";
             String hash = encoder.encode(initialPassword);
             jdbc.update("UPDATE users SET password_hash=? WHERE id=?", hash, targetUserId);
+            // 操作日志
+            operationLogService.log(operatorId, "operator_"+operatorId, operatorRole, "重置密码",
+                "重置用户ID="+targetUserId+"的密码为初始密码123456", null);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             result.put("msg", "密码已重置为初始密码123456");
