@@ -2,6 +2,7 @@ package com.skt.controller;
 
 import com.skt.security.RoleAccess;
 import com.skt.service.LeaveRequestService;
+import com.skt.service.OperationLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,8 @@ public class LeaveRequestController {
 
     @Autowired
     private LeaveRequestService leaveService;
+    @Autowired
+    private OperationLogService operationLogService;
 
     @PostMapping("/leave-requests")
     public Map<String, Object> create(@RequestBody Map<String, Object> body, HttpServletRequest req) {
@@ -72,8 +75,15 @@ public class LeaveRequestController {
         }
         Long approverId = (Long) req.getAttribute("userId");
         String approverName = (String) req.getAttribute("displayName");
+        String role = (String) req.getAttribute("role");
+        String ip = req.getRemoteAddr();
         boolean approved = body.get("approved") != null && (Boolean) body.get("approved");
         String comment = (String) body.get("comment");
-        return leaveService.approve(id, approverId, approverName, approved, comment);
+        Map<String, Object> result = leaveService.approve(id, approverId, approverName, approved, comment);
+        operationLogService.log(approverId, approverName, role,
+            approved ? "请假审批通过" : "请假审批拒绝",
+            "请假ID:" + id + ",审批结果:" + (approved ? "通过" : "拒绝") + ",备注:" + (comment != null ? comment : ""),
+            ip);
+        return result;
     }
 }

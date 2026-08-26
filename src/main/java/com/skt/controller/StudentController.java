@@ -1,6 +1,7 @@
 package com.skt.controller;
 
 import com.skt.security.RoleAccess;
+import com.skt.service.OperationLogService;
 import com.skt.service.StudentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,8 @@ public class StudentController {
 
     @Autowired
     private StudentService studentService;
+    @Autowired
+    private OperationLogService operationLogService;
 
     // 学生个人信息
     @GetMapping("/info")
@@ -113,5 +116,70 @@ public class StudentController {
         result.put("code", 200);
         result.put("data", studentService.getStudentBehaviorStats(studentId, classId));
         return result;
+    }
+
+    // ===== 学生账号绑定/解绑（仅教师/管理员） =====
+
+    // 查询可绑定的学生账号列表
+    @GetMapping("/bindable-accounts")
+    public Map<String, Object> getBindableAccounts(HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            result.put("code", 403);
+            result.put("msg", "无权限：仅教师/管理员可查看可绑定账号");
+            return result;
+        }
+        result.put("code", 200);
+        result.put("data", studentService.getBindableAccounts());
+        return result;
+    }
+
+    // 绑定学生账号
+    @PostMapping("/bind")
+    public Map<String, Object> bindAccount(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            result.put("code", 403);
+            result.put("msg", "无权限：仅教师/管理员可绑定学生账号");
+            return result;
+        }
+        Long studentId = body.get("studentId") != null ? Long.valueOf(body.get("studentId").toString()) : null;
+        Long userId = body.get("userId") != null ? Long.valueOf(body.get("userId").toString()) : null;
+        Map<String, Object> bindResult = studentService.bindAccount(studentId, userId);
+        // 操作日志
+        if ("200".equals(String.valueOf(bindResult.get("code")))) {
+            Long operatorId = (Long) req.getAttribute("userId");
+            String operatorRole = (String) req.getAttribute("role");
+            String operatorName = (String) req.getAttribute("displayName");
+            operationLogService.log(operatorId, operatorName != null ? operatorName : "operator_"+operatorId,
+                operatorRole, "学生绑定",
+                "绑定学生["+bindResult.get("studentName")+"]到账号["+bindResult.get("username")+"]",
+                req.getRemoteAddr());
+        }
+        return bindResult;
+    }
+
+    // 解绑学生账号
+    @PostMapping("/unbind")
+    public Map<String, Object> unbindAccount(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            result.put("code", 403);
+            result.put("msg", "无权限：仅教师/管理员可解绑学生账号");
+            return result;
+        }
+        Long studentId = body.get("studentId") != null ? Long.valueOf(body.get("studentId").toString()) : null;
+        Map<String, Object> unbindResult = studentService.unbindAccount(studentId);
+        // 操作日志
+        if ("200".equals(String.valueOf(unbindResult.get("code")))) {
+            Long operatorId = (Long) req.getAttribute("userId");
+            String operatorRole = (String) req.getAttribute("role");
+            String operatorName = (String) req.getAttribute("displayName");
+            operationLogService.log(operatorId, operatorName != null ? operatorName : "operator_"+operatorId,
+                operatorRole, "学生解绑",
+                "解绑学生["+unbindResult.get("studentName")+"]的账号",
+                req.getRemoteAddr());
+        }
+        return unbindResult;
     }
 }

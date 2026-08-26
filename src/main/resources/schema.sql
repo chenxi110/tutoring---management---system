@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS students (
     name VARCHAR(50) NOT NULL,
     class_id BIGINT,
     parent_id BIGINT,
+    user_id BIGINT COMMENT '绑定的学生账号ID',
     phone VARCHAR(20),
     parent_phone VARCHAR(20),
     parent_name VARCHAR(50),
@@ -41,7 +42,8 @@ CREATE TABLE IF NOT EXISTS students (
     status VARCHAR(20) DEFAULT 'active',
     is_deleted TINYINT DEFAULT 0,
     tags TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS records (
@@ -304,5 +306,60 @@ CREATE TABLE IF NOT EXISTS exam_submission (
     answers_json TEXT,
     score DOUBLE,
     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 操作审计日志表
+CREATE TABLE IF NOT EXISTS operation_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT,
+    username VARCHAR(100),
+    role VARCHAR(20),
+    operation VARCHAR(100) NOT NULL,
+    detail TEXT,
+    ip VARCHAR(50),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_operation (operation),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 课堂行为记录表
+CREATE TABLE IF NOT EXISTS classroom_behavior (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    class_id BIGINT NOT NULL,
+    class_name VARCHAR(100),
+    teacher_id BIGINT NOT NULL,
+    student_id BIGINT NOT NULL,
+    student_name VARCHAR(50),
+    session_id BIGINT,
+    behavior_type VARCHAR(30) NOT NULL COMMENT 'signin/raise_hand/answer/quiz/file_upload',
+    behavior_detail TEXT,
+    score_change INT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_class_id (class_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_behavior_type (behavior_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 请假申请表
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_id BIGINT NOT NULL,
+    student_name VARCHAR(50),
+    class_id BIGINT,
+    parent_id BIGINT,
+    parent_name VARCHAR(50),
+    leave_date DATE NOT NULL,
+    leave_type VARCHAR(20) DEFAULT 'sick' COMMENT 'sick病假/personal事假/other其他',
+    reason TEXT,
+    status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending待审批/approved已批准/rejected已拒绝',
+    teacher_id BIGINT,
+    teacher_remark TEXT,
+    approved_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_class_id (class_id),
+    INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

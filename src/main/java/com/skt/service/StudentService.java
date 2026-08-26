@@ -79,4 +79,99 @@ public class StudentService {
             // 记录失败不影响主流程
         }
     }
+
+    // 查询可绑定的学生账号（student角色且未绑定到任何学生）
+    public List<Map<String, Object>> getBindableAccounts() {
+        return jdbc.queryForList(
+            "SELECT u.id, u.username, u.display_name, u.role FROM users u " +
+            "WHERE u.role='student' AND u.id NOT IN (SELECT s.user_id FROM students s WHERE s.user_id IS NOT NULL AND (s.is_deleted IS NULL OR s.is_deleted=0)) " +
+            "ORDER BY u.username ASC");
+    }
+
+    // 绑定学生账号到学生信息
+    public Map<String, Object> bindAccount(Long studentId, Long userId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (studentId == null) {
+                result.put("code", 400);
+                result.put("msg", "缺少学生ID");
+                return result;
+            }
+            if (userId == null) {
+                result.put("code", 400);
+                result.put("msg", "缺少账号ID");
+                return result;
+            }
+            // 校验学生存在
+            List<Map<String, Object>> students = jdbc.queryForList(
+                "SELECT id, name, user_id FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
+            if (students.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "学生不存在");
+                return result;
+            }
+            // 校验账号存在且为student角色
+            List<Map<String, Object>> users = jdbc.queryForList(
+                "SELECT id, username, role FROM users WHERE id=? AND role='student'", userId);
+            if (users.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "学生账号不存在或角色不匹配");
+                return result;
+            }
+            // 校验账号未被其他学生绑定
+            List<Map<String, Object>> bound = jdbc.queryForList(
+                "SELECT id FROM students WHERE user_id=? AND id<>? AND (is_deleted IS NULL OR is_deleted=0)", userId, studentId);
+            if (!bound.isEmpty()) {
+                result.put("code", 400);
+                result.put("msg", "该账号已被其他学生绑定");
+                return result;
+            }
+            jdbc.update("UPDATE students SET user_id=? WHERE id=?", userId, studentId);
+            result.put("code", 200);
+            result.put("msg", "绑定成功");
+            result.put("studentId", studentId);
+            result.put("userId", userId);
+            result.put("username", users.get(0).get("username"));
+            result.put("studentName", students.get(0).get("name"));
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "绑定失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    // 解绑学生账号
+    public Map<String, Object> unbindAccount(Long studentId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (studentId == null) {
+                result.put("code", 400);
+                result.put("msg", "缺少学生ID");
+                return result;
+            }
+            List<Map<String, Object>> students = jdbc.queryForList(
+                "SELECT id, name, user_id FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
+            if (students.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "学生不存在");
+                return result;
+            }
+            Object existingUserId = students.get(0).get("user_id");
+            if (existingUserId == null) {
+                result.put("code", 400);
+                result.put("msg", "该学生尚未绑定账号");
+                return result;
+            }
+            jdbc.update("UPDATE students SET user_id=NULL WHERE id=?", studentId);
+            result.put("code", 200);
+            result.put("msg", "解绑成功");
+            result.put("studentId", studentId);
+            result.put("studentName", students.get(0).get("name"));
+            result.put("unboundUserId", existingUserId);
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "解绑失败：" + e.getMessage());
+        }
+        return result;
+    }
 }

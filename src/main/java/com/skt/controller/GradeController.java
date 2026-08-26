@@ -2,6 +2,7 @@ package com.skt.controller;
 
 import com.skt.security.RoleAccess;
 import com.skt.service.GradeService;
+import com.skt.service.OperationLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,6 +16,8 @@ public class GradeController {
 
     @Autowired
     private GradeService gradeService;
+    @Autowired
+    private OperationLogService operationLogService;
 
     @GetMapping("/grades")
     public Map<String, Object> list(@RequestParam(required = false) Long classId,
@@ -90,6 +93,13 @@ public class GradeController {
                 remarkValue == null ? null : String.valueOf(remarkValue),
                 gradeService.toLong(rankValue)
             );
+            String username = (String) req.getAttribute("username");
+            String role = (String) req.getAttribute("role");
+            String ip = req.getRemoteAddr();
+            operationLogService.log(teacherId, username, role, "成绩录入",
+                "学生:" + (studentNameValue != null ? studentNameValue : "") +
+                ",考试:" + (examNameValue != null ? examNameValue : "") +
+                ",分数:" + scoreValue, ip);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             result.put("id", id);
@@ -117,6 +127,11 @@ public class GradeController {
         Long semesterId = body.get("semesterId") != null ? ((Number) body.get("semesterId")).longValue() : null;
         List<Map<String, Object>> entries = (List<Map<String, Object>>) body.get("entries");
         int count = gradeService.batchCreate(classId, className, examName, examType, totalScore, semesterId, teacherId, entries);
+        String username = (String) req.getAttribute("username");
+        String role = (String) req.getAttribute("role");
+        String ip = req.getRemoteAddr();
+        operationLogService.log(teacherId, username, role, "成绩批量录入",
+            "班级:" + (className != null ? className : "") + ",考试:" + (examName != null ? examName : "") + ",数量:" + count, ip);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         result.put("count", count);
@@ -147,6 +162,12 @@ public class GradeController {
             }
             String remark = remarkValue == null ? null : String.valueOf(remarkValue);
             gradeService.update(id, score, totalScore, rank, remark);
+            Long userId = (Long) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
+            String role = (String) req.getAttribute("role");
+            String ip = req.getRemoteAddr();
+            operationLogService.log(userId, username, role, "成绩修改",
+                "成绩ID:" + id + ",新分数:" + score + ",满分:" + totalScore, ip);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             return result;
@@ -165,6 +186,11 @@ public class GradeController {
             return RoleAccess.forbidParentWrite("家长账号无权删除成绩");
         }
         gradeService.delete(id);
+        Long userId = (Long) req.getAttribute("userId");
+        String username = (String) req.getAttribute("username");
+        String role = (String) req.getAttribute("role");
+        String ip = req.getRemoteAddr();
+        operationLogService.log(userId, username, role, "成绩删除", "成绩ID:" + id, ip);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         return result;
@@ -240,6 +266,11 @@ public class GradeController {
         }
         try {
             int count = gradeService.importBatchCreate(classId, className, examName, examType, totalScore, semesterId, teacherId, entries);
+            String username = (String) req.getAttribute("username");
+            String role = (String) req.getAttribute("role");
+            String ip = req.getRemoteAddr();
+            operationLogService.log(teacherId, username, role, "Excel导入成绩",
+                "班级:" + (className != null ? className : "") + ",考试:" + (examName != null ? examName : "") + ",导入数量:" + count, ip);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             result.put("count", count);

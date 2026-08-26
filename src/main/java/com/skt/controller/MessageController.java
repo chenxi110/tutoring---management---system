@@ -3,6 +3,7 @@ package com.skt.controller;
 import com.skt.security.JwtUtil;
 import com.skt.security.RoleAccess;
 import com.skt.service.MessageService;
+import com.skt.service.OperationLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -18,6 +19,8 @@ public class MessageController {
     private MessageService messageService;
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private OperationLogService operationLogService;
 
     @GetMapping("/messages")
     public Map<String, Object> listMessages(HttpServletRequest req) {
@@ -58,7 +61,15 @@ public class MessageController {
             return err;
         }
 
-        return messageService.sendMessage(senderId, senderName, senderRole, title, content, studentId, classId, receiverId, msgType);
+        Map<String, Object> result = messageService.sendMessage(senderId, senderName, senderRole, title, content, studentId, classId, receiverId, msgType);
+        // 发布班级通知时记录操作日志
+        if ("notice".equals(msgType) && "200".equals(String.valueOf(result.get("code")))) {
+            String ip = req.getRemoteAddr();
+            operationLogService.log(senderId, senderName, senderRole, "发布班级通知",
+                "班级ID:" + classId + ",标题:" + title + ",内容:" + (content.length() > 50 ? content.substring(0, 50) + "..." : content),
+                ip);
+        }
+        return result;
     }
 
     @PutMapping("/messages/{id}/read")
