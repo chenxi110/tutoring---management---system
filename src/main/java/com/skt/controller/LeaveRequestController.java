@@ -3,10 +3,14 @@ package com.skt.controller;
 import com.skt.security.RoleAccess;
 import com.skt.service.LeaveRequestService;
 import com.skt.service.OperationLogService;
+import com.skt.util.ExcelExportUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @RestController
@@ -65,6 +69,33 @@ public class LeaveRequestController {
         r.put("code", 200);
         r.put("data", leaveService.listForTeacher(classId, status, teacherId, role));
         return r;
+    }
+
+    // 导出请假记录Excel
+    @GetMapping("/leave-requests/export")
+    public void exportLeaveRequests(@RequestParam(required = false) Long classId,
+                                    @RequestParam(required = false) String status,
+                                    HttpServletRequest req, HttpServletResponse response) {
+        if (!RoleAccess.isTeacher(req)) {
+            response.setStatus(403);
+            return;
+        }
+        Long teacherId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        List<Map<String, Object>> list = leaveService.listForTeacher(classId, status, teacherId, role);
+        String[] headers = {"学生姓名", "班级ID", "请假类型", "开始日期", "结束日期", "请假原因", "状态", "审批意见", "申请时间"};
+        String[] keys = {"student_name", "class_id", "leave_type", "start_date", "end_date", "reason", "status", "comment", "created_at"};
+        byte[] excelData = ExcelExportUtil.export(headers, keys, list, "请假记录");
+        try {
+            String fileName = URLEncoder.encode("请假记录.xlsx", StandardCharsets.UTF_8);
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+            response.setContentLength(excelData.length);
+            response.getOutputStream().write(excelData);
+            response.getOutputStream().flush();
+        } catch (Exception e) {
+            throw new RuntimeException("导出失败: " + e.getMessage(), e);
+        }
     }
 
     @PostMapping("/leave-requests/{id}/approve")

@@ -332,6 +332,15 @@ public class ExamService {
             "SELECT * FROM exam_submission WHERE exam_id=? ORDER BY submitted_at DESC", examId);
     }
 
+    // 根据ID获取考试信息
+    public Map<String, Object> getExamById(Long examId) {
+        try {
+            return jdbc.queryForMap("SELECT * FROM exam WHERE id=?", examId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /**
      * 多选题部分得分计算
      * 规则：选对部分得对应比例分，错选/多选得0分

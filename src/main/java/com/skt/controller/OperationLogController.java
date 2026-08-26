@@ -19,6 +19,8 @@ public class OperationLogController {
     public Map<String, Object> list(
             @RequestParam(required = false) String operation,
             @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int size,
             HttpServletRequest req) {
@@ -30,8 +32,8 @@ public class OperationLogController {
         }
         if (page < 1) page = 1;
         if (size < 1 || size > 200) size = 50;
-        List<Map<String, Object>> list = logService.list(operation, userId, page, size);
-        int total = logService.count(operation, userId);
+        List<Map<String, Object>> list = logService.list(operation, userId, startTime, endTime, page, size);
+        int total = logService.count(operation, userId, startTime, endTime);
         result.put("code", 200);
         result.put("data", list);
         result.put("total", total);

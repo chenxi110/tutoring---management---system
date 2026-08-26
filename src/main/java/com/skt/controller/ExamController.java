@@ -127,6 +127,29 @@ public class ExamController {
             r.put("msg", "仅教师/管理员可查看提交列表");
             return r;
         }
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        // 普通教师：校验考试是否属于自己所带班级
+        if ("teacher".equals(role)) {
+            try {
+                Map<String, Object> exam = examService.getExamById(examId);
+                if (exam == null) {
+                    r.put("code", 404);
+                    r.put("msg", "考试不存在");
+                    return r;
+                }
+                Long examTeacherId = exam.get("teacher_id") != null ? ((Number) exam.get("teacher_id")).longValue() : null;
+                if (examTeacherId != null && !examTeacherId.equals(userId)) {
+                    r.put("code", 403);
+                    r.put("msg", "无权限：只能查看自己班级的考试");
+                    return r;
+                }
+            } catch (Exception e) {
+                r.put("code", 500);
+                r.put("msg", "查询考试信息失败");
+                return r;
+            }
+        }
         r.put("code", 200);
         r.put("data", examService.listSubmissions(examId));
         return r;

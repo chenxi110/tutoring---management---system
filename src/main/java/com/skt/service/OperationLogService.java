@@ -25,7 +25,7 @@ public class OperationLogService {
         }
     }
 
-    public List<Map<String, Object>> list(String operation, Long userId, int page, int size) {
+    public List<Map<String, Object>> list(String operation, Long userId, String startTime, String endTime, int page, int size) {
         StringBuilder sql = new StringBuilder("SELECT * FROM operation_logs WHERE 1=1");
         List<Object> params = new ArrayList<>();
         if (operation != null && !operation.trim().isEmpty()) {
@@ -36,13 +36,21 @@ public class OperationLogService {
             sql.append(" AND user_id = ?");
             params.add(userId);
         }
+        if (startTime != null && !startTime.trim().isEmpty()) {
+            sql.append(" AND created_at >= ?");
+            params.add(startTime.trim());
+        }
+        if (endTime != null && !endTime.trim().isEmpty()) {
+            sql.append(" AND created_at <= ?");
+            params.add(endTime.trim());
+        }
         sql.append(" ORDER BY id DESC LIMIT ? OFFSET ?");
         params.add(size);
         params.add((page - 1) * size);
         return jdbc.queryForList(sql.toString(), params.toArray());
     }
 
-    public int count(String operation, Long userId) {
+    public int count(String operation, Long userId, String startTime, String endTime) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM operation_logs WHERE 1=1");
         List<Object> params = new ArrayList<>();
         if (operation != null && !operation.trim().isEmpty()) {
@@ -52,6 +60,14 @@ public class OperationLogService {
         if (userId != null) {
             sql.append(" AND user_id = ?");
             params.add(userId);
+        }
+        if (startTime != null && !startTime.trim().isEmpty()) {
+            sql.append(" AND created_at >= ?");
+            params.add(startTime.trim());
+        }
+        if (endTime != null && !endTime.trim().isEmpty()) {
+            sql.append(" AND created_at <= ?");
+            params.add(endTime.trim());
         }
         Integer cnt = jdbc.queryForObject(sql.toString(), Integer.class, params.toArray());
         return cnt != null ? cnt : 0;

@@ -2,10 +2,14 @@ package com.skt.controller;
 
 import com.skt.security.RoleAccess;
 import com.skt.service.HomeworkService;
+import com.skt.util.ExcelExportUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @RestController
@@ -27,6 +31,32 @@ public class HomeworkController {
         result.put("code", 200);
         result.put("data", list);
         return result;
+    }
+
+    // 导出作业列表Excel
+    @GetMapping("/homework/export")
+    public void exportHomework(@RequestParam(required = false) Long classId,
+                               HttpServletRequest req, HttpServletResponse response) {
+        if (RoleAccess.isParent(req)) {
+            response.setStatus(403);
+            return;
+        }
+        Long teacherId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        List<Map<String, Object>> list = homeworkService.list(classId, teacherId, role);
+        String[] headers = {"作业标题", "班级名称", "截止时间", "创建时间"};
+        String[] keys = {"title", "class_name", "deadline", "created_at"};
+        byte[] excelData = ExcelExportUtil.export(headers, keys, list, "作业列表");
+        try {
+            String fileName = URLEncoder.encode("作业列表.xlsx", StandardCharsets.UTF_8);
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+            response.setContentLength(excelData.length);
+            response.getOutputStream().write(excelData);
+            response.getOutputStream().flush();
+        } catch (Exception e) {
+            throw new RuntimeException("导出失败: " + e.getMessage(), e);
+        }
     }
 
     @GetMapping("/homework/my")
