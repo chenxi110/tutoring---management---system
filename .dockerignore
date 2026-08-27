@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+*.ipr
+*.iws
+
+# 编译输出
+target
+*.class
+
+# 日志
+*.log
+logs
+startup.log
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 文档（可选，减小镜像体积）
+doc-graduation-design
+demo-resources
+*.md
+
+# 启动脚本（Docker内不需要）
+*.bat
+*.sh
+
+# 上传文件
+upload
