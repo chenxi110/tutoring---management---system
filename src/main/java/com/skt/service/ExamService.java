@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +17,8 @@ import java.util.*;
  */
 @Service
 public class ExamService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExamService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -315,7 +320,7 @@ public class ExamService {
                     jdbc.update("UPDATE grades SET score=?, remark=? WHERE student_id=? AND exam_name=? AND class_id=?",
                         finalScore, comment != null ? comment : "", studentId, title, classId);
                 }
-            } catch (Exception e) {}
+            } catch (Exception e) { log.warn("考试操作异常: {}", e.getMessage()); }
             result.put("code", 200);
             result.put("msg", "阅卷完成");
             result.put("finalScore", finalScore);

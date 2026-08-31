@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,6 +17,8 @@ import java.util.*;
 
 @Service
 public class AIService {
+
+    private static final Logger log = LoggerFactory.getLogger(AIService.class);
 
     // 密钥来源：本地开发读取 application-local.yml；生产环境通过服务器环境变量 AI_API_KEY 注入。
     // 严禁在源码/Jar 中硬编码明文密钥。当前对接 Agnes-AI（OpenAI 兼容 /v1/chat/completions）。
@@ -90,9 +95,7 @@ public class AIService {
         try {
             jdbc.update("INSERT INTO ai_chat_history (user_id, session_id, role, content) VALUES (?,?,?,?)",
                     userId, sid, "user", prompt);
-        } catch (Exception e) {
-            // DB save failure should not block AI response
-        }
+        } catch (Exception e) { log.debug("AI对话记录保存失败（不影响AI响应）: {}", e.getMessage()); }
 
         // Call LLM API
         try {
@@ -145,9 +148,7 @@ public class AIService {
             try {
                 jdbc.update("INSERT INTO ai_chat_history (user_id, session_id, role, content) VALUES (?,?,?,?)",
                         userId, sid, "assistant", aiContent);
-            } catch (Exception e) {
-                // ignore
-            }
+            } catch (Exception e) { log.debug("AI助手回复保存失败（不影响AI响应）: {}", e.getMessage()); }
 
             result.put("code", 200);
             result.put("success", true);
@@ -396,7 +397,7 @@ public class AIService {
                     }
                 }
             }
-        } catch (Exception e) {}
+        } catch (Exception e) { log.debug("解析AI错误响应失败: {}", e.getMessage()); }
         return "AI服务返回错误";
     }
 }

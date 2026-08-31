@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -10,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class MessageService {
+
+    private static final Logger log = LoggerFactory.getLogger(MessageService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -176,7 +181,7 @@ public class MessageService {
         emitter.onError(e -> removeClient(userId, emitter));
         try {
             emitter.send(SseEmitter.event().data("{\"type\":\"connected\"}"));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { log.debug("操作被跳过: {}", ignored.getMessage()); }
         Timer heartbeat = new Timer(true);
         heartbeat.scheduleAtFixedRate(new TimerTask() {
             @Override

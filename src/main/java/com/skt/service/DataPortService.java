@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -8,6 +11,8 @@ import java.util.*;
 
 @Service
 public class DataPortService {
+
+    private static final Logger log = LoggerFactory.getLogger(DataPortService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -38,7 +43,7 @@ public class DataPortService {
                         s.get("end_date") != null ? s.get("end_date") : s.get("endDate"),
                         s.get("is_active") != null ? s.get("is_active") : (s.get("isActive") != null ? 1 : 0));
                     count++;
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) { log.debug("操作被跳过: {}", ignored.getMessage()); }
             }
         }
         List<Map<String, Object>> classes = (List<Map<String, Object>>) data.get("classes");
@@ -50,7 +55,7 @@ public class DataPortService {
                         c.get("course") != null ? c.get("course") : "",
                         c.get("semester_id") != null ? c.get("semester_id") : c.get("semesterId"));
                     count++;
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) { log.debug("操作被跳过: {}", ignored.getMessage()); }
             }
         }
         return count;

@@ -1,8 +1,12 @@
 server:
   address: 0.0.0.0
   port: 8081
+  # 优雅关闭：收到关闭信号后等待正在处理的请求完成，最多等待30秒
+  shutdown: graceful
   tomcat:
     uri-encoding: UTF-8
+    # Tomcat 优雅关闭等待时间
+    graceful-shutdown-wait: 30s
   servlet:
     encoding:
       charset: UTF-8
@@ -15,6 +19,15 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:${MYSQL_USERNAME:root}}
     password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD:123456}}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    # HikariCP 连接池配置（Spring Boot 默认连接池）
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 3
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      # 连接测试查询，确保从池中获取的连接有效
+      connection-test-query: SELECT 1
   sql:
     init:
       mode: always
@@ -30,9 +43,11 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
+# JWT 配置
 jwt:
-  secret: skt_secret_key_2024_springboot_v1
-  expiration: 604800000
+  # 生产环境强烈建议通过环境变量 JWT_SECRET 覆盖默认值
+  secret: ${JWT_SECRET:skt_secret_key_2024_springboot_v1}
+  expiration: ${JWT_EXPIRATION:604800000}
 
 # ============================================================
 # AI大模型配置 - 当前对接 Agnes-AI（OpenAI 兼容接口，/v1/chat/completions）
@@ -49,10 +64,25 @@ ai:
   api-key: ${AI_API_KEY:your_agnes_api_key_here}
   model: ${AI_MODEL:agnes-ai}
   system-prompt: 你是一个专业的教学管理助手，帮助教师和家长解决教学相关问题。请用简洁清晰的中文回答。
-  timeout: 60
+  timeout: ${AI_TIMEOUT:60}
 
 # 文件上传存储配置（课堂文件互传）
 file:
-  uploadBasePath: ./upload/courseFile/
-  maxSingleFileSize: 52428800 #50MB
-  allowSuffix: xlsx,xls,docx,doc,pptx,png,jpg,jpeg
+  uploadBasePath: ${FILE_UPLOAD_PATH:./upload/courseFile/}
+  maxSingleFileSize: ${FILE_MAX_SIZE:52428800}
+  allowSuffix: ${FILE_ALLOW_SUFFIX:xlsx,xls,docx,doc,pptx,png,jpg,jpeg}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.skt: INFO
+    org.springframework.web: WARN
+    org.springframework.jdbc: WARN
+    com.zaxxer.hikari: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE_PATH:logs/skt-server.log}
+    max-size: 10MB
+    max-history: 30

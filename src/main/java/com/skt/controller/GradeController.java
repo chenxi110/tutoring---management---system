@@ -1,5 +1,8 @@
 package com.skt.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.skt.security.RoleAccess;
 import com.skt.service.GradeService;
 import com.skt.service.OperationLogService;
@@ -17,6 +20,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api")
 public class GradeController {
+
+    private static final Logger log = LoggerFactory.getLogger(GradeController.class);
 
     @Autowired
     private GradeService gradeService;
@@ -109,7 +114,7 @@ public class GradeController {
             result.put("id", id);
             return result;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("成绩操作异常: ", e);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 500);
             result.put("msg", "保存成绩失败，请稍后重试");
@@ -176,7 +181,7 @@ public class GradeController {
             result.put("code", 200);
             return result;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("成绩操作异常: ", e);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 500);
             result.put("msg", "更新成绩失败，请稍后重试");
@@ -280,7 +285,7 @@ public class GradeController {
             result.put("count", count);
             return result;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("成绩操作异常: ", e);
             Map<String, Object> err = new HashMap<>();
             err.put("code", 500);
             err.put("msg", "批量导入失败：" + e.getMessage());

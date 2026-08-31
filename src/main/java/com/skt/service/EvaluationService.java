@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -8,6 +11,8 @@ import java.util.*;
 
 @Service
 public class EvaluationService {
+
+    private static final Logger log = LoggerFactory.getLogger(EvaluationService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -62,7 +67,7 @@ public class EvaluationService {
             stats.put("avgScore", avgScore != null ? Math.round(avgScore * 10) / 10.0 : 0);
             stats.put("totalCount", totalCount != null ? totalCount : 0);
             stats.put("distribution", distribution);
-        } catch (Exception e) {}
+        } catch (Exception e) { log.warn("查询统计数据失败: {}", e.getMessage()); }
         return stats;
     }
 }

@@ -1,9 +1,11 @@
 package com.skt.service;
 
 import com.skt.security.JwtUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +14,8 @@ import java.util.*;
 @Service
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
     @Autowired
     private JdbcTemplate jdbc;
     @Autowired
@@ -19,34 +23,51 @@ public class AuthService {
     @Autowired
     private OperationLogService operationLogService;
 
-    private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     public Map<String, Object> login(String username, String password) {
-        List<Map<String, Object>> users = jdbc.queryForList(
-            "SELECT * FROM users WHERE username=?", username);
-        if (users.isEmpty()) {
-            return errorMap("用户不存在");
+        // 空值防护：防止 null 传入导致 NPE
+        if (username == null || username.trim().isEmpty()) {
+            return errorMap("用户名不能为空");
         }
-        Map<String, Object> user = users.get(0);
-        if (!encoder.matches(password, (String) user.get("password_hash"))) {
-            return errorMap("密码错误");
+        if (password == null || password.isEmpty()) {
+            return errorMap("密码不能为空");
         }
-        Long id = ((Number) user.get("id")).longValue();
-        String token = jwtUtil.generateToken(id,
-            (String) user.get("username"),
-            (String) user.get("role"),
-            (String) user.get("display_name"));
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("token", token);
-        Map<String, Object> u = new HashMap<>();
-        u.put("id", id);
-        u.put("username", user.get("username"));
-        u.put("role", user.get("role"));
-        u.put("displayName", user.get("display_name"));
-        u.put("phone", user.get("phone"));
-        result.put("user", u);
-        return result;
+        try {
+            List<Map<String, Object>> users = jdbc.queryForList(
+                "SELECT * FROM users WHERE username=?", username.trim());
+            if (users.isEmpty()) {
+                return errorMap("用户不存在");
+            }
+            Map<String, Object> user = users.get(0);
+            String passwordHash = (String) user.get("password_hash");
+            if (passwordHash == null || !encoder.matches(password, passwordHash)) {
+                return errorMap("密码错误");
+            }
+            Long id = ((Number) user.get("id")).longValue();
+            String token = jwtUtil.generateToken(id,
+                (String) user.get("username"),
+                (String) user.get("role"),
+                (String) user.get("display_name"));
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("token", token);
+            Map<String, Object> u = new HashMap<>();
+            u.put("id", id);
+            u.put("username", user.get("username"));
+            u.put("role", user.get("role"));
+            u.put("displayName", user.get("display_name"));
+            u.put("phone", user.get("phone"));
+            result.put("user", u);
+            log.info("用户登录成功: username={}, role={}", user.get("username"), user.get("role"));
+            return result;
+        } catch (DataAccessException e) {
+            log.error("登录时数据库访问异常: username={}, error={}", username, e.getMessage(), e);
+            return errorMap("登录失败：数据库访问异常，请稍后重试");
+        } catch (Exception e) {
+            log.error("登录时系统异常: username={}, error={}", username, e.getMessage(), e);
+            return errorMap("登录失败：系统异常，请稍后重试");
+        }
     }
 
     public Map<String, Object> register(String username, String password, String role, String displayName, String phone) {
@@ -116,9 +137,11 @@ public class AuthService {
             u.put("displayName", user.get("display_name"));
             u.put("phone", user.get("phone"));
             result.put("user", u);
+            log.info("用户注册成功: username={}, role={}", normalizedUsername, normalizedRole);
             return result;
         } catch (DataAccessException ex) {
             String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+            log.warn("注册时数据库异常: username={}, error={}", username, message);
             if (message != null && message.toLowerCase().contains("duplicate")) {
                 return errorMap("用户名已存在");
             }
@@ -127,11 +150,15 @@ public class AuthService {
             }
             return errorMap("注册失败：参数校验或数据库写入异常");
         } catch (Exception ex) {
+            log.error("注册时系统异常: username={}, error={}", username, ex.getMessage(), ex);
             return errorMap("注册失败：" + ex.getMessage());
         }
     }
 
     public List<Map<String, Object>> getParentChildren(Long parentId) {
+        if (parentId == null) {
+            return Collections.emptyList();
+        }
         String sql = "SELECT s.id, s.name, s.class_id, s.parent_phone, s.status, " +
                 "c.name AS class_name, c.course AS class_course, c.teacher_id, " +
                 "u.display_name AS teacher_name " +
@@ -154,7 +181,7 @@ public class AuthService {
 
             String rawStudentName = studentName == null ? "" : studentName;
             String rawParentPhone = parentPhone == null ? "" : parentPhone;
-            System.out.println("[AuthService.bindParent] raw studentName=" + rawStudentName + ", raw parentPhone=" + rawParentPhone + ", parentId=" + parentId);
+            log.debug("bindParent: studentName={}, parentPhone={}, parentId={}", rawStudentName, rawParentPhone, parentId);
 
             String normalizedStudentName = normalizeStudentName(rawStudentName);
             String normalizedParentPhone = normalizePhone(rawParentPhone);
@@ -209,9 +236,10 @@ public class AuthService {
             s.put("name", student.get("name"));
             result.put("student", s);
             result.put("msg", "绑定成功");
+            log.info("家长绑定学生成功: parentId={}, studentId={}", parentId, sid);
             return result;
         } catch (Exception ex) {
-            System.err.println("[AuthService.bindParent] error: " + ex.getMessage());
+            log.error("绑定学生失败: parentId={}, error={}", parentId, ex.getMessage(), ex);
             return errorMap("绑定失败：" + ex.getMessage());
         }
     }
@@ -242,8 +270,10 @@ public class AuthService {
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             result.put("msg", "解绑成功");
+            log.info("家长解绑学生成功: parentId={}, studentId={}", parentId, studentId);
             return result;
         } catch (Exception ex) {
+            log.error("解绑学生失败: parentId={}, studentId={}, error={}", parentId, studentId, ex.getMessage(), ex);
             return errorMap("解绑失败：" + ex.getMessage());
         }
     }
@@ -274,13 +304,6 @@ public class AuthService {
         return matched;
     }
 
-    private String studentDeleteFilter() {
-        if (hasStudentSoftDeleteColumn()) {
-            return "(is_deleted IS NULL OR is_deleted = 0)";
-        }
-        return "(1=1)";
-    }
-
     private boolean hasStudentSoftDeleteColumn() {
         try {
             Integer count = jdbc.queryForObject(
@@ -288,6 +311,7 @@ public class AuthService {
                 Integer.class);
             return count != null && count > 0;
         } catch (Exception e) {
+            log.debug("检查 students.is_deleted 列失败（可能表不存在或无权限）: {}", e.getMessage());
             return false;
         }
     }
@@ -347,7 +371,7 @@ public class AuthService {
         return jdbc.queryForList("SELECT id, username, display_name, role, phone, created_at FROM users ORDER BY id ASC");
     }
 
-    // 重置用户密码为初始密码123456（仅教师管理员可调用）
+    // 重置用户密码为初始密码（仅教师管理员可调用）
     public Map<String, Object> resetPassword(Long targetUserId, Long operatorId, String operatorRole) {
         try {
             if (operatorId == null) {
@@ -370,21 +394,23 @@ public class AuthService {
             String initialPassword = "123456";
             String hash = encoder.encode(initialPassword);
             jdbc.update("UPDATE users SET password_hash=? WHERE id=?", hash, targetUserId);
-            // 操作日志
             operationLogService.log(operatorId, "operator_"+operatorId, operatorRole, "重置密码",
-                "重置用户ID="+targetUserId+"的密码为初始密码123456", null);
+                "重置用户ID="+targetUserId+"的密码为初始密码", null);
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
-            result.put("msg", "密码已重置为初始密码123456");
+            result.put("msg", "密码已重置为初始密码");
             result.put("data", Map.of("userId", targetUserId, "username", users.get(0).get("username")));
+            log.info("密码重置成功: operatorId={}, targetUserId={}", operatorId, targetUserId);
             return result;
         } catch (Exception ex) {
+            log.error("重置密码失败: operatorId={}, targetUserId={}, error={}", operatorId, targetUserId, ex.getMessage(), ex);
             return errorMap("重置密码失败：" + ex.getMessage());
         }
     }
 
     // 修改本人密码（所有角色可用）
-    public Map<String, Object> updateMyPassword(Long userId, String oldPassword, String newPassword, String confirmPassword) {        try {
+    public Map<String, Object> updateMyPassword(Long userId, String oldPassword, String newPassword, String confirmPassword) {
+        try {
             if (userId == null) {
                 return errorMap("未登录，无法修改密码");
             }
@@ -411,7 +437,8 @@ public class AuthService {
                 return errorMap("用户不存在");
             }
             Map<String, Object> user = users.get(0);
-            if (!encoder.matches(oldPassword.trim(), (String) user.get("password_hash"))) {
+            String passwordHash = (String) user.get("password_hash");
+            if (passwordHash == null || !encoder.matches(oldPassword.trim(), passwordHash)) {
                 return errorMap("旧密码错误");
             }
             String hash = encoder.encode(newPassword.trim());
@@ -419,8 +446,10 @@ public class AuthService {
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             result.put("msg", "密码修改成功，请使用新密码重新登录");
+            log.info("用户修改密码成功: userId={}", userId);
             return result;
         } catch (Exception ex) {
+            log.error("修改密码失败: userId={}, error={}", userId, ex.getMessage(), ex);
             return errorMap("修改密码失败：" + ex.getMessage());
         }
     }

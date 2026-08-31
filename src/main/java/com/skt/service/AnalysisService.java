@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -8,6 +11,8 @@ import java.util.*;
 
 @Service
 public class AnalysisService {
+
+    private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -96,7 +101,7 @@ public class AnalysisService {
             behavior.put("raiseHandCount", raiseHandCount != null ? raiseHandCount : 0);
             behavior.put("answerCount", answerCount != null ? answerCount : 0);
             behavior.put("totalScore", totalScore != null ? totalScore : 0);
-        } catch (Exception e) {}
+        } catch (Exception e) { log.warn("查询统计数据失败: {}", e.getMessage()); }
         analysis.put("classroomBehavior", behavior);
 
         // 5. 错题统计
@@ -108,7 +113,7 @@ public class AnalysisService {
                 Integer.class, studentId);
             analysis.put("wrongQuestionCount", wrongCount != null ? wrongCount : 0);
             analysis.put("masteredQuestionCount", masteredCount != null ? masteredCount : 0);
-        } catch (Exception e) {}
+        } catch (Exception e) { log.warn("查询统计数据失败: {}", e.getMessage()); }
 
         // 6. 综合评分
         double overallScore = 0;

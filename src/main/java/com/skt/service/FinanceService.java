@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -8,6 +11,8 @@ import java.util.*;
 
 @Service
 public class FinanceService {
+
+    private static final Logger log = LoggerFactory.getLogger(FinanceService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -86,7 +91,7 @@ public class FinanceService {
                     "UPDATE student_accounts SET balance_hours=?, total_consumed=?, status=? WHERE student_id=?",
                     newBalance, currentConsumed + hours, status, studentId);
             }
-        } catch (Exception e) {}
+        } catch (Exception e) { log.warn("查询统计数据失败: {}", e.getMessage()); }
     }
 
     // 财务统计
@@ -102,7 +107,7 @@ public class FinanceService {
             stats.put("totalIncome", totalPaid != null ? totalPaid : 0);
             stats.put("paymentCount", paymentCount != null ? paymentCount : 0);
             stats.put("arrearsCount", arrearsCount != null ? arrearsCount : 0);
-        } catch (Exception e) {}
+        } catch (Exception e) { log.warn("查询统计数据失败: {}", e.getMessage()); }
         return stats;
     }
 }

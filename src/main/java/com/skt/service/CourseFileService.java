@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 课堂文件互传服务
@@ -287,7 +288,7 @@ public class CourseFileService {
         String ext = getFileExtension(originalName);
         String prefix = isTeacher ? "teacher_" : "student_";
         // 时间戳+随机数 自动重命名，防止同名覆盖
-        String storedName = prefix + System.currentTimeMillis() + "_" + new Random().nextInt(9999) + "." + ext;
+        String storedName = prefix + System.currentTimeMillis() + "_" + ThreadLocalRandom.current().nextInt(9999) + "." + ext;
         File dest = new File(classDir, storedName).getAbsoluteFile();
         file.transferTo(dest);
         return dest.getPath();

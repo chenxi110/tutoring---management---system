@@ -1,8 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>课外辅导班教学辅助管理</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -311,9 +314,9 @@
         .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 14px; }
         .empty-state::before { content: '📭'; display: block; font-size: 32px; margin-bottom: 8px; opacity: 0.6; }
         /* 仪表盘优化 */
-        .dashboard-stats { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
-        .dashboard-stats .stat-card { padding: 20px; }
-        .dashboard-stats .stat-value { font-size: 28px; }
+        .dashboard-stats { grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+        .dashboard-stats .stat-card { padding: 18px; }
+        .dashboard-stats .stat-value { font-size: 26px; }
         /* 表格容器优化 */
         .table-wrapper { max-height: none; }
         .table-wrapper table { margin-bottom: 0; }
@@ -423,8 +426,12 @@
             <div class="page active" id="page-dashboard">
                 <div class="stats-grid dashboard-stats">
                     <div class="stat-card next-class-card" onclick="navigateTo('schedule')"><div class="stat-value" id="statNextClass">暂无课</div><div class="stat-label">我的下节课</div><div class="next-class-sub" id="statNextClassSub"></div></div>
+                    <div class="stat-card" onclick="openDashboardDetail('today')"><div class="stat-value" id="statToday">-</div><div class="stat-label">今日上课</div></div>
                     <div class="stat-card" onclick="openDashboardDetail('month-sessions')"><div class="stat-value" id="statMonthSessions">-</div><div class="stat-label">本月上课节数</div></div>
+                    <div class="stat-card success" onclick="openDashboardDetail('month-income')"><div class="stat-value" id="statMonthIncome">-</div><div class="stat-label">本月课时费(元)</div></div>
                     <div class="stat-card warning" onclick="openDashboardDetail('total-classes')"><div class="stat-value" id="statTotalClasses">-</div><div class="stat-label">班级总数</div></div>
+                    <div class="stat-card" onclick="navigateTo('students')"><div class="stat-value" id="statTotalStudents">-</div><div class="stat-label">学生总数</div></div>
+                    <div class="stat-card danger" onclick="openDashboardDetail('pending-makeup')"><div class="stat-value" id="statPendingMakeup">-</div><div class="stat-label">待补课数</div></div>
                     <div class="stat-card warning" onclick="navigateTo('homework')"><div class="stat-value" id="statPendingHomework">0</div><div class="stat-label">待批改作业</div></div>
                     <div class="stat-card danger" onclick="navigateTo('leave-requests')"><div class="stat-value" id="statPendingLeave">0</div><div class="stat-label">待审批请假</div></div>
                     <div class="stat-card success" onclick="navigateTo('notifications')"><div class="stat-value" id="statUnreadMsg">0</div><div class="stat-label">未读消息</div></div>
@@ -5033,6 +5040,10 @@ function loadDashboard(){
     const statMonthSessionsEl=document.getElementById('statMonthSessions');if(statMonthSessionsEl)statMonthSessionsEl.textContent=ms.totalSessions;
     const statMonthIncomeEl=document.getElementById('statMonthIncome');if(statMonthIncomeEl)statMonthIncomeEl.textContent=ms.totalIncome.toFixed(0);
     const statTotalClassesEl=document.getElementById('statTotalClasses');if(statTotalClassesEl)statTotalClassesEl.textContent=cache.totalClasses;
+    // 学生总数统计
+    const studentList=appData.students||[];
+    const activeStudents=studentList.filter(s=>!s.is_deleted&&s.status!=='inactive').length;
+    const statTotalStudentsEl=document.getElementById('statTotalStudents');if(statTotalStudentsEl)statTotalStudentsEl.textContent=activeStudents>0?activeStudents:(studentList.length>0?studentList.length:'-');
     const allAbsent=cache.allAbsent;
     const curSemForDash=getCurrentSemester();
     let filteredAbsentDash=allAbsent;
@@ -7305,6 +7316,14 @@ function loadOperationLog(){
 document.querySelectorAll('.nav-item').forEach(item=>{item.addEventListener('click',()=>navigateTo(item.dataset.page));});
 
 async function safeInit(){
+    // 登录状态检查：未登录则显示登录界面
+    const token = localStorage.getItem('skt_token');
+    const user = localStorage.getItem('skt_user');
+    if(!token || !user){
+        showLogin();
+        return;
+    }
+    
     try{
         // 保存仪表盘原始 HTML（防止家长端覆盖后无法恢复）
         const dashEl=document.getElementById('page-dashboard');
@@ -11274,15 +11293,21 @@ function normalizePhoneInput(value){
 }
 
 function showLogin(){
-    document.getElementById('loginOverlay').style.display='flex';
-    document.querySelector('.sidebar').style.display='none';
-    document.querySelector('.main').style.display='none';
+    var overlay=document.getElementById('loginOverlay');
+    if(overlay)overlay.style.display='flex';
+    var sidebar=document.querySelector('.sidebar');
+    if(sidebar)sidebar.style.display='none';
+    var main=document.querySelector('.main');
+    if(main)main.style.display='none';
 }
 
 function hideLogin(){
-    document.getElementById('loginOverlay').style.display='none';
-    document.querySelector('.sidebar').style.display='flex';
-    document.querySelector('.main').style.display='block';
+    var overlay=document.getElementById('loginOverlay');
+    if(overlay)overlay.style.display='none';
+    var sidebar=document.querySelector('.sidebar');
+    if(sidebar)sidebar.style.display='flex';
+    var main=document.querySelector('.main');
+    if(main)main.style.display='block';
 }
 
 function logout(){

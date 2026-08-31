@@ -1,5 +1,8 @@
 package com.skt.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,8 @@ import java.util.*;
 
 @Service
 public class GradeService {
+
+    private static final Logger log = LoggerFactory.getLogger(GradeService.class);
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -212,6 +217,7 @@ public class GradeService {
         return m;
     }
 
+    @Transactional
     public int batchCreate(Long classId, String className, String examName, String examType,
                            Double totalScore, Long semesterId, Long teacherId,
                            List<Map<String, Object>> entries) {
@@ -389,7 +395,7 @@ public class GradeService {
             result.put("validCount", previewList.stream().filter(m -> (boolean) m.get("valid")).count());
             return result;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Excel解析失败: ", e);
             result.put("code", 500);
             result.put("msg", "Excel解析失败：" + e.getMessage());
             return result;

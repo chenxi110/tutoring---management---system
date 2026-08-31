@@ -1,5 +1,8 @@
 package com.skt.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.skt.security.RoleAccess;
 import com.skt.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +14,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     @Autowired
     private AuthService authService;
@@ -71,7 +76,7 @@ public class AuthController {
         }
         String rawStudentName = body == null || body.get("studentName") == null ? null : String.valueOf(body.get("studentName"));
         String rawParentPhone = body == null || body.get("parentPhone") == null ? null : String.valueOf(body.get("parentPhone"));
-        System.out.println("[AuthController.bindStudent] raw studentName=" + rawStudentName + ", raw parentPhone=" + rawParentPhone + ", parentId=" + parentId);
+        log.debug("bindStudent: studentName={}, parentPhone={}, parentId={}", rawStudentName, rawParentPhone, parentId);
         return authService.bindParent(parentId, rawStudentName, rawParentPhone);
     }
 
