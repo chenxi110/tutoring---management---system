@@ -5408,16 +5408,16 @@ async function loadAdminDashboard(){
     const statsGrid=dashEl.querySelector('.stats-grid');
     if(statsGrid){
         statsGrid.innerHTML=[
-            `<div class="stat-card success" onclick="navigateTo('students')"><div class="stat-value">${activeStudents>0?activeStudents:(studentList.length>0?studentList.length:'-')}</div><div class="stat-label">总学生数</div></div>`,
-            `<div class="stat-card" onclick="navigateTo('classes')"><div class="stat-value">${classList.length}</div><div class="stat-label">总班级数</div></div>`,
-            `<div class="stat-card" onclick="navigateTo('users')"><div class="stat-value">${teacherCount}</div><div class="stat-label">总教师数</div></div>`,
-            `<div class="stat-card warning" onclick="navigateTo('settings')"><div class="stat-value">${courseCount}</div><div class="stat-label">总课程数</div></div>`,
+            `<div class="stat-card success" onclick="openDashboardDetail('students')"><div class="stat-value">${activeStudents>0?activeStudents:(studentList.length>0?studentList.length:'-')}</div><div class="stat-label">总学生数</div></div>`,
+            `<div class="stat-card" onclick="openDashboardDetail('total-classes')"><div class="stat-value">${classList.length}</div><div class="stat-label">总班级数</div></div>`,
+            `<div class="stat-card" onclick="openDashboardDetail('teachers')"><div class="stat-value">${teacherCount}</div><div class="stat-label">总教师数</div></div>`,
+            `<div class="stat-card warning" onclick="openDashboardDetail('courses')"><div class="stat-value">${courseCount}</div><div class="stat-label">总课程数</div></div>`,
             `<div class="stat-card" onclick="openDashboardDetail('today')"><div class="stat-value">${todayRecords.length>0?todayRecords.length+'节课':'无课'}</div><div class="stat-label">今日上课</div></div>`,
-            `<div class="stat-card" onclick="openDashboardDetail('month-sessions')"><div class="stat-value">${semesterSessions}</div><div class="stat-label">本学期总课时</div></div>`,
+            `<div class="stat-card" onclick="openDashboardDetail('semester-sessions')"><div class="stat-value">${semesterSessions}</div><div class="stat-label">本学期总课时</div></div>`,
             `<div class="stat-card success" onclick="openDashboardDetail('month-income')"><div class="stat-value">${(ms.totalIncome||0).toFixed(0)}</div><div class="stat-label">本月课时费(元)</div></div>`,
-            `<div class="stat-card" onclick="navigateTo('homework')"><div class="stat-value">${totalHomework}</div><div class="stat-label">总作业数量</div></div>`,
-            `<div class="stat-card danger" onclick="navigateTo('leave-requests')"><div class="stat-value">${pendingLeave}</div><div class="stat-label">待审批请假</div></div>`,
-            `<div class="stat-card success" onclick="navigateTo('notifications')"><div class="stat-value" id="statUnreadMsg">0</div><div class="stat-label">系统未读消息</div></div>`
+            `<div class="stat-card" onclick="openDashboardDetail('homework')"><div class="stat-value">${totalHomework}</div><div class="stat-label">总作业数量</div></div>`,
+            `<div class="stat-card danger" onclick="openDashboardDetail('leave')"><div class="stat-value">${pendingLeave}</div><div class="stat-label">待审批请假</div></div>`,
+            `<div class="stat-card success" onclick="openDashboardDetail('unread')"><div class="stat-value" id="statUnreadMsg">0</div><div class="stat-label">系统未读消息</div></div>`
         ].join('');
     }
     const qa=dashEl.querySelector('.quick-actions');
@@ -5961,7 +5961,7 @@ function toggleTrialStudents(){const wrap=document.getElementById('trialStudents
 function getTrialStudentsFromForm(){const cb=document.getElementById('trialStudentsToggle');const val=document.getElementById('trialStudentsInput').value||'';if(!cb.checked||!val.trim())return [];return val.split(/[,，]/).map(s=>s.trim()).filter(s=>s).filter((n,i,arr)=>arr.indexOf(n)===i);}
 function setTrialStudentsToForm(arr){const cb=document.getElementById('trialStudentsToggle');const wrap=document.getElementById('trialStudentsWrap');const input=document.getElementById('trialStudentsInput');const has=(arr&&arr.length>0);cb.checked=has;wrap.style.display=has?'block':'none';input.value=has?arr.join('，'):'';}
 function closeDashboardDetail(){document.getElementById('dashboardDetailModal').classList.remove('active');}
-function openDashboardDetail(type){
+async function openDashboardDetail(type){
     const modal=document.getElementById('dashboardDetailModal');
     const title=document.getElementById('dashDetailTitle');
     const sum=document.getElementById('dashDetailSummary');
@@ -6112,8 +6112,128 @@ function openDashboardDetail(type){
             }).join('')}</tbody></table></div>`;
             break;
         }
+        case 'students':{
+            title.textContent='全部学生明细';
+            const allS=window._dashFullStudents||[];
+            const activeS=allS.filter(s=>!s.is_deleted&&s.status!=='inactive');
+            const cMapS={};(appData.classes||[]).forEach(c=>{cMapS[c.id]=c.name||('班级'+c.id);});
+            let ungroupS=0;const cntS={};
+            allS.forEach(s=>{const cid=s.class_id;if(cid!=null&&cMapS[cid]!==undefined){cntS[cMapS[cid]]=(cntS[cMapS[cid]]||0)+1;}else{ungroupS++;}});
+            sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                <div><div style="font-size:12px;opacity:.75;">学生总数</div><div style="font-size:26px;font-weight:700;">${allS.length}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">在学人数</div><div style="font-size:26px;font-weight:700;color:var(--success);">${activeS.length}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">涉及班级</div><div style="font-size:26px;font-weight:700;">${Object.keys(cntS).length}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">未分班</div><div style="font-size:26px;font-weight:700;color:var(--danger);">${ungroupS}</div></div>
+            </div>`;
+            if(allS.length===0){body.innerHTML='<div class="empty-state">暂无学生数据</div>';break;}
+            body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>姓名</th><th>班级</th><th>联系电话</th><th>状态</th><th>创建日期</th></tr></thead><tbody>${allS.map(s=>{
+                const cid=s.class_id;const cn=(cid!=null&&cMapS[cid]!==undefined)?cMapS[cid]:'未分班';
+                const off=(s.status==='inactive'||s.is_deleted);
+                return `<tr><td><strong>${escapeHtml(s.name)}</strong></td><td><span class="tag">${escapeHtml(cn)}</span></td><td>${escapeHtml(s.phone||'-')}</td><td>${off?'<span class="tag tag-warning">停用</span>':'<span class="tag tag-success">在学</span>'}</td><td>${escapeHtml(s.created_at||s.createTime||'-')}</td></tr>`;
+            }).join('')}</tbody></table></div>`;
+            break;
+        }
+        case 'teachers':{
+            title.textContent='全部教师明细';
+            sum.innerHTML='<div class="empty-state">加载中...</div>';
+            try{
+                const resT=await apiService.getUsers();
+                const tsT=(resT.code===200&&resT.data)?resT.data.filter(u=>u.role==='teacher'):[];
+                sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                    <div><div style="font-size:12px;opacity:.75;">教师总数</div><div style="font-size:26px;font-weight:700;">${tsT.length}</div></div>
+                    <div><div style="font-size:12px;opacity:.75;">正常</div><div style="font-size:26px;font-weight:700;color:var(--success);">${tsT.filter(u=>u.status===1||u.status==='正常'||!u.status).length}</div></div>
+                    <div><div style="font-size:12px;opacity:.75;">已停用</div><div style="font-size:26px;font-weight:700;color:var(--danger);">${tsT.filter(u=>u.status===0||u.status==='禁用').length}</div></div>
+                </div>`;
+                if(tsT.length===0){body.innerHTML='<div class="empty-state">暂无教师账号</div>';break;}
+                body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>账号</th><th>姓名</th><th>手机号</th><th>状态</th></tr></thead><tbody>${tsT.map(u=>`<tr><td>${escapeHtml(u.username)}</td><td><strong>${escapeHtml(u.displayName||u.name||u.username)}</strong></td><td>${escapeHtml(u.phone||'-')}</td><td>${(u.status===0||u.status==='禁用')?'<span class="tag tag-warning">已停用</span>':'<span class="tag tag-success">正常</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+            }catch(e){body.innerHTML='<div class="empty-state">加载失败</div>';}
+            break;
+        }
+        case 'courses':{
+            title.textContent='全部课程明细';
+            const pmC=getPriceMap()||{};
+            const csC=Object.entries(pmC).map(([n,pr])=>({name:n,price:pr}));
+            const semC=appData.semesters&&appData.semesters.length?appData.semesters[appData.semesters.length-1]:null;
+            sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                <div><div style="font-size:12px;opacity:.75;">课程总数</div><div style="font-size:26px;font-weight:700;">${csC.length}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">当前学期</div><div style="font-size:18px;font-weight:700;">${semC?escapeHtml(semC.name):'-'}</div></div>
+            </div>`;
+            if(csC.length===0){body.innerHTML='<div class="empty-state">暂无课程，请在设置中配置课程单价</div>';break;}
+            body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>课程名称</th><th>课时费单价(元)</th></tr></thead><tbody>${csC.map(c=>`<tr><td><strong>${escapeHtml(c.name)}</strong></td><td><span class="tag tag-success">¥${c.price}</span></td></tr>`).join('')}</tbody></table></div>`;
+            break;
+        }
+        case 'semester-sessions':{
+            title.textContent='本学期课时明细';
+            const curSemX=getCurrentSemester();
+            let srX=appData.records||[];
+            if(curSemX&&curSemX.startDate&&curSemX.endDate){srX=srX.filter(r=>r.date>=curSemX.startDate&&r.date<=curSemX.endDate);}
+            const totalX=srX.reduce((s,r)=>s+Number(r.sessions||0),0);
+            const daysX=new Set(srX.map(r=>r.date)).size;
+            const byClassX={};srX.forEach(r=>{const cn=r.className||r.class||'未分类';byClassX[cn]=(byClassX[cn]||0)+Number(r.sessions||0);});
+            const sortedX=Object.entries(byClassX).sort((a,b)=>b[1]-a[1]);
+            sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                <div><div style="font-size:12px;opacity:.75;">总课时</div><div style="font-size:26px;font-weight:700;">${totalX}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">上课天数</div><div style="font-size:26px;font-weight:700;">${daysX}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">班级数</div><div style="font-size:26px;font-weight:700;">${Object.keys(byClassX).length}</div></div>
+            </div>`;
+            if(srX.length===0){body.innerHTML='<div class="empty-state">本学期暂无课时记录</div>';break;}
+            body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>排名</th><th>班级</th><th>课时数</th><th>占比</th></tr></thead><tbody>${sortedX.map(([cn,ss],i)=>{
+                const pct=((ss/totalX)*100).toFixed(1);
+                return `<tr><td>#${i+1}</td><td>${escapeHtml(cn)}</td><td><strong>${ss}</strong></td><td><div style="display:flex;align-items:center;gap:10px;"><div style="flex:1;background:var(--bg);border-radius:20px;height:8px;"><div style="width:${pct}%;background:linear-gradient(90deg,var(--primary),#73d13d);height:100%;border-radius:20px;"></div></div><span style="min-width:48px;">${pct}%</span></div></td></tr>`;
+            }).join('')}</tbody></table></div>`;
+            break;
+        }
+        case 'homework':{
+            title.textContent='全部作业明细';
+            sum.innerHTML='<div class="empty-state">加载中...</div>';
+            try{
+                const resH=await apiService.getHomework();
+                const hwsH=(resH.code===200&&resH.data)?resH.data:(appData.homework||[]);
+                const subH=hwsH.filter(h=>h.submissions&&h.submissions.some(s=>s.content||s.fileUrl));
+                const graH=hwsH.filter(h=>h.submissions&&h.submissions.some(s=>s.score!==null&&s.score!==undefined));
+                sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                    <div><div style="font-size:12px;opacity:.75;">作业总数</div><div style="font-size:26px;font-weight:700;">${hwsH.length}</div></div>
+                    <div><div style="font-size:12px;opacity:.75;">已提交</div><div style="font-size:26px;font-weight:700;color:var(--success);">${subH.length}</div></div>
+                    <div><div style="font-size:12px;opacity:.75;">已批改</div><div style="font-size:26px;font-weight:700;color:var(--warning);">${graH.length}</div></div>
+                </div>`;
+                if(hwsH.length===0){body.innerHTML='<div class="empty-state">暂无作业</div>';break;}
+                body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>标题</th><th>班级</th><th>截止日期</th><th>状态</th></tr></thead><tbody>${hwsH.map(h=>`<tr><td><strong>${escapeHtml(h.title)}</strong></td><td>${escapeHtml(h.className||h.class_id||'-')}</td><td>${escapeHtml(h.deadline||'-')}</td><td><span class="tag ${h.status==='pending'?'':'tag-success'}">${h.status==='pending'?'未截止':'已截止'}</span></td></tr>`).join('')}</tbody></table></div>`;
+            }catch(e){body.innerHTML='<div class="empty-state">加载失败</div>';}
+            break;
+        }
+        case 'leave':{
+            title.textContent='待审批请假明细';
+            const lvsL=(appData.leaveRequests||[]).filter(l=>l.status==='pending'||l.status==='待审批');
+            const byTypeL={};lvsL.forEach(l=>{const k=l.type||l.leaveType||'请假';byTypeL[k]=(byTypeL[k]||0)+1;});
+            sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                <div><div style="font-size:12px;opacity:.75;">待审批</div><div style="font-size:26px;font-weight:700;color:var(--danger);">${lvsL.length}</div></div>
+                <div><div style="font-size:12px;opacity:.75;">涉及类型</div><div style="font-size:26px;font-weight:700;">${Object.keys(byTypeL).length}</div></div>
+            </div>`;
+            if(lvsL.length===0){body.innerHTML='<div class="empty-state">暂无待审批请假 🎉</div>';break;}
+            body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>学生</th><th>班级</th><th>请假日期</th><th>类型</th><th>原因</th><th>申请时间</th></tr></thead><tbody>${lvsL.map(l=>`<tr><td><strong>${escapeHtml(l.studentName||l.student)}</strong></td><td>${escapeHtml(l.className||'-')}</td><td>${escapeHtml(l.date||l.startDate||'-')}</td><td><span class="tag tag-warning">${escapeHtml(l.type||l.leaveType||'请假')}</span></td><td>${escapeHtml(l.reason||'-')}</td><td>${escapeHtml(l.created_at||l.createTime||'-')}</td></tr>`).join('')}</tbody></table></div>`;
+            break;
+        }
+        case 'unread':{
+            title.textContent='系统未读消息明细';
+            sum.innerHTML='<div class="empty-state">加载中...</div>';
+            try{
+                const resM=await apiService.getMessages();
+                const msgsM=(resM.code===200&&Array.isArray(resM.data))?resM.data:[];
+                const unreadM=msgsM.filter(m=>!m.is_read&&!m.isRead);
+                sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+                    <div><div style="font-size:12px;opacity:.75;">未读消息</div><div style="font-size:26px;font-weight:700;color:var(--danger);">${unreadM.length}</div></div>
+                    <div><div style="font-size:12px;opacity:.75;">消息总数</div><div style="font-size:26px;font-weight:700;">${msgsM.length}</div></div>
+                </div>`;
+                if(msgsM.length===0){body.innerHTML='<div class="empty-state">暂无消息</div>';break;}
+                body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>发送人</th><th>内容</th><th>时间</th><th>状态</th></tr></thead><tbody>${msgsM.slice(0,50).map(m=>{
+                    const isU=!m.is_read&&!m.isRead;
+                    return `<tr><td>${escapeHtml(m.senderName||m.from||'-')}</td><td>${escapeHtml((m.content||'').substring(0,40))}</td><td>${escapeHtml(m.created_at||m.createTime||'-')}</td><td>${isU?'<span class="tag tag-warning">未读</span>':'<span class="tag tag-success">已读</span>'}</td></tr>`;
+                }).join('')}</tbody></table></div>`;
+            }catch(e){body.innerHTML='<div class="empty-state">加载失败</div>';}
+            break;
+        }
         default:
-            title.textContent='统计详情';sum.innerHTML='';body.innerHTML='<div class="empty-state">未知统计类型</div>';
+            break;
     }
 }
 
