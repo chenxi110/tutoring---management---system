@@ -11800,7 +11800,11 @@ function initAppAfterLogin(){
         var roleMap={admin:'管理员',teacher:'教师',parent:'家长',student:'学生'};
         var roleName=roleMap[apiService.user.role]||apiService.user.role||'用户';
         var badgeClass=apiService.user.role==='teacher'?'role-teacher':'role-parent';
-        var displayName=escapeHtml(apiService.user.displayName||apiService.user.username||'');
+        // 真实姓名显示：displayName 若为固定角色词则回退显示用户名
+        var rawDisp=(apiService.user.displayName||'').trim();
+        var roleWord=['教师','家长','管理员','学生'];
+        var dispName=(roleWord.indexOf(rawDisp)>=0)?apiService.user.username:(rawDisp||apiService.user.username||'');
+        var displayName=escapeHtml(dispName);
         
         var menuDiv=document.createElement('div');
         menuDiv.className='user-menu';
