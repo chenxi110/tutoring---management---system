@@ -2308,7 +2308,7 @@ function saveData(){
     _dashboardRefreshTimer=setTimeout(()=>{
         const page=document.querySelector('.page.active');
         if(page&&(page.id==='page-dashboard'||page.id==='page-records'||page.id==='page-students'||page.id==='page-attendance')){
-            loadDashboard();
+            if(apiService.isAdmin()){loadAdminDashboard();}else{loadDashboard();}
         }
     },300);
 }
@@ -2515,7 +2515,7 @@ function navigateTo(page){
         
         // 加载对应页面内容
         const pageLoaders={
-            dashboard:()=>apiService.isParent()?loadParentDashboard():loadDashboard(),
+            dashboard:()=>{ if(apiService.isParent())return loadParentDashboard(); if(apiService.isAdmin())return loadAdminDashboard(); return loadDashboard(); },
             records:()=>loadRecords(),
             students:()=>loadStudents(),
             attendance:()=>apiService.isParent()?loadParentAttendance():initAttendancePage(),
@@ -5350,6 +5350,76 @@ function loadDashboard(){
     setTimeout(()=>{try{renderDashboardCharts();}catch(e){}},300);
 }
 
+// ===== 管理员专属仪表盘（全局总数据视角）=====
+async function loadAdminDashboard(){
+    const dashEl=document.getElementById('page-dashboard');
+    if(!dashEl)return;
+    if(window._originalDashboardHTML){
+        dashEl.innerHTML=window._originalDashboardHTML;
+    }
+    const t=new Date();
+    const dateEl=document.getElementById('currentDate');
+    if(dateEl)dateEl.textContent=t.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+    const cache=StatsCache.get();
+    const classList=appData.classes||[];
+    const studentList=Array.isArray(appData.students)?appData.students:Object.values(appData.students||{}).flat();
+    const activeStudents=studentList.filter(s=>!s.is_deleted&&s.status!=='inactive').length;
+    const todayRecords=cache.todayRecords||[];
+    const ms=cache.monthStats||{totalSessions:0,totalIncome:0};
+    const pendingLeave=(appData.leaveRequests||[]).filter(l=>l.status==='pending'||l.status==='待审批').length;
+    const hwList=appData.homework||[];
+    const pendingHw=hwList.filter(h=>h.status==='pending'&&(h.submissions&&h.submissions.some(s=>s.score===null))).length;
+    const allAbsent=cache.allAbsent||[];
+    const pendingMakeup=allAbsent.filter(a=>!a.madeUp).length;
+    let teacherCount='-';
+    try{
+        const res=await apiService.getUsers();
+        if(res.code===200&&res.data){
+            teacherCount=res.data.filter(u=>u.role==='teacher').length;
+        }
+    }catch(e){}
+    const statsGrid=dashEl.querySelector('.stats-grid');
+    if(statsGrid){
+        statsGrid.innerHTML=[
+            `<div class="stat-card" onclick="navigateTo('classes')"><div class="stat-value">${classList.length}</div><div class="stat-label">总班级数</div></div>`,
+            `<div class="stat-card success" onclick="navigateTo('students')"><div class="stat-value">${activeStudents>0?activeStudents:(studentList.length>0?studentList.length:'-')}</div><div class="stat-label">总学生数</div></div>`,
+            `<div class="stat-card" onclick="navigateTo('users')"><div class="stat-value">${teacherCount}</div><div class="stat-label">总教师数</div></div>`,
+            `<div class="stat-card" onclick="openDashboardDetail('today')"><div class="stat-value">${todayRecords.length>0?todayRecords.length+'节课':'无课'}</div><div class="stat-label">今日上课</div></div>`,
+            `<div class="stat-card" onclick="openDashboardDetail('month-sessions')"><div class="stat-value">${ms.totalSessions}</div><div class="stat-label">本月上课节数</div></div>`,
+            `<div class="stat-card success" onclick="openDashboardDetail('month-income')"><div class="stat-value">${(ms.totalIncome||0).toFixed(0)}</div><div class="stat-label">本月课时费(元)</div></div>`,
+            `<div class="stat-card danger" onclick="openDashboardDetail('pending-makeup')"><div class="stat-value">${pendingMakeup}</div><div class="stat-label">待补课数</div></div>`,
+            `<div class="stat-card warning" onclick="navigateTo('homework')"><div class="stat-value">${pendingHw}</div><div class="stat-label">待批改作业</div></div>`,
+            `<div class="stat-card danger" onclick="navigateTo('leave-requests')"><div class="stat-value">${pendingLeave}</div><div class="stat-label">待审批请假</div></div>`,
+            `<div class="stat-card success" onclick="navigateTo('notifications')"><div class="stat-value" id="statUnreadMsg">0</div><div class="stat-label">未读消息</div></div>`
+        ].join('');
+    }
+    const qa=dashEl.querySelector('.quick-actions');
+    if(qa){
+        qa.innerHTML=[
+            `<button class="btn btn-primary" onclick="navigateTo('notifications')">📢 发布通知</button>`,
+            `<button class="btn btn-secondary" onclick="navigateTo('users')">👥 用户管理</button>`,
+            `<button class="btn btn-secondary" onclick="navigateTo('export')">📊 数据导出</button>`,
+            `<button class="btn btn-secondary" onclick="navigateTo('classes')">🏫 班级管理</button>`
+        ].join('');
+    }
+    const rr=(appData.records||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+    const recentEl=document.getElementById('recentRecords');
+    if(recentEl){
+        recentEl.innerHTML=rr.length>0?'<table><thead><tr><th>日期</th><th>班级</th><th>课程</th><th>节数</th><th>类型</th><th>缺勤</th></tr></thead><tbody>'+rr.map(r=>{
+            const detail=getRecordAbsentDetail(r);
+            const rc=r.className||r.class||'';
+            return '<tr><td>'+r.date+'</td><td>'+escapeHtml(rc)+'</td><td>'+escapeHtml(r.course)+'</td><td>'+r.sessions+'</td><td><span class="tag '+(r.type==='正常课'?'':'tag-warning')+'">'+r.type+'</span></td><td>'+(detail.names.length>0?detail.names.map(s=>'<span class="tag tag-warning">'+escapeHtml(s)+'</span>').join(''):'-')+'</td></tr>';
+        }).join('')+'</tbody></table>':'<div class="empty-state">暂无记录</div>';
+    }
+    try{
+        apiService.getUnreadCount().then(res=>{
+            const unreadEl=document.getElementById('statUnreadMsg');
+            if(unreadEl)unreadEl.textContent=res&&res.code===200?res.count:0;
+        }).catch(()=>{});
+    }catch(e){}
+    setTimeout(()=>{try{renderDashboardCharts();}catch(e){}},300);
+}
+
 // 从API获取下节课（角色区分：教师看自己课表，家长看孩子课表）
 async function updateNextClassFromAPI(){
     if(!apiService.isLoggedIn())return;
@@ -7812,7 +7882,7 @@ async function safeInit(){
     }
     
     try{
-        loadDashboard();
+        if(apiService.isAdmin()){loadAdminDashboard();}else{loadDashboard();}
     }catch(e){
 
         showToast('仪表盘加载失败','error');
