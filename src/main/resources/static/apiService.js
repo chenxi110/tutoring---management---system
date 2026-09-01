@@ -158,6 +158,9 @@
     async createStudent(data) { return this.request('POST', '/students', data); }
     async updateStudent(id, data) { return this.request('PUT', '/students/' + id, data); }
     async deleteStudent(id) { return this.request('DELETE', '/students/' + id); }
+    async getStudentClasses(id) { return this.request('GET', '/students/' + id + '/classes'); }
+    async addStudentClass(id, classId) { return this.request('POST', '/students/' + id + '/classes', { classId: classId }); }
+    async removeStudentClass(id, classId) { return this.request('DELETE', '/students/' + id + '/classes/' + classId); }
 
     async createShareToken(studentId, isPermanent, validDays) { return this.request('POST', '/share/tokens', { studentId: studentId, isPermanent: isPermanent, validDays: validDays }); }
     async listShareTokens(studentId) { return this.request('GET', '/share/tokens?studentId=' + studentId); }

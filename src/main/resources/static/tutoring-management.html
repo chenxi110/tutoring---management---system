@@ -1524,12 +1524,21 @@ body {
         <div class="modal-body">
             <div class="form-group"><label class="form-label">班级</label><select class="form-control" id="addStudentClassName"></select></div>
             <div class="form-group"><label class="form-label">学生姓名 *</label><input type="text" class="form-control" id="newStudentName" placeholder="输入学生姓名" required></div>
+            <div class="form-group"><label class="form-label">学生手机号</label><input type="text" class="form-control" id="newStudentPhone" placeholder="请输入学生手机号（选填，用于唯一标识）"></div>
             <div class="form-group"><label class="form-label">家长手机号</label><input type="text" class="form-control" id="newStudentParentPhone" placeholder="请输入家长手机号（选填，用于家长绑定）"></div>
             <div class="form-group"><label class="form-label">家长姓名</label><input type="text" class="form-control" id="newStudentParentName" placeholder="请输入家长姓名（选填）"></div>
             <div class="form-group"><label class="form-label">家长称谓</label><input type="text" class="form-control" id="newStudentParentRelation" placeholder="如：爸爸/妈妈（选填）"></div>
             <div class="batch-import"><label class="form-label">批量导入（一行一个姓名）</label><textarea id="batchStudentNames" placeholder="学生1&#10;学生2&#10;学生3"></textarea></div>
         </div>
         <div class="modal-footer"><button class="btn btn-secondary" onclick="closeAddStudentModal()">取消</button><button class="btn btn-primary" onclick="saveNewStudent()">保存</button></div>
+    </div></div>
+    <div class="modal-overlay" id="studentClassModal"><div class="modal">
+        <div class="modal-header"><h3 class="modal-title" id="studentClassTitle">学生班级归属</h3><button class="modal-close" onclick="closeStudentClassModal()">&times;</button></div>
+        <div class="modal-body">
+            <div id="studentClassInfo"></div>
+            <div class="form-group" style="margin-top:12px;display:flex;gap:8px;align-items:center;"><label class="form-label" style="white-space:nowrap;">添加班级</label><select class="form-control" id="studentClassAddSelect"></select><button class="btn btn-sm btn-primary" onclick="addStudentClassFromModal()">添加</button></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="closeStudentClassModal()">关闭</button></div>
     </div></div>
     <div class="modal-overlay" id="transferStudentModal"><div class="modal">
         <div class="modal-header"><h3 class="modal-title">学生转班</h3><button class="modal-close" onclick="closeTransferStudentModal()">&times;</button></div>
@@ -6457,6 +6466,7 @@ function getSelectedStudents(className) {
 }
 
 function loadStudents(){
+    if(!window._studentMetaBuilt){ensureStudentMeta().then(function(){loadStudents();});}
     const cm=getCourseMap();
     const c=document.getElementById('studentList');
     if(!c)return;
@@ -6489,9 +6499,10 @@ function loadStudents(){
                 return `<div class="student-item">
                     <div class="student-item-left">
                         <input type="checkbox" class="student-checkbox" data-class="${escapeAttr(cn)}" data-student="${escapeAttr(s)}" ${checked} onchange="toggleStudentSelect('${escapeAttr(cn)}','${escapeAttr(s)}', this)">
-                        <span class="student-name">${escapeHtml(s)}</span>
+                        <span class="student-name">${escapeHtml(fmtStudentName(s,cn))}</span>
                     </div>
                     <button class="btn btn-sm btn-secondary" onclick="editStudent('${escapeAttr(cn)}',${i},'${escapeAttr(s)}')">编辑</button>
+                    <button class="btn btn-sm" style="background:#722ed1;color:#fff;" onclick="openStudentClassModal('${escapeAttr(s)}','${escapeAttr(cn)}')">班级归属</button>
                 </div>`;
             }).join('') : '<div class="empty-state" style="padding:20px;">暂无学生</div>'}
             <div class="batch-import" style="margin-top:12px;display:flex;gap:8px;">
@@ -6717,9 +6728,80 @@ function openAddStudentModal(cn=''){
     }else{
         document.getElementById('addStudentClassName').innerHTML=validClasses.map(c=>`<option value="${escapeHtml(c.name)}" ${c.name===cn?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
     }
-    document.getElementById('newStudentName').value='';document.getElementById('batchStudentNames').value='';var pp=document.getElementById('newStudentParentPhone');if(pp)pp.value='';var pn=document.getElementById('newStudentParentName');if(pn)pn.value='';var pr=document.getElementById('newStudentParentRelation');if(pr)pr.value='';
+    document.getElementById('newStudentName').value='';document.getElementById('newStudentPhone').value='';document.getElementById('batchStudentNames').value='';var pp=document.getElementById('newStudentParentPhone');if(pp)pp.value='';var pn=document.getElementById('newStudentParentName');if(pn)pn.value='';var pr=document.getElementById('newStudentParentRelation');if(pr)pr.value='';
 }
 function closeAddStudentModal(){document.getElementById('addStudentModal').classList.remove('active');}
+let _curStudentClassId=null;
+async function ensureStudentMeta(){
+    if(window._studentMetaBuilt)return;
+    try{
+        const res=await apiService.getStudents();
+        const list=(res.code===200&&Array.isArray(res.data))?res.data:[];
+        const meta={};
+        list.forEach(function(st){
+            const k=st.name||'';
+            if(!meta[k])meta[k]=[];
+            meta[k].push({id:st.id,className:st.class_name||'',displayName:st.displayName||st.name,phone:st.phone||''});
+        });
+        window._studentMeta=meta;
+    }catch(e){}
+    window._studentMetaBuilt=true;
+}
+function fmtStudentName(name,cn){
+    if(!name)return name;
+    const m=(window._studentMeta||{})[name];
+    if(m&&m.length>1){
+        const hit=m.find(function(x){return x.className===cn;});
+        return hit?hit.displayName:name;
+    }
+    return name;
+}
+function findStudentId(name,cn){
+    const m=(window._studentMeta||{})[name];
+    if(m){const hit=m.find(function(x){return x.className===cn;})||m[0];return hit?hit.id:null;}
+    return null;
+}
+async function openStudentClassModal(name,cn){
+    const id=findStudentId(name,cn);
+    if(!id){showToast('未找到该学生记录ID，请刷新页面后重试','error');return;}
+    _curStudentClassId=id;
+    document.getElementById('studentClassModal').classList.add('active');
+    document.getElementById('studentClassTitle').textContent='学生班级归属 - '+name;
+    await loadStudentClassInfo(id);
+}
+async function loadStudentClassInfo(id){
+    const info=document.getElementById('studentClassInfo');
+    info.innerHTML='<div class="empty-state">加载中...</div>';
+    try{
+        const res=await apiService.getStudentClasses(id);
+        const list=(res.code===200&&Array.isArray(res.data))?res.data:[];
+        if(list.length===0){info.innerHTML='<div class="empty-state">该学生暂无班级归属</div>';}
+        else{
+            info.innerHTML='<div class="table-wrapper"><table><thead><tr><th>班级</th><th>课程</th><th>授课教师</th><th>操作</th></tr></thead><tbody>'+
+                list.map(function(c){return '<tr><td><span class="tag">'+escapeHtml(c.class_name)+'</span></td><td>'+escapeHtml(c.course||'-')+'</td><td>'+escapeHtml(c.teacher_name||c.teacher_username||'-')+'</td><td><button class="btn btn-sm btn-danger" onclick="removeStudentClass('+c.class_id+')">移除</button></td></tr>';}).join('')+
+                '</tbody></table></div>';
+        }
+        const sel=document.getElementById('studentClassAddSelect');
+        const valid=(getAllClasses()||[]).filter(function(c){return c.id&&c.name;});
+        sel.innerHTML='<option value="">选择班级</option>'+valid.map(function(c){return '<option value="'+c.id+'">'+escapeHtml(c.name)+'</option>';}).join('');
+    }catch(e){
+        info.innerHTML='<div class="empty-state">加载失败</div>';
+    }
+}
+async function addStudentClassFromModal(){
+    const classId=document.getElementById('studentClassAddSelect').value;
+    if(!classId){showToast('请选择要添加的班级','error');return;}
+    const res=await apiService.addStudentClass(_curStudentClassId,Number(classId));
+    if(res.code===200){showToast(res.msg||'添加成功','success');loadStudentClassInfo(_curStudentClassId);}
+    else{showToast(res.msg||res.error||'添加失败','error');}
+}
+async function removeStudentClass(classId){
+    if(!confirm('确认将该学生移出此班级？'))return;
+    const res=await apiService.removeStudentClass(_curStudentClassId,classId);
+    if(res.code===200){showToast(res.msg||'移除成功','success');loadStudentClassInfo(_curStudentClassId);}
+    else{showToast(res.msg||res.error||'移除失败','error');}
+}
+function closeStudentClassModal(){document.getElementById('studentClassModal').classList.remove('active');}
 function getAllClasses(){var sem=getCurrentSemester();var a=sem?(sem.classes||[]):[];var b=appData.classes||[];var merged=a.concat(b);var seen={};return merged.filter(function(c){if(!c||!c.name||seen[c.name])return false;seen[c.name]=true;return true;});}
 function getClassIdByName(cn){var cls=getAllClasses().find(function(c){return c.name===cn;});return cls?cls.id:null;}
 async function saveNewStudent(){
@@ -6727,6 +6809,7 @@ async function saveNewStudent(){
     const cn=document.getElementById('addStudentClassName').value;
     const rawSingle=document.getElementById('newStudentName').value;
     const rawBatch=document.getElementById('batchStudentNames').value;
+    const rawStudentPhone=document.getElementById('newStudentPhone')?document.getElementById('newStudentPhone').value.trim():'';
     const rawParentPhone=document.getElementById('newStudentParentPhone')?document.getElementById('newStudentParentPhone').value.trim():'';
     const normalizedParentPhone=rawParentPhone?normalizePhoneInput(rawParentPhone):'';
     const rawParentName=document.getElementById('newStudentParentName')?document.getElementById('newStudentParentName').value.trim():'';
@@ -6748,6 +6831,7 @@ async function saveNewStudent(){
         for(const n of ta){
             try{
                 const payload={name:n,classId:classId};
+                if(rawStudentPhone&&ta.length===1)payload.phone=rawStudentPhone;
                 if(normalizedParentPhone)payload.parentPhone=normalizedParentPhone;
                 if(rawParentName)payload.parentName=rawParentName;
                 if(rawParentRelation)payload.parentRelation=rawParentRelation;
@@ -9902,7 +9986,7 @@ function showGradeModal(id){
                 students.forEach(function(s){
                     var sid=s.id||s.student_id||'';
                     var selected=(selectedStudentId&&String(sid)===String(selectedStudentId));
-                    optionsHtml+='<option value="'+sid+'" '+(selected?'selected':'')+'>'+escapeHtml(s.name||'')+'</option>';
+                    optionsHtml+='<option value="'+sid+'" '+(selected?'selected':'')+'>'+escapeHtml(s.displayName||s.name||'')+'</option>';
                 });
                 studentSel.innerHTML=optionsHtml;
             }
