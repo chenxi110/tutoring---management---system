@@ -1,4 +1,4 @@
-class ApiService {
+﻿class ApiService {
     constructor() {
         this.baseURL = localStorage.getItem('skt_api_base') || '/api';
         this.token = localStorage.getItem('skt_token') || '';
@@ -50,7 +50,7 @@ class ApiService {
     isParent() { return this.user && this.user.role === 'parent'; }
 
     async request(method, path, body) {
-        var url = this.baseURL + path;
+        var url = (path && path.indexOf('/api/') === 0) ? path : this.baseURL + path;
         var options = {
             method: method,
             headers: {
@@ -98,6 +98,14 @@ class ApiService {
         return data === null ? {} : data;
     }
 
+
+    async get(path) {
+        return this.request('GET', path);
+    }
+
+    async post(path, body) {
+        return this.request('POST', path, body);
+    }
     async login(username, password) {
         var data = await this.request('POST', '/auth/login', { username: username, password: password });
         if (data.code === 200) {

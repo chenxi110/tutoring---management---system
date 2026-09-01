@@ -5041,7 +5041,7 @@ function loadDashboard(){
     const statMonthIncomeEl=document.getElementById('statMonthIncome');if(statMonthIncomeEl)statMonthIncomeEl.textContent=ms.totalIncome.toFixed(0);
     const statTotalClassesEl=document.getElementById('statTotalClasses');if(statTotalClassesEl)statTotalClassesEl.textContent=cache.totalClasses;
     // 学生总数统计
-    const studentList=appData.students||[];
+    const studentList=Array.isArray(appData.students)?appData.students:Object.values(appData.students||{}).flat();
     const activeStudents=studentList.filter(s=>!s.is_deleted&&s.status!=='inactive').length;
     const statTotalStudentsEl=document.getElementById('statTotalStudents');if(statTotalStudentsEl)statTotalStudentsEl.textContent=activeStudents>0?activeStudents:(studentList.length>0?studentList.length:'-');
     const allAbsent=cache.allAbsent;
@@ -6315,7 +6315,7 @@ function editStudent(cn,i,oldName){
                 apiService.updateStudent(sid,{name:cleaned,classId:getClassIdByName(cn)}).then(()=>{
                     delete appData.studentIds[key];
                     appData.studentIds[cn+'|'+cleaned]=sid;
-                }).catch(e=>);
+                }).catch(e=>{});
             }
         }
     }
@@ -6336,7 +6336,7 @@ function deleteStudent(cn,i,name){
             if(sid){
                 apiService.deleteStudent(sid).then(()=>{
                     delete appData.studentIds[key];
-                }).catch(e=>);
+                }).catch(e=>{});
             }
         }
     });
@@ -11350,7 +11350,8 @@ function initAppAfterLogin(){
     var oldMenu=headerRight.querySelector('.user-menu');
     if(oldMenu)oldMenu.remove();
     if(apiService.user){
-        var roleName=apiService.user.role==='teacher'?'教师':'家长';
+        var roleMap={admin:'管理员',teacher:'教师',parent:'家长',student:'学生'};
+        var roleName=roleMap[apiService.user.role]||apiService.user.role||'用户';
         var badgeClass=apiService.user.role==='teacher'?'role-teacher':'role-parent';
         var displayName=escapeHtml(apiService.user.displayName||apiService.user.username||'');
         
@@ -11833,7 +11834,7 @@ window.navigateTo=function(page){
 const _originalInitApp=window.initAppAfterLogin;
 window.initAppAfterLogin=function(){
     if(_originalInitApp)_originalInitApp();
-    const role=localStorage.getItem('skt_role')||apiService.getUserRole();
+    const role=localStorage.getItem('skt_role')||(apiService.user&&apiService.user.role)||localStorage.getItem('skt_user_role')||'';
     document.querySelectorAll('.student-only').forEach(el=>{
         el.style.display=role==='student'?'flex':'none';
     });
