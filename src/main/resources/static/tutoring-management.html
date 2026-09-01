@@ -5937,7 +5937,7 @@ function openDashboardDetail(type){
             title.textContent=`${curSem?curSem.name+' ':'当前'}班级列表`;
             const cl=getClassList();
             const list=cl.map(cn=>{
-                const st=getStudentsForClass(cn);const course=getCourseMap()[cn]||'';const price=appData.config.coursePrices[course]||0;
+                const st=getStudentsForClass(cn);const course=getCourseMap()[cn]||'';const price=(appData.config&&appData.config.coursePrices)?(appData.config.coursePrices[course]||0):0;
                 return {name:cn,count:st.length,course,price};
             }).sort((a,b)=>b.count-a.count);
             const totalStudents=list.reduce((s,o)=>s+o.count,0);
@@ -7137,18 +7137,26 @@ function renderDashboardCharts(){
         let classNames, classCounts;
         const fullList = window._dashFullStudents;
         if (fullList && fullList.length) {
-            // 用学生数据自带的班级名+id 分组，同名班级以 id 区分，无班级归属归"未分班"；不依赖 appData.classes（admin 可见全部）
+            // 以全部班级为 x 轴（与"班级总数"一致，0 人班级也显示）；同名班级带 id 区分；无班级归属归"未分班"
+            const classList = appData.classes || [];
+            const cMap = {};
+            classList.forEach(function(c){ cMap[c.id] = (c.name || ('班级' + c.id)); });
             const cnt = {};
+            classList.forEach(function(c){ cnt[c.name + '(' + c.id + ')'] = 0; });
+            let ungroup = 0;
             fullList.forEach(function(s){
                 const cid = (s.class_id != null) ? s.class_id : null;
-                const cname = (s.class_name || '').trim();
-                const nm = (cid != null && cname) ? (cname + '(' + cid + ')') : '未分班';
-                cnt[nm] = (cnt[nm] || 0) + 1;
+                if (cid != null && cMap[cid] !== undefined) {
+                    cnt[cMap[cid] + '(' + cid + ')']++;
+                } else {
+                    ungroup++;
+                }
             });
+            if (ungroup > 0) cnt['未分班'] = ungroup;
             classNames = Object.keys(cnt);
             classCounts = classNames.map(function(k){ return cnt[k]; });
         } else {
-            classNames = (appData.classes || []).map(function(c){ return c.name || ''; });
+            classNames = (appData.classes || []).map(function(c){ return (c.name || '') + '(' + c.id + ')'; });
             classCounts = (appData.classes || []).map(function(c){
                 return (appData.students && appData.students[c.name]) ? appData.students[c.name].length : (c.studentCount || 0);
             });
@@ -7389,13 +7397,21 @@ function renderClassDistRefresh(){
         const old = echarts.getInstanceByDom(el);
         if (old) old.dispose();
         const chart = echarts.init(el);
+        const classList = appData.classes || [];
+        const cMap = {};
+        classList.forEach(function(c){ cMap[c.id] = (c.name || ('班级' + c.id)); });
         const cnt = {};
+        classList.forEach(function(c){ cnt[c.name + '(' + c.id + ')'] = 0; });
+        let ungroup = 0;
         window._dashFullStudents.forEach(function(s){
             const cid = (s.class_id != null) ? s.class_id : null;
-            const cname = (s.class_name || '').trim();
-            const nm = (cid != null && cname) ? (cname + '(' + cid + ')') : '未分班';
-            cnt[nm] = (cnt[nm] || 0) + 1;
+            if (cid != null && cMap[cid] !== undefined) {
+                cnt[cMap[cid] + '(' + cid + ')']++;
+            } else {
+                ungroup++;
+            }
         });
+        if (ungroup > 0) cnt['未分班'] = ungroup;
         const classNames = Object.keys(cnt);
         const classCounts = classNames.map(function(k){ return cnt[k]; });
         chart.setOption({
