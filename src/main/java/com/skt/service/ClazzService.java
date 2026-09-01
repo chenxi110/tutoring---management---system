@@ -65,6 +65,25 @@ public class ClazzService {
         return jdbc.queryForList(sql.toString(), params.toArray());
     }
 
+    /**
+     * 校验同一教师、同一学年（学期）内班级名是否已存在。
+     * @param excludeId 编辑场景排除自身，新建传 null
+     */
+    public boolean existsSameName(Long teacherId, String name, Long semesterId, Long excludeId) {
+        StringBuilder sql = new StringBuilder(
+            "SELECT COUNT(*) FROM classes WHERE teacher_id=? AND name=? AND semester_id<=>?");
+        List<Object> params = new ArrayList<>();
+        params.add(teacherId);
+        params.add(name);
+        params.add(semesterId);
+        if (excludeId != null) {
+            sql.append(" AND id<>?");
+            params.add(excludeId);
+        }
+        Long cnt = jdbc.queryForObject(sql.toString(), Long.class, params.toArray());
+        return cnt != null && cnt > 0;
+    }
+
     public Long createClass(String name, String course, Long semesterId, Long teacherId) {
         if (semesterId == null) {
             Map<String, Object> active = jdbc.queryForMap("SELECT id FROM semesters WHERE is_active=1 LIMIT 1");

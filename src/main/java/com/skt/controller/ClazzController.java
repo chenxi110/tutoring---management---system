@@ -117,6 +117,17 @@ public class ClazzController {
         String course = (String) body.get("course");
         Long semesterId = body.get("semesterId") != null ? ((Number) body.get("semesterId")).longValue() : null;
         Long teacherId = (Long) req.getAttribute("userId");
+        // 同一教师、同一学年（学期）内班级名唯一，禁止重复创建
+        if (semesterId == null) {
+            Map<String, Object> active = jdbc.queryForMap("SELECT id FROM semesters WHERE is_active=1 LIMIT 1");
+            semesterId = ((Number) active.get("id")).longValue();
+        }
+        if (clazzService.existsSameName(teacherId, name, semesterId, null)) {
+            Map<String, Object> dup = new HashMap<>();
+            dup.put("code", 400);
+            dup.put("msg", "同一学年内已存在同名班级，请勿重复创建");
+            return dup;
+        }
         Long id = clazzService.createClass(name, course, semesterId, teacherId);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
@@ -132,6 +143,14 @@ public class ClazzController {
         String name = (String) body.get("name");
         String course = (String) body.get("course");
         Long semesterId = body.get("semesterId") != null ? ((Number) body.get("semesterId")).longValue() : null;
+        // 编辑班级同样校验同名（同一教师同学期，排除自身）
+        Long origTeacher = jdbc.queryForObject("SELECT teacher_id FROM classes WHERE id=?", Long.class, id);
+        if (clazzService.existsSameName(origTeacher, name, semesterId, id)) {
+            Map<String, Object> dup = new HashMap<>();
+            dup.put("code", 400);
+            dup.put("msg", "同一学年内已存在同名班级，请勿重复");
+            return dup;
+        }
         clazzService.updateClass(id, name, course, semesterId);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
