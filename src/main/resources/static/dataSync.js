@@ -7,13 +7,15 @@ var DataSync = {
         if (!apiService.isLoggedIn()) return { success: false, reason: 'not_logged_in' };
         this._syncing = true;
         try {
-            if (apiService.isTeacher()) {
+            if (apiService.isTeacher() || (apiService.user && apiService.user.role === 'admin')) {
                 await this._syncTeacherData();
             } else if (apiService.isParent()) {
                 await this._syncParentData();
             }
             this._lastSync = Date.now();
             this._dirty = false;
+            // 数据同步完成后失效前端统计缓存，保证仪表盘数值即时刷新（不读旧缓存）
+            if (typeof StatsCache !== 'undefined' && typeof StatsCache.markDirty === 'function') StatsCache.markDirty();
             return { success: true };
         } catch (e) {
             console.error('[DataSync] 同步失败:', e.message);
@@ -41,7 +43,8 @@ var DataSync = {
 
         // 班级
         try {
-            var classRes = await apiService.getMyClasses();
+            var isAdminRole = apiService.user && apiService.user.role === 'admin';
+            var classRes = isAdminRole ? await apiService.getClasses() : await apiService.getMyClasses();
             if (classRes.code === 200 && classRes.data) {
                 appData.classes = classRes.data.map(function(c) {
                     return {

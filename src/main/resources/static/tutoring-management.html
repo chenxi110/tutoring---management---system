@@ -1706,7 +1706,7 @@ let currentAbsentTab='pending';
 function getCurrentSemester(){const el=document.getElementById('currentSemester');if(!el)return appData.semesters.find(s=>s.isActive)||appData.semesters[0]||null;const cs=el.value;return appData.semesters.find(s=>s.name===cs)||appData.semesters.find(s=>s.isActive)||appData.semesters[0]||null;}
 function getClassList(){
     const sem=getCurrentSemester();
-    if(sem&&sem.classes)return sem.classes.map(c=>c.name);
+    if(sem&&sem.classes&&sem.classes.length>0)return sem.classes.map(c=>c.name);
     if(appData.classes&&appData.classes.length>0)return appData.classes.map(c=>c.name);
     if(appData.semesters.length>0&&appData.semesters[0].classes)return appData.semesters[0].classes.map(c=>c.name);
     return [];
@@ -1719,7 +1719,7 @@ function getCourseMap(){
     if(appData.semesters.length>0&&appData.semesters[0].classes){appData.semesters[0].classes.forEach(c=>{m[c.name]=c.course;});}
     return m;
 }
-function getStudentsForClass(cn){const sem=getCurrentSemester();if(sem&&sem.students)return sem.students[cn]||[];if(appData.students[cn])return appData.students[cn];if(appData.semesters.length>0&&appData.semesters[0].students)return appData.semesters[0].students[cn]||[];return [];}
+function getStudentsForClass(cn){const sem=getCurrentSemester();if(sem&&sem.students&&sem.students[cn])return sem.students[cn];if(appData.students[cn])return appData.students[cn];if(appData.semesters.length>0&&appData.semesters[0].students&&appData.semesters[0].students[cn])return appData.semesters[0].students[cn]||[];return [];}
 function setStudentsForClass(cn,students){const sem=getCurrentSemester();if(sem){if(!sem.students)sem.students={};sem.students[cn]=students;}else{appData.students[cn]=students;}}
 function getPriceMap(){return appData.config.coursePrices||{};}
 function getCourseTypes(){return appData.config.courseTypes||['正常课','补课','试听','停课'];}
@@ -1879,7 +1879,7 @@ const StatsCache = {
             todayRecords,
             monthStats,
             allAbsent,
-            totalClasses: getClassList().length,
+            totalClasses: (appData.classes && appData.classes.length) ? appData.classes.length : getClassList().length,
             buildTime: Date.now()
         };
     }
@@ -2049,8 +2049,8 @@ let _saveCount = 0;
  * @returns {Promise<boolean>} 是否成功加载
  */
 async function loadAppDataFromServer() {
-    // 仅教师角色可完整同步
-    if (typeof apiService === 'undefined' || !apiService.isLoggedIn() || !apiService.isTeacher()) {
+    // 教师/管理员角色可完整同步（admin 全量，teacher 按班级隔离）
+    if (typeof apiService === 'undefined' || !apiService.isLoggedIn() || (!apiService.isTeacher() && !(apiService.user && apiService.user.role === 'admin'))) {
         return false;
     }
     try {
@@ -7130,24 +7130,49 @@ function renderDashboardCharts(){
     // ===== 新增可视化图表（班级/月度/分数段/出勤/作业/待办） =====
     const charts = [];
     const C1 = '#2563eb', C2 = '#06b6d4', C3 = '#8b5cf6', C4 = '#f59e0b', C5 = '#10b981', C6 = '#ef4444';
-    // 班级人数分布
+    // 班级人数分布（完整学生数据按班级精确统计，与"学生总数"口径一致；无完整数据时回退按班级名统计）
     const classDistEl = document.getElementById('chartClassDist');
     if (classDistEl) {
         const classDist = echarts.init(classDistEl); charts.push(classDist);
-        const classNames = (appData.classes || []).map(function(c){ return c.name || ''; });
-        const classCounts = (appData.classes || []).map(function(c){
-            return (appData.students && appData.students[c.name]) ? appData.students[c.name].length : (c.studentCount || 0);
-        });
+        let classNames, classCounts;
+        const fullList = window._dashFullStudents;
+        if (fullList && fullList.length) {
+            // 用学生数据自带的班级名+id 分组，同名班级以 id 区分，无班级归属归"未分班"；不依赖 appData.classes（admin 可见全部）
+            const cnt = {};
+            fullList.forEach(function(s){
+                const cid = (s.class_id != null) ? s.class_id : null;
+                const cname = (s.class_name || '').trim();
+                const nm = (cid != null && cname) ? (cname + '(' + cid + ')') : '未分班';
+                cnt[nm] = (cnt[nm] || 0) + 1;
+            });
+            classNames = Object.keys(cnt);
+            classCounts = classNames.map(function(k){ return cnt[k]; });
+        } else {
+            classNames = (appData.classes || []).map(function(c){ return c.name || ''; });
+            classCounts = (appData.classes || []).map(function(c){
+                return (appData.students && appData.students[c.name]) ? appData.students[c.name].length : (c.studentCount || 0);
+            });
+        }
         classDist.setOption({
             title:{text:'班级人数分布', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
             tooltip:{trigger:'axis'},
             grid:{left:36, right:16, top:44, bottom:28},
-            xAxis:{type:'category', data:classNames.length ? classNames : ['暂无班级'], axisLabel:{fontSize:10, color:'#64748b'}},
+            xAxis:{type:'category', data:classNames.length ? classNames : ['暂无班级'], axisLabel:{fontSize:10, color:'#64748b', rotate: classNames.length>6?30:0}},
             yAxis:{type:'value', minInterval:1, axisLabel:{fontSize:10, color:'#64748b'}},
             series:[{type:'bar', data:classCounts, barWidth:'46%',
                 itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#3b82f6'},{offset:1,color:'#93c5fd'}])},
                 label:{show:true, position:'top', fontSize:10, color:'#334155'}}]
         });
+    }
+    // 异步拉取完整学生数据，修正班级人数分布（保证总数=各班级之和，同名班级区分、未分班单列）
+    if (!window._dashFullStudents && typeof apiService !== 'undefined' && apiService.isLoggedIn && apiService.isLoggedIn()) {
+        apiService.getStudents().then(function(res){
+            var list = (res && res.code === 200 && Array.isArray(res.data)) ? res.data : [];
+            if (list.length) {
+                window._dashFullStudents = list;
+                if (typeof renderClassDistRefresh === 'function') renderClassDistRefresh();
+            }
+        }).catch(function(){});
     }
     // 月度上课节数
     const monthEl = document.getElementById('chartMonthRecords');
@@ -7352,6 +7377,38 @@ async function approveLeave(id,approved){
         if(data.code===200){showToast(data.msg||'操作成功','success');loadLeaveRequests();}
         else{showToast(data.msg||'操作失败','error');}
     }catch(e){showToast('操作失败：'+e.message,'error');}
+}
+
+function renderClassDistRefresh(){
+    const el = document.getElementById('chartClassDist');
+    if (!el || !window._dashFullStudents) return;
+    // 学生总数与班级分布同口径（完整学生数据，教师按班级隔离后即本人班级人数）
+    const stTotal = document.getElementById('statTotalStudents');
+    if (stTotal && window._dashFullStudents.length > 0) stTotal.textContent = window._dashFullStudents.length;
+    try {
+        const old = echarts.getInstanceByDom(el);
+        if (old) old.dispose();
+        const chart = echarts.init(el);
+        const cnt = {};
+        window._dashFullStudents.forEach(function(s){
+            const cid = (s.class_id != null) ? s.class_id : null;
+            const cname = (s.class_name || '').trim();
+            const nm = (cid != null && cname) ? (cname + '(' + cid + ')') : '未分班';
+            cnt[nm] = (cnt[nm] || 0) + 1;
+        });
+        const classNames = Object.keys(cnt);
+        const classCounts = classNames.map(function(k){ return cnt[k]; });
+        chart.setOption({
+            title:{text:'班级人数分布', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'axis'},
+            grid:{left:36, right:16, top:44, bottom:28},
+            xAxis:{type:'category', data:classNames.length ? classNames : ['暂无班级'], axisLabel:{fontSize:10, color:'#64748b', rotate: classNames.length>6?30:0}},
+            yAxis:{type:'value', minInterval:1, axisLabel:{fontSize:10, color:'#64748b'}},
+            series:[{type:'bar', data:classCounts, barWidth:'46%',
+                itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#3b82f6'},{offset:1,color:'#93c5fd'}])},
+                label:{show:true, position:'top', fontSize:10, color:'#334155'}}]
+        });
+    } catch(e) {}
 }
 
 function openLeaveSubmitModal(){

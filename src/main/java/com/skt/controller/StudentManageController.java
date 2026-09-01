@@ -39,6 +39,22 @@ public class StudentManageController {
                     "WHERE (s.parent_id = ? OR s.parent_user_id = ?) AND (s.is_deleted IS NULL OR s.is_deleted = 0) " +
                     "ORDER BY s.name",
                     parentId, parentId);
+            } else if ("teacher".equals(role)) {
+                Long teacherId = (Long) req.getAttribute("userId");
+                if (classId != null) {
+                    // 教师只能查看自己班级的学生，防越权
+                    list = jdbc.queryForList(
+                        "SELECT s.*, c.name AS class_name FROM students s LEFT JOIN classes c ON s.class_id = c.id " +
+                        "WHERE s.class_id = ? AND (s.is_deleted IS NULL OR s.is_deleted = 0) " +
+                        "AND s.class_id IN (SELECT id FROM classes WHERE teacher_id = ?) ORDER BY s.name",
+                        classId, teacherId);
+                } else {
+                    list = jdbc.queryForList(
+                        "SELECT s.*, c.name AS class_name FROM students s LEFT JOIN classes c ON s.class_id = c.id " +
+                        "WHERE (s.is_deleted IS NULL OR s.is_deleted = 0) " +
+                        "AND s.class_id IN (SELECT id FROM classes WHERE teacher_id = ?) ORDER BY s.name",
+                        teacherId);
+                }
             } else if (classId != null) {
                 list = jdbc.queryForList(
                     "SELECT s.*, c.name AS class_name FROM students s LEFT JOIN classes c ON s.class_id = c.id " +
