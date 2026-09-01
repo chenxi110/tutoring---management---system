@@ -343,11 +343,13 @@
 
     async function loadParentMessages() {
       const res = await fetchJson(getBaseURL() + '/messages');
-      const list = (res && res.data) || [];
+      const all = (res && res.data) || [];
+      // 消息中心只展示私信（consult），班级通知请在主界面"通知公告"查看
+      const list = all.filter(item => item.msg_type === 'consult');
       const box = document.getElementById('parentMessageList');
 
       if (!list.length) {
-        box.innerHTML = '<div class="message-item">暂无消息</div>';
+        box.innerHTML = '<div class="message-item">暂无私信</div>';
         return;
       }
 
@@ -357,7 +359,7 @@
         const sender = item.sender_name || '系统';
         return '<div class="message-item ' + unreadClass + '" onclick="openMessage(' + item.id + ')">' +
           '<div class="meta"><span>' + escapeHtml(sender) + (item.sender_role === 'teacher' ? '（老师）' : '') + '</span><span>' + escapeHtml(item.created_at || '') + '</span></div>' +
-          '<div style="font-weight:700;">' + escapeHtml(item.title || '通知') + badge + '</div>' +
+          '<div style="font-weight:700;">' + escapeHtml(item.title || (item.msg_type === 'consult' ? '家长咨询' : '通知')) + badge + '</div>' +
           '<div style="margin: 10px 0;white-space:pre-wrap;">' + escapeHtml(item.content || '') + '</div>' +
           '<div style="font-size:12px; color:#666;">' + (item.status === 'unread' ? '未读' : '已读') + '</div>' +
           '</div>';

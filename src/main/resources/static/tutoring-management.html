@@ -9464,7 +9464,7 @@ async function loadNotifications(){
     container.innerHTML='<div style="text-align:center;color:#999;padding:20px;">加载中...</div>';
     try{
         const res=await apiService.getMessages();
-        const list=(res&&res.code===200)?(res.data||[]):[];
+        const list=(res&&res.code===200)?((res.data||[]).filter(function(m){return m.msg_type!=='consult';})):[];
         const typeLabels={notice:'班级通知',consult:'家长私信',system:'系统通知'};
         if(list.length===0){
             container.innerHTML='<div class="empty-state">暂无消息</div>';
@@ -9491,7 +9491,6 @@ async function loadNotifications(){
                     '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
                         '<span style="font-size:12px;color:#999;">'+new Date(m.created_at).toLocaleString()+'</span>' +
                         (isUnread&&!apiService.isParent()?'<button class="btn btn-sm btn-success" onclick="event.stopPropagation();markNotificationRead('+m.id+',this.closest(\'[id^=msg-item]\'))" style="font-size:12px;padding:4px 10px;">✓ 已读</button>':'') +
-                        (!apiService.isParent()&&m.sender_role==='parent'&&m.msg_type==='consult'?'<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openQuickReplyModal('+m.sender_id+',\''+escapeAttr(m.sender_name||'家长')+'\','+m.id+')" style="font-size:12px;padding:4px 10px;">⚡ 快捷回复</button>':'') +
                     '</div>' +
                 '</div>' +
                 '<div style="font-size:14px;color:#333;line-height:1.6;">'+escapeHtml(m.content)+'</div>' +
@@ -10689,29 +10688,11 @@ async function loadParentMessages(){
     }
     try{
         const res=await apiService.getMessages();
-        const msgs=(res&&res.code===200)?(res.data||[]):[];
+        const msgs=(res&&res.code===200)?((res.data||[]).filter(function(m){return m.msg_type!=='consult';})):[];
         page.innerHTML=`
-            <div class="card" style="margin-bottom:16px;">
-                <div class="card-header">
-                    <h3 class="card-title">联系老师</h3>
-                </div>
-                <div style="padding:16px;">
-                    <div class="form-group">
-                        <label class="form-label">标题</label>
-                        <input type="text" id="newMsgTitle" class="form-control" placeholder="请输入咨询标题">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">内容</label>
-                        <textarea id="newMsgContent" class="form-control" rows="4" placeholder="请输入您想对老师说的问题..."></textarea>
-                    </div>
-                    <div style="text-align:right;">
-                        <button class="btn btn-primary" onclick="sendNewParentMessage()">发送</button>
-                    </div>
-                </div>
-            </div>
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">消息通知</h3>
+                    <h3 class="card-title">班级通知</h3>
                 </div>
                 <div style="padding:12px;">
                     ${msgs.length>0?msgs.map(m=>{

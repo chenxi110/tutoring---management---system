@@ -3,141 +3,196 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>教师家校互通</title>
+  <title>教师家校互通 · 家长私信</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
       background: #f4f7fb;
       color: #222;
     }
     .container {
-      max-width: 1100px;
-      margin: 24px auto;
-      padding: 0 16px 40px;
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 0 16px 48px;
     }
-    .card {
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.05);
-      padding: 18px;
-      margin-bottom: 20px;
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
     }
-    h2, h3 { margin: 0 0 16px; }
-    .row {
+    .header h2 { margin: 0; font-size: 20px; }
+    .header a {
+      color: #1890ff;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .stats {
       display: flex;
       gap: 12px;
-      flex-wrap: wrap;
+      margin-bottom: 16px;
     }
-    .col {
-      flex: 1 1 240px;
-    }
-    label {
-      display: block;
-      margin-bottom: 8px;
+    .stat {
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
       font-size: 13px;
-      color: #555;
+      color: #666;
     }
-    input, textarea, select, button {
+    .stat b { color: #1890ff; font-size: 18px; margin-right: 4px; }
+    .message-list { display: grid; gap: 12px; }
+    .message-item {
+      background: #fff;
+      border: 1px solid #eef0f4;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .message-item.unread { border-color: #91d5ff; background: #f0f7ff; }
+    .msg-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .msg-sender {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .msg-sender .dot { color: #ff4d4f; font-size: 12px; }
+    .msg-time { font-size: 12px; color: #999; }
+    .msg-content { font-size: 14px; color: #333; line-height: 1.6; margin-bottom: 10px; }
+    .msg-actions { display: flex; gap: 8px; }
+    .msg-actions button {
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-reply { background: #1890ff; color: #fff; }
+    .btn-read { background: #f0f0f0; color: #555; }
+    .reply-list { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; display: grid; gap: 6px; }
+    .reply-item {
+      background: #f6f9fc;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #444;
+      line-height: 1.5;
+    }
+    .reply-item .who { font-weight: 600; color: #1890ff; margin-right: 6px; }
+    .empty-state {
+      text-align: center;
+      color: #999;
+      padding: 60px 20px;
+      background: #fff;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    /* 快捷回复弹窗 */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 14px;
+      width: 92%;
+      max-width: 480px;
+      padding: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+    }
+    .modal h3 { margin: 0 0 14px; font-size: 16px; }
+    .phrases { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .phrases button {
+      border: 1px solid #d9d9d9;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #333;
+      cursor: pointer;
+    }
+    .phrases button:hover { border-color: #1890ff; color: #1890ff; }
+    .modal textarea {
       width: 100%;
       border: 1px solid #d9d9d9;
       border-radius: 10px;
       padding: 10px 12px;
       font-size: 14px;
-      outline: none;
-    }
-    textarea {
-      min-height: 120px;
+      min-height: 100px;
       resize: vertical;
+      outline: none;
+      font-family: inherit;
     }
-    button {
-      background: #1890ff;
+    .modal textarea:focus { border-color: #1890ff; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+    .modal-footer button {
       border: none;
-      color: white;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: 14px;
       cursor: pointer;
       font-weight: 600;
     }
-    .message-list {
-      display: grid;
-      gap: 12px;
-    }
-    .message-item {
-      background: #fafafa;
-      border: 1px solid #ececec;
-      border-radius: 12px;
-      padding: 14px;
-    }
-    .meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      color: #666;
-      font-size: 12px;
-      margin-bottom: 8px;
-    }
-    .reply-box {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #eee;
-    }
-    .reply-item {
-      background: #edf6ff;
-      border-radius: 8px;
-      padding: 8px 10px;
-      margin-top: 8px;
-    }
-    .badge {
-      display: inline-block;
-      background: #e6f7ff;
-      color: #1890ff;
-      border-radius: 999px;
-      font-size: 12px;
-      padding: 4px 8px;
-      margin-top: 8px;
-    }
-    @media (max-width: 768px) {
-      .container { padding: 0 12px 24px; }
-      .row { flex-direction: column; }
-    }
+    .btn-cancel { background: #f0f0f0; color: #555; }
+    .btn-send { background: #1890ff; color: #fff; }
+    .btn-send:disabled { opacity: 0.6; cursor: not-allowed; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="card">
-      <h2>教师家校互通</h2>
-      <div class="row">
-        <div class="col">
-          <label>选择学生</label>
-          <select id="studentSelect"></select>
-        </div>
-        <div class="col">
-          <label>通知标题</label>
-          <input id="msgTitle" placeholder="例如：本周作业提醒" />
-        </div>
-      </div>
-      <div style="margin-top: 12px;">
-        <label>通知内容</label>
-        <textarea id="msgContent" placeholder="请输入通知内容..."></textarea>
-      </div>
-      <div style="margin-top: 14px;">
-        <button type="button" onclick="sendTeacherMessage()">发送通知</button>
-      </div>
+    <div class="header">
+      <h2>家校互通 · 家长私信</h2>
+      <a href="tutoring-management.html">← 返回主界面</a>
     </div>
+    <div class="stats">
+      <div class="stat"><b id="totalCount">0</b>条家长私信</div>
+      <div class="stat"><b id="unreadCount" style="color:#ff4d4f;">0</b>条未读</div>
+    </div>
+    <div id="messageList" class="message-list">
+      <div class="empty-state">加载中...</div>
+    </div>
+  </div>
 
-    <div class="card">
-      <h3>已发送消息列表</h3>
-      <div id="teacherMessageList" class="message-list"></div>
+  <div class="modal-overlay" id="quickReplyModal" style="display:none;">
+    <div class="modal">
+      <h3 id="quickReplyTitle">⚡ 快捷回复</h3>
+      <div class="phrases" id="quickReplyPhrases"></div>
+      <textarea id="quickReplyInput" placeholder="输入回复内容，或点击上方常用短语..."></textarea>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeQuickReplyModal()">取消</button>
+        <button class="btn-send" id="quickReplySendBtn" onclick="sendQuickReply()">发送</button>
+      </div>
     </div>
   </div>
 
   <script>
+    const QUICK_REPLY_PHRASES = [
+      '收到，我稍后回复您',
+      '孩子在校一切正常，请放心',
+      '麻烦您再详细描述一下问题'
+    ];
     const token = localStorage.getItem('skt_token') || '';
     const storageUser = localStorage.getItem('skt_user');
     const user = storageUser ? JSON.parse(storageUser) : null;
+    let quickReplyState = { parentId: null, parentName: '', messageId: null };
 
     function ensureLogin() {
-      if (!token) {
+      if (!token || !user || user.role === 'parent') {
         window.location.href = 'tutoring-management.html';
         return false;
       }
@@ -158,10 +213,7 @@
     async function fetchJson(url, options = {}) {
       const res = await fetch(url, {
         ...options,
-        headers: {
-          ...authHeaders(),
-          ...(options.headers || {})
-        }
+        headers: { ...authHeaders(), ...(options.headers || {}) }
       });
       if (res.status === 401) {
         localStorage.removeItem('skt_token');
@@ -172,77 +224,134 @@
       return res.json();
     }
 
-    async function loadStudents() {
-      const res = await fetchJson(getBaseURL() + '/students');
-      const students = (res && res.data) || [];
-      const select = document.getElementById('studentSelect');
-      select.innerHTML = '<option value="">请选择学生</option>' +
-        students.map(s => '<option value="' + (s.id || '') + '">' + (s.name || '--') + '</option>').join('');
-    }
-
-    async function sendTeacherMessage() {
-      const studentId = document.getElementById('studentSelect').value;
-      const title = document.getElementById('msgTitle').value.trim();
-      const content = document.getElementById('msgContent').value.trim();
-
-      if (!studentId) {
-        alert('请选择学生');
-        return;
-      }
-      if (!content) {
-        alert('通知内容不能为空');
-        return;
-      }
-
-      const payload = {
-        studentId: Number(studentId),
-        title: title || '家校通知',
-        content: content
-      };
-
-      const res = await fetchJson(getBaseURL() + '/messages', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-
-      if (res && res.code === 200) {
-        alert('发送成功');
-        document.getElementById('msgTitle').value = '';
-        document.getElementById('msgContent').value = '';
-        loadTeacherMessages();
-      } else {
-        alert((res && res.error) || '发送失败');
-      }
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     async function loadTeacherMessages() {
       const res = await fetchJson(getBaseURL() + '/messages');
-      const list = (res && res.data) || [];
-      const box = document.getElementById('teacherMessageList');
+      const all = (res && res.data) || [];
+      // 只展示家长发来的私信（consult）
+      const list = all.filter(function (m) {
+        return m.msg_type === 'consult' && m.sender_role === 'parent';
+      });
+      document.getElementById('totalCount').textContent = list.length;
+      document.getElementById('unreadCount').textContent = list.filter(function (m) {
+        return m.status === 'unread';
+      }).length;
 
+      const box = document.getElementById('messageList');
       if (!list.length) {
-        box.innerHTML = '<div class="message-item">暂无消息</div>';
+        box.innerHTML = '<div class="empty-state">暂无家长私信</div>';
         return;
       }
 
-      box.innerHTML = list.map(item => {
-        const replyList = (item.replyList || []).map(reply =>
-          '<div class="reply-item"><strong>' + (reply.sender_name || '用户') + '：</strong>' + (reply.content || '') + '</div>'
-        ).join('');
-
-        return '<div class="message-item">' +
-          '<div class="meta"><span>' + (item.sender_name || '教师') + '</span><span>' + (item.created_at || '') + '</span></div>' +
-          '<div style="font-weight:700;">' + (item.title || '通知') + '</div>' +
-          '<div style="margin: 10px 0;">' + (item.content || '') + '</div>' +
-          '<span class="badge">' + (item.status === 'unread' ? '未读' : '已读') + '</span>' +
-          '<div class="reply-box">' + (replyList || '<div class="reply-item">暂无留言</div>') + '</div>' +
-          '</div>';
+      box.innerHTML = list.map(function (m) {
+        const isUnread = m.status === 'unread';
+        const replies = (m.replyList || []).map(function (r) {
+          const who = (r.sender_role === 'teacher' ? '我' : (r.sender_name || '家长'));
+          const whoCls = r.sender_role === 'teacher' ? '我：' : (r.sender_name || '') + '：';
+          return '<div class="reply-item"><span class="who">' + escapeHtml(who) + '</span>' + escapeHtml(r.content || '') + '</div>';
+        }).join('');
+        return '<div class="message-item' + (isUnread ? ' unread' : '') + '" id="msg-' + m.id + '">' +
+          '<div class="msg-head">' +
+            '<div class="msg-sender">' + (isUnread ? '<span class="dot">●</span>' : '') + '<span>' + escapeHtml(m.sender_name || '家长') + '</span>' +
+            '<span style="font-size:12px;color:#999;font-weight:400;">' + (isUnread ? '未读' : '已读') + '</span></div>' +
+            '<span class="msg-time">' + new Date(m.created_at).toLocaleString() + '</span>' +
+          '</div>' +
+          '<div class="msg-title" style="font-weight:600;font-size:14px;margin-bottom:4px;">' + escapeHtml(m.title || '家长咨询') + '</div>' +
+          '<div class="msg-content">' + escapeHtml(m.content || '') + '</div>' +
+          (m.student_name ? '<div style="font-size:12px;color:#999;margin-bottom:8px;">相关学生：' + escapeHtml(m.student_name) + '</div>' : '') +
+          (replies ? '<div class="reply-list">' + replies + '</div>' : '') +
+          '<div class="msg-actions" style="margin-top:10px;">' +
+            '<button class="btn-reply" onclick="openQuickReplyModal(' + m.sender_id + ',\'' + escapeHtml((m.sender_name || '家长')).replace(/'/g, "\\'") + '\',' + m.id + ')">⚡ 快捷回复</button>' +
+            (isUnread ? '<button class="btn-read" onclick="markRead(' + m.id + ',this)">标记已读</button>' : '') +
+          '</div>' +
+        '</div>';
       }).join('');
+    }
+
+    async function markRead(id, btn) {
+      const res = await fetchJson(getBaseURL() + '/messages/' + id + '/read', { method: 'PUT' });
+      if (res && res.code === 200) {
+        if (btn) {
+          const item = btn.closest('.message-item');
+          if (item) { item.classList.remove('unread'); btn.remove(); }
+        }
+        loadTeacherMessages();
+      }
+    }
+
+    function openQuickReplyModal(parentId, parentName, messageId) {
+      if (!parentId) { alert('缺少家长ID'); return; }
+      quickReplyState = { parentId: parentId, parentName: parentName || '家长', messageId: messageId || null };
+      document.getElementById('quickReplyTitle').textContent = '⚡ 快捷回复 - ' + quickReplyState.parentName;
+      document.getElementById('quickReplyInput').value = '';
+      document.getElementById('quickReplyPhrases').innerHTML = QUICK_REPLY_PHRASES.map(function (p, i) {
+        return '<button type="button" onclick="fillQuickReplyPhrase(' + i + ')">' + escapeHtml(p) + '</button>';
+      }).join('');
+      document.getElementById('quickReplyModal').style.display = 'flex';
+      setTimeout(function () { document.getElementById('quickReplyInput').focus(); }, 50);
+    }
+
+    function fillQuickReplyPhrase(index) {
+      const phrase = QUICK_REPLY_PHRASES[index];
+      if (!phrase) return;
+      const input = document.getElementById('quickReplyInput');
+      input.value = phrase;
+      input.focus();
+    }
+
+    function closeQuickReplyModal() {
+      document.getElementById('quickReplyModal').style.display = 'none';
+      quickReplyState = { parentId: null, parentName: '', messageId: null };
+    }
+
+    document.getElementById('quickReplyModal').addEventListener('click', function (e) {
+      if (e.target === this) closeQuickReplyModal();
+    });
+
+    async function sendQuickReply() {
+      const input = document.getElementById('quickReplyInput');
+      const content = input.value.trim();
+      if (!content) { alert('请输入回复内容'); return; }
+      if (content.length > 2000) { alert('回复内容不能超过2000字'); return; }
+      if (!quickReplyState.parentId) { alert('缺少接收人信息'); return; }
+
+      const sendBtn = document.getElementById('quickReplySendBtn');
+      sendBtn.disabled = true;
+      sendBtn.textContent = '发送中...';
+      try {
+        const res = await fetchJson(getBaseURL() + '/messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: '教师回复',
+            content: content,
+            receiverId: quickReplyState.parentId,
+            msgType: 'consult',
+            studentId: null,
+            classId: null
+          })
+        });
+        if (res && res.code === 200) {
+          closeQuickReplyModal();
+          loadTeacherMessages();
+        } else {
+          alert((res && (res.error || res.msg)) || '发送失败');
+          sendBtn.disabled = false;
+          sendBtn.textContent = '发送';
+        }
+      } catch (e) {
+        alert('发送失败：' + e.message);
+        sendBtn.disabled = false;
+        sendBtn.textContent = '发送';
+      }
     }
 
     function init() {
       if (!ensureLogin()) return;
-      loadStudents();
       loadTeacherMessages();
       setInterval(loadTeacherMessages, 30000);
     }
