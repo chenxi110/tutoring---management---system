@@ -5934,24 +5934,36 @@ function openDashboardDetail(type){
             break;
         }
         case 'total-classes':{
-            title.textContent=`${curSem?curSem.name+' ':'当前'}班级列表`;
-            const cl=getClassList();
-            const list=cl.map(cn=>{
-                const st=getStudentsForClass(cn);const course=getCourseMap()[cn]||'';const price=(appData.config&&appData.config.coursePrices)?(appData.config.coursePrices[course]||0):0;
-                return {name:cn,count:st.length,course,price};
+            // 与仪表盘"班级总数/学生总数/班级人数分布"统一口径：全部班级 + 按 class_id 精确计数 + 未分班单列
+            title.textContent='全部班级列表';
+            const classList = appData.classes || [];
+            const fullList = window._dashFullStudents || [];
+            const cMap = {};
+            classList.forEach(function(c){ cMap[c.id] = (c.name || ('班级' + c.id)); });
+            const cnt = {};
+            classList.forEach(function(c){ cnt[c.id] = 0; });
+            if (fullList.length) {
+                fullList.forEach(function(s){
+                    const cid = (s.class_id != null) ? s.class_id : null;
+                    if (cid != null && cnt[cid] !== undefined) cnt[cid]++;
+                });
+            }
+            const list = classList.map(function(c){
+                return { name: cMap[c.id], count: cnt[c.id] || 0, course: c.course || '', price: (appData.config&&appData.config.coursePrices)?(appData.config.coursePrices[c.course||'']||0):0 };
             }).sort((a,b)=>b.count-a.count);
-            const totalStudents=list.reduce((s,o)=>s+o.count,0);
-            const courseTypes=new Set(list.map(o=>o.course).filter(Boolean));
+            const totalStudents = fullList.length;
+            const courseTypes = new Set(list.map(o=>o.course).filter(Boolean));
+            const ungroupCount = fullList.length - list.reduce((s,o)=>s+o.count,0);
             sum.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
                 <div><div style="font-size:12px;opacity:.75;">班级总数</div><div style="font-size:26px;font-weight:700;">${list.length}</div></div>
                 <div><div style="font-size:12px;opacity:.75;">总学生人数</div><div style="font-size:26px;font-weight:700;">${totalStudents}</div></div>
                 <div><div style="font-size:12px;opacity:.75;">课程种类</div><div style="font-size:26px;font-weight:700;">${courseTypes.size}</div></div>
             </div>`;
-            if(list.length===0){body.innerHTML='<div class="empty-state">暂无班级</div>';break;}
-            body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>班级</th><th>课程</th><th>学生人数</th><th>课时费单价(元)</th></tr></thead><tbody>${list.map(o=>`<tr><td>${escapeHtml(o.name)}</td><td>${escapeHtml(o.course)}</td><td><strong>${o.count}</strong>人</td><td>¥${o.price}</td></tr>`).join('')}</tbody></table></div>`;
+            if(list.length===0&&ungroupCount===0){body.innerHTML='<div class="empty-state">暂无班级</div>';break;}
+            const rows = list.map(o=>`<tr><td>${escapeHtml(o.name)}</td><td>${escapeHtml(o.course)}</td><td><strong>${o.count}</strong>人</td><td>¥${o.price}</td></tr>`).join('') + (ungroupCount>0?`<tr><td>未分班</td><td>-</td><td><strong>${ungroupCount}</strong>人</td><td>¥0</td></tr>`:'');
+            body.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>班级</th><th>课程</th><th>学生人数</th><th>课时费单价(元)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
             break;
-        }
-        case 'pending-makeup':{
+        }case 'pending-makeup':{
             title.textContent='待补课明细';
             const pending=semFilterAbs(getAllAbsentRecords()).filter(a=>!a.madeUp);
             const byClass={};pending.forEach(a=>{byClass[a.className]=(byClass[a.className]||0)+1;});
