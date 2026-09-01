@@ -125,10 +125,10 @@ public class AuthController {
     @GetMapping("/user/list")
     public Map<String, Object> getUserList(HttpServletRequest req) {
         Map<String, Object> result = new HashMap<>();
-        if (!RoleAccess.isTeacher(req)) {
+        if (!RoleAccess.isAdmin(req)) {
             result.put("code", 403);
-            result.put("error", "无权限：仅教师/管理员可查看用户列表");
-            result.put("msg", "无权限：仅教师/管理员可查看用户列表");
+            result.put("error", "无权限：仅管理员可查看用户列表");
+            result.put("msg", "无权限：仅管理员可查看用户列表");
             return result;
         }
         try {

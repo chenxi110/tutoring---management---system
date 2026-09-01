@@ -816,7 +816,7 @@ body {
                     </div>
                 </div>
                 <!-- 用户管理（仅教师可见） -->
-                <div class="card teacher-only" id="userManagementCard" style="display:none;">
+                <div class="card admin-only" id="userManagementCard" style="display:none;">
                     <div class="card-header"><h3 class="card-title">👥 用户管理</h3><button class="btn btn-sm btn-secondary" onclick="loadUserList()">刷新</button></div>
                     <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可重置任意用户密码为初始密码123456。</div>
                     <div class="table-wrapper"><table><thead><tr><th>ID</th><th>账号</th><th>姓名</th><th>角色</th><th>手机号</th><th>操作</th></tr></thead><tbody id="userListTableBody"></tbody></table></div>
@@ -6964,14 +6964,15 @@ function loadSettings(){
     const cps=document.getElementById('coursePriceSettings');
     if(!cps)return;
     const allCourses=new Set();
-    getClassList().forEach(cn=>allCourses.add(getCourseMap()[cn]));
-    Object.keys(appData.config.coursePrices).forEach(c=>allCourses.add(c));
-    cps.innerHTML=Array.from(allCourses).map(course=>`<div class="form-group"><label class="form-label">${escapeHtml(course)} 课时费 (元/节)</label><input type="number" class="form-control" id="price_${course.replace(/\s/g,'_')}" value="${appData.config.coursePrices[course]||0}" min="0"></div>`).join('');
+    const cpMap=(appData.config&&appData.config.coursePrices)?appData.config.coursePrices:{};
+    getClassList().forEach(cn=>{const c=getCourseMap()[cn];if(c)allCourses.add(c);});
+    Object.keys(cpMap).forEach(c=>{if(c)allCourses.add(c);});
+    cps.innerHTML=Array.from(allCourses).filter(Boolean).map(course=>`<div class="form-group"><label class="form-label">${escapeHtml(course)} 课时费 (元/节)</label><input type="number" class="form-control" id="price_${course.replace(/\s/g,'_')}" value="${cpMap[course]||0}" min="0"></div>`).join('');
     loadCourseTypesList();
     loadRecycleBin();
     loadOperationLog();
-    // 教师角色加载用户列表
-    if(apiService && apiService.isTeacher && apiService.isTeacher()){
+    // 仅管理员加载用户列表（重置密码等管理员操作）
+    if(apiService && apiService.isAdmin && apiService.isAdmin()){
         loadUserList();
     }
 }
@@ -7010,7 +7011,7 @@ function saveCoursePrices(){document.querySelectorAll('#coursePriceSettings inpu
 async function loadUserList(){
     const tb=document.getElementById('userListTableBody');
     if(!tb)return;
-    if(!apiService.isTeacher()){
+    if(!apiService.isAdmin()){
         document.getElementById('userManagementCard').style.display='none';
         return;
     }
@@ -7025,8 +7026,8 @@ async function loadUserList(){
                 return;
             }
             tb.innerHTML=users.map(u=>{
-                const roleName=u.role==='teacher'?'教师':'家长';
-                const roleBadge=u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>';
+                const roleName=u.role==='admin'?'管理员':(u.role==='teacher'?'教师':'家长');
+                const roleBadge=u.role==='admin'?'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">管理员</span>':(u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>');
                 return `<tr>
                     <td>${u.id}</td>
                     <td>${escapeHtml(u.username||'')}</td>

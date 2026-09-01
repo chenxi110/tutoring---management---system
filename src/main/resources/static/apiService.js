@@ -48,6 +48,7 @@
     isLoggedIn() { return !!this.token; }
     isTeacher() { return this.user && this.user.role === 'teacher'; }
     isParent() { return this.user && this.user.role === 'parent'; }
+    isAdmin() { return this.user && this.user.role === 'admin'; }
 
     async request(method, path, body) {
         var url = (path && path.indexOf('/api/') === 0) ? path : this.baseURL + path;
