@@ -13,6 +13,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.util.*;
 
@@ -412,6 +413,45 @@ public class StudentManageController {
             return result;
         }
     }
+    // 学生Excel导入模板下载
+    @GetMapping("/students/import/template")
+    public void downloadStudentTemplate(HttpServletRequest req, HttpServletResponse resp) {
+        if (!RoleAccess.isTeacher(req)) {
+            try {
+                resp.setStatus(403);
+                resp.setContentType("application/json;charset=UTF-8");
+                resp.getWriter().write("{\"code\":403,\"msg\":\"无权限下载模板\"}");
+            } catch (Exception ignored) { }
+            return;
+        }
+        try {
+            try (Workbook wb = new XSSFWorkbook()) {
+                Sheet sheet = wb.createSheet("学生导入模板");
+                String[] headers = {"姓名", "手机号", "家长手机号", "家长姓名", "家长称谓"};
+                Row hr = sheet.createRow(0);
+                for (int c = 0; c < headers.length; c++) {
+                    Cell cell = hr.createCell(c);
+                    cell.setCellValue(headers[c]);
+                }
+                Row tip = sheet.createRow(1);
+                tip.createCell(0).setCellValue("说明：姓名必填；手机号重复的学生会自动跳过；请删除本行后从第3行开始填写数据。");
+                for (int c = 0; c < headers.length; c++) sheet.setColumnWidth(c, 18 * 256);
+                String fn = "学生导入模板.xlsx";
+                resp.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                resp.setHeader("Content-Disposition", "attachment; filename=" +
+                        java.net.URLEncoder.encode(fn, java.nio.charset.StandardCharsets.UTF_8.toString()));
+                wb.write(resp.getOutputStream());
+            }
+        } catch (Exception ex) {
+            log.error("学生模板下载失败", ex);
+            try {
+                resp.setStatus(500);
+                resp.setContentType("application/json;charset=UTF-8");
+                resp.getWriter().write("{\"code\":500,\"msg\":\"模板生成失败\"}");
+            } catch (Exception ignored) { }
+        }
+    }
+
     // Excel 批量导入学生（解析预览，校验姓名/手机号）
     @PostMapping("/students/import")
     public Map<String, Object> importStudents(@RequestParam("file") MultipartFile file,
@@ -472,7 +512,7 @@ public class StudentManageController {
                     String parentPhone = parentPhoneIdx >= 0 && row.getCell(parentPhoneIdx) != null ? getCellStringValue(row.getCell(parentPhoneIdx)).trim() : "";
                     String parentName = parentNameIdx >= 0 && row.getCell(parentNameIdx) != null ? getCellStringValue(row.getCell(parentNameIdx)).trim() : "";
                     String parentRelation = parentRelationIdx >= 0 && row.getCell(parentRelationIdx) != null ? getCellStringValue(row.getCell(parentRelationIdx)).trim() : "";
-                    if (name.isEmpty() && phone.isEmpty() && parentPhone.isEmpty()) continue;
+                    if (name.startsWith("说明") || (name.isEmpty() && phone.isEmpty() && parentPhone.isEmpty())) continue;
                     Map<String, Object> item = new LinkedHashMap<>();
                     item.put("rowNum", r + 1);
                     item.put("name", name);

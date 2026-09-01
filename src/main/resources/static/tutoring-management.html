@@ -1537,6 +1537,7 @@ body {
         <div class="modal-body">
             <div class="form-group"><label class="form-label">导入班级</label><select class="form-control" id="studentImportClassSel"></select></div>
             <div class="form-group"><label class="form-label">Excel 文件（支持 .xlsx / .xls）</label><input type="file" class="form-control" id="studentImportFile" accept=".xlsx,.xls" style="padding:6px;"></div>
+            <a class="btn btn-sm" style="background:#8c8c8c;color:#fff;text-decoration:none;cursor:pointer;margin-bottom:10px;" onclick="downloadStudentTemplate()">📥 下载Excel模板</a>
             <div style="font-size:12px;opacity:.75;margin-bottom:10px;">列格式：姓名* | 手机号 | 家长手机号 | 家长姓名 | 家长称谓（第一行为表头，可省略）。手机号重复的学生会自动跳过。</div>
             <div id="studentImportLoading" style="display:none;color:var(--primary);margin-bottom:8px;">正在解析，请稍候...</div>
             <div id="studentImportResult"></div>
@@ -6522,6 +6523,7 @@ function loadStudents(){
             <div class="batch-import" style="margin-top:12px;display:flex;gap:8px;">
                 <button class="btn btn-sm btn-secondary" onclick="showBatchImport('${escapeAttr(cn)}')">批量导入</button>
                 <button class="btn btn-sm" style="background:#13c2c2;color:#fff;" onclick="openStudentExcelImport('${escapeAttr(cn)}')">📊 Excel导入</button>
+                <a class="btn btn-sm" style="background:#8c8c8c;color:#fff;text-decoration:none;cursor:pointer;" onclick="downloadStudentTemplate()">📥 模板</a>
                 <button class="btn btn-sm" style="background:#faad14;color:#fff;" onclick="showParentAccessManager('${escapeAttr(cn)}')">🔑 家长权限管理</button>
             </div>
         </div>`;
@@ -6818,6 +6820,19 @@ async function removeStudentClass(classId){
 }
 function closeStudentClassModal(){document.getElementById('studentClassModal').classList.remove('active');}
 let _studentExcelRows=[];
+async function downloadStudentTemplate(){
+    try{
+        const res=await fetch(apiService.baseURL+'/students/import/template',{headers:{'Authorization':'Bearer '+apiService.token}});
+        if(!res.ok){const j=await res.json().catch(function(){return null;});showToast((j&&j.msg)||'下载模板失败','error');return;}
+        const blob=await res.blob();
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url;a.download='学生导入模板.xlsx';
+        document.body.appendChild(a);a.click();a.remove();
+        URL.revokeObjectURL(url);
+        showToast('模板已下载，请按格式填写后导入','success');
+    }catch(e){showToast('下载模板失败：'+(e.message||''),'error');}
+}
 function openStudentExcelImport(cn){
     document.getElementById('studentExcelImportModal').classList.add('active');
     const sel=document.getElementById('studentImportClassSel');
