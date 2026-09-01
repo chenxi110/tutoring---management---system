@@ -159,6 +159,15 @@
     async updateStudent(id, data) { return this.request('PUT', '/students/' + id, data); }
     async deleteStudent(id) { return this.request('DELETE', '/students/' + id); }
     async getStudentClasses(id) { return this.request('GET', '/students/' + id + '/classes'); }
+    async importStudentsExcel(file, classId) {
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('classId', classId);
+        var url = this.baseURL + '/students/import';
+        var res = await fetch(url, { method: 'POST', headers: this.token ? { 'Authorization': 'Bearer ' + this.token } : {}, body: formData });
+        return await res.json();
+    }
+    async confirmImportStudents(classId, rows) { return this.request('POST', '/students/import/confirm', { classId: classId, rows: rows }); }
     async addStudentClass(id, classId) { return this.request('POST', '/students/' + id + '/classes', { classId: classId }); }
     async removeStudentClass(id, classId) { return this.request('DELETE', '/students/' + id + '/classes/' + classId); }
 

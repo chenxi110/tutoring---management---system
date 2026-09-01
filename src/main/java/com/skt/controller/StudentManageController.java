@@ -5,9 +5,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.InputStream;
 import java.util.*;
 
 /**
@@ -265,7 +271,7 @@ public class StudentManageController {
             return RoleAccess.forbidTeacherOnly("仅教师/管理员可删除学生");
         }
         try {
-            jdbc.update("UPDATE students SET is_deleted = 1 WHERE id = ?", id);
+            jdbc.update("UPDATE students SET is_deleted = 1, phone = NULL, parent_phone = NULL WHERE id = ?", id);
             result.put("code", 200);
             result.put("msg", "删除成功");
             return result;
@@ -404,6 +410,198 @@ public class StudentManageController {
             result.put("code", 500);
             result.put("msg", "移除班级失败：" + ex.getMessage());
             return result;
+        }
+    }
+    // Excel 批量导入学生（解析预览，校验姓名/手机号）
+    @PostMapping("/students/import")
+    public Map<String, Object> importStudents(@RequestParam("file") MultipartFile file,
+                                              @RequestParam(required = false) Long classId,
+                                              HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师/管理员可批量导入学生");
+        }
+        try {
+            if (file == null || file.isEmpty()) {
+                result.put("code", 400);
+                result.put("msg", "请上传Excel文件");
+                return result;
+            }
+            String fn = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+            if (!fn.endsWith(".xlsx") && !fn.endsWith(".xls")) {
+                result.put("code", 400);
+                result.put("msg", "仅支持 .xlsx / .xls 格式的Excel文件");
+                return result;
+            }
+            List<Map<String, Object>> rows = new ArrayList<>();
+            // 已存在手机号集合（DB 全量）
+            Map<String, Long> dbPhone = new HashMap<>();
+            for (Map<String, Object> s : jdbc.queryForList(
+                    "SELECT id, phone FROM students WHERE phone IS NOT NULL AND phone<>'' AND (is_deleted IS NULL OR is_deleted=0)")) {
+                Object ph = s.get("phone");
+                if (ph != null) dbPhone.put(String.valueOf(ph).trim(), ((Number) s.get("id")).longValue());
+            }
+            Set<String> filePhones = new HashSet<>();
+            try (InputStream is = file.getInputStream();
+                 Workbook wb = fn.endsWith(".xls") ? new HSSFWorkbook(is) : new XSSFWorkbook(is)) {
+                Sheet sheet = wb.getSheetAt(0);
+                int lastRow = sheet.getLastRowNum();
+                // 表头识别
+                int nameIdx = 0, phoneIdx = 1, parentPhoneIdx = 2, parentNameIdx = 3, parentRelationIdx = 4;
+                boolean headerFound = false;
+                Row hr = sheet.getRow(0);
+                if (hr != null) {
+                    for (int c = 0; c < hr.getLastCellNum(); c++) {
+                        Cell cell = hr.getCell(c);
+                        if (cell == null) continue;
+                        String hdr = getCellStringValue(cell).trim();
+                        // 先匹配"家长"相关列，避免"家长姓名/家长手机号"被"姓名/手机号"抢先匹配
+                        if (hdr.contains("家长姓名")) { parentNameIdx = c; headerFound = true; }
+                        else if (hdr.contains("家长") && (hdr.contains("手机") || hdr.contains("电话"))) { parentPhoneIdx = c; headerFound = true; }
+                        else if (hdr.contains("称谓") || hdr.contains("关系")) { parentRelationIdx = c; }
+                        else if (hdr.contains("姓名") || hdr.equalsIgnoreCase("name")) { nameIdx = c; headerFound = true; }
+                        else if (hdr.contains("手机号") || hdr.contains("电话") || hdr.equalsIgnoreCase("phone")) { phoneIdx = c; headerFound = true; }
+                    }
+                }
+                int startRow = headerFound ? 1 : 0;
+                for (int r = startRow; r <= lastRow; r++) {
+                    Row row = sheet.getRow(r);
+                    if (row == null) continue;
+                    String name = row.getCell(nameIdx) != null ? getCellStringValue(row.getCell(nameIdx)).trim() : "";
+                    String phone = phoneIdx >= 0 && row.getCell(phoneIdx) != null ? getCellStringValue(row.getCell(phoneIdx)).trim() : "";
+                    String parentPhone = parentPhoneIdx >= 0 && row.getCell(parentPhoneIdx) != null ? getCellStringValue(row.getCell(parentPhoneIdx)).trim() : "";
+                    String parentName = parentNameIdx >= 0 && row.getCell(parentNameIdx) != null ? getCellStringValue(row.getCell(parentNameIdx)).trim() : "";
+                    String parentRelation = parentRelationIdx >= 0 && row.getCell(parentRelationIdx) != null ? getCellStringValue(row.getCell(parentRelationIdx)).trim() : "";
+                    if (name.isEmpty() && phone.isEmpty() && parentPhone.isEmpty()) continue;
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("rowNum", r + 1);
+                    item.put("name", name);
+                    item.put("phone", phone);
+                    item.put("parentPhone", parentPhone);
+                    item.put("parentName", parentName);
+                    item.put("parentRelation", parentRelation);
+                    item.put("valid", true);
+                    item.put("msg", "");
+                    if (name.isEmpty()) {
+                        item.put("valid", false);
+                        item.put("msg", "学生姓名不能为空");
+                    } else if (!phone.isEmpty() && (dbPhone.containsKey(phone) || filePhones.contains(phone))) {
+                        item.put("valid", false);
+                        item.put("msg", "手机号 " + phone + " 已注册，跳过");
+                    } else {
+                        if (!phone.isEmpty()) filePhones.add(phone);
+                    }
+                    rows.add(item);
+                }
+            }
+            int validCount = 0;
+            for (Map<String, Object> r2 : rows) if (Boolean.TRUE.equals(r2.get("valid"))) validCount++;
+            result.put("code", 200);
+            result.put("data", rows);
+            result.put("total", rows.size());
+            result.put("validCount", validCount);
+            result.put("msg", "解析完成，共 " + rows.size() + " 行，其中 " + validCount + " 行可导入");
+            return result;
+        } catch (Exception ex) {
+            log.error("学生Excel导入解析失败", ex);
+            result.put("code", 500);
+            result.put("msg", "解析失败：" + ex.getMessage());
+            return result;
+        }
+    }
+
+    // 确认导入合法行（事务批量插入 students + student_class）
+    @Transactional
+    @PostMapping("/students/import/confirm")
+    public Map<String, Object> importStudentsConfirm(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师/管理员可批量导入学生");
+        }
+        try {
+            Long classId = body.get("classId") != null ? Long.valueOf(body.get("classId").toString()) : null;
+            if (classId == null) {
+                result.put("code", 400);
+                result.put("msg", "缺少班级ID");
+                return result;
+            }
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) body.get("rows");
+            if (rows == null || rows.isEmpty()) {
+                result.put("code", 400);
+                result.put("msg", "没有可导入的数据");
+                return result;
+            }
+            int imported = 0;
+            List<Map<String, Object>> errors = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                try {
+                    String name = row.get("name") == null ? "" : String.valueOf(row.get("name")).trim();
+                    String phone = row.get("phone") == null ? "" : String.valueOf(row.get("phone")).trim();
+                    String parentPhone = row.get("parentPhone") == null ? "" : String.valueOf(row.get("parentPhone")).trim();
+                    String parentName = row.get("parentName") == null ? "" : String.valueOf(row.get("parentName")).trim();
+                    String parentRelation = row.get("parentRelation") == null ? "" : String.valueOf(row.get("parentRelation")).trim();
+                    if (name.isEmpty()) continue;
+                    // 二次手机号唯一校验（并发安全）
+                    if (!phone.isEmpty()) {
+                        List<Long> dup = jdbc.queryForList(
+                            "SELECT id FROM students WHERE phone=? AND (is_deleted IS NULL OR is_deleted=0) LIMIT 1",
+                            Long.class, phone);
+                        if (!dup.isEmpty()) { errors.add(dupRow(row, "手机号 " + phone + " 已注册")); continue; }
+                    }
+                    jdbc.update(
+                        "INSERT INTO students (name, class_id, phone, parent_phone, parent_name, parent_relation, status, created_at) VALUES (?,?,?,?,?,?, 'active', NOW())",
+                        name, classId, phone.isEmpty() ? null : phone,
+                        parentPhone.isEmpty() ? null : parentPhone,
+                        parentName.isEmpty() ? null : parentName,
+                        parentRelation.isEmpty() ? null : parentRelation);
+                    Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                    if (classId != null) {
+                        try { jdbc.update("INSERT IGNORE INTO student_class (student_id, class_id) VALUES (?, ?)", id, classId); } catch (Exception ignore) { }
+                    }
+                    imported++;
+                } catch (Exception e) {
+                    errors.add(dupRow(row, "保存失败：" + e.getMessage()));
+                }
+            }
+            result.put("code", 200);
+            result.put("msg", "导入完成：成功 " + imported + " 条" + (errors.isEmpty() ? "" : "，失败 " + errors.size() + " 条"));
+            result.put("imported", imported);
+            result.put("errors", errors);
+            return result;
+        } catch (Exception ex) {
+            log.error("学生Excel导入保存失败", ex);
+            result.put("code", 500);
+            result.put("msg", "导入失败：" + ex.getMessage());
+            return result;
+        }
+    }
+
+    private Map<String, Object> dupRow(Map<String, Object> row, String msg) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("rowNum", row.get("rowNum"));
+        e.put("name", row.get("name"));
+        e.put("msg", msg);
+        return e;
+    }
+
+    private String getCellStringValue(Cell cell) {
+        if (cell == null) return "";
+        try {
+            if (cell.getCellType() == CellType.NUMERIC) {
+                double v = cell.getNumericCellValue();
+                if (v == Math.floor(v) && !Double.isInfinite(v)) {
+                    return String.valueOf((long) v);
+                }
+                return String.valueOf(v);
+            }
+            if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue();
+            if (cell.getCellType() == CellType.BOOLEAN) return String.valueOf(cell.getBooleanCellValue());
+            if (cell.getCellType() == CellType.FORMULA) {
+                try { return cell.getStringCellValue(); } catch (Exception e) { return String.valueOf(cell.getNumericCellValue()); }
+            }
+            return "";
+        } catch (Exception e) {
+            return "";
         }
     }
 }

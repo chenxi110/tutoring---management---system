@@ -1532,6 +1532,20 @@ body {
         </div>
         <div class="modal-footer"><button class="btn btn-secondary" onclick="closeAddStudentModal()">取消</button><button class="btn btn-primary" onclick="saveNewStudent()">保存</button></div>
     </div></div>
+    <div class="modal-overlay" id="studentExcelImportModal"><div class="modal">
+        <div class="modal-header"><h3 class="modal-title">学生 Excel 批量导入</h3><button class="modal-close" onclick="closeStudentExcelImport()">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group"><label class="form-label">导入班级</label><select class="form-control" id="studentImportClassSel"></select></div>
+            <div class="form-group"><label class="form-label">Excel 文件（支持 .xlsx / .xls）</label><input type="file" class="form-control" id="studentImportFile" accept=".xlsx,.xls" style="padding:6px;"></div>
+            <div style="font-size:12px;opacity:.75;margin-bottom:10px;">列格式：姓名* | 手机号 | 家长手机号 | 家长姓名 | 家长称谓（第一行为表头，可省略）。手机号重复的学生会自动跳过。</div>
+            <div id="studentImportLoading" style="display:none;color:var(--primary);margin-bottom:8px;">正在解析，请稍候...</div>
+            <div id="studentImportResult"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeStudentExcelImport()">关闭</button>
+            <button class="btn btn-primary" id="studentImportConfirmBtn" onclick="confirmStudentExcelImport()" style="display:none;">确认导入</button>
+        </div>
+    </div></div>
     <div class="modal-overlay" id="studentClassModal"><div class="modal">
         <div class="modal-header"><h3 class="modal-title" id="studentClassTitle">学生班级归属</h3><button class="modal-close" onclick="closeStudentClassModal()">&times;</button></div>
         <div class="modal-body">
@@ -6507,6 +6521,7 @@ function loadStudents(){
             }).join('') : '<div class="empty-state" style="padding:20px;">暂无学生</div>'}
             <div class="batch-import" style="margin-top:12px;display:flex;gap:8px;">
                 <button class="btn btn-sm btn-secondary" onclick="showBatchImport('${escapeAttr(cn)}')">批量导入</button>
+                <button class="btn btn-sm" style="background:#13c2c2;color:#fff;" onclick="openStudentExcelImport('${escapeAttr(cn)}')">📊 Excel导入</button>
                 <button class="btn btn-sm" style="background:#faad14;color:#fff;" onclick="showParentAccessManager('${escapeAttr(cn)}')">🔑 家长权限管理</button>
             </div>
         </div>`;
@@ -6802,6 +6817,80 @@ async function removeStudentClass(classId){
     else{showToast(res.msg||res.error||'移除失败','error');}
 }
 function closeStudentClassModal(){document.getElementById('studentClassModal').classList.remove('active');}
+let _studentExcelRows=[];
+function openStudentExcelImport(cn){
+    document.getElementById('studentExcelImportModal').classList.add('active');
+    const sel=document.getElementById('studentImportClassSel');
+    const valid=(getAllClasses()||[]).filter(function(c){return c.id&&c.name;});
+    sel.innerHTML=valid.map(function(c){return '<option value="'+c.id+'" '+(c.name===cn?'selected':'')+'>'+escapeHtml(c.name)+'</option>';}).join('');
+    document.getElementById('studentImportFile').value='';
+    document.getElementById('studentImportResult').innerHTML='';
+    document.getElementById('studentImportConfirmBtn').style.display='none';
+    _studentExcelRows=[];
+}
+function closeStudentExcelImport(){document.getElementById('studentExcelImportModal').classList.remove('active');}
+async function uploadStudentExcel(){
+    const file=document.getElementById('studentImportFile').files[0];
+    if(!file){showToast('请先选择Excel文件','error');return;}
+    const classId=document.getElementById('studentImportClassSel').value;
+    if(!classId){showToast('请选择导入班级','error');return;}
+    const loading=document.getElementById('studentImportLoading');
+    loading.style.display='block';
+    document.getElementById('studentImportResult').innerHTML='';
+    try{
+        const res=await apiService.importStudentsExcel(file,Number(classId));
+        loading.style.display='none';
+        if(res.code===200){
+            _studentExcelRows=(res.data||[]).filter(function(r){return r.valid;});
+            const total=res.total||0;
+            const validCount=_studentExcelRows.length;
+            const invalid=(res.data||[]).filter(function(r){return !r.valid;});
+            let html='<div style="margin-bottom:10px;font-weight:600;">'+escapeHtml(res.msg||'')+'</div>';
+            if(validCount>0){
+                html+='<div class="table-wrapper" style="max-height:260px;overflow:auto;"><table><thead><tr><th>行</th><th>姓名</th><th>手机号</th><th>家长手机号</th></tr></thead><tbody>'+
+                    (res.data||[]).map(function(r){
+                        return '<tr style="'+(!r.valid?'opacity:.5;':'')+'"><td>'+r.rowNum+'</td><td>'+escapeHtml(r.name||'')+(r.valid?'':' <span class="tag tag-warning">'+escapeHtml(r.msg||'')+'</span>')+'</td><td>'+escapeHtml(r.phone||'-')+'</td><td>'+escapeHtml(r.parentPhone||'-')+'</td></tr>';
+                    }).join('')+'</tbody></table></div>';
+            }else{
+                html+='<div class="empty-state">没有可导入的有效数据</div>';
+            }
+            document.getElementById('studentImportResult').innerHTML=html;
+            document.getElementById('studentImportConfirmBtn').style.display=validCount>0?'inline-block':'none';
+        }else{
+            showToast(res.msg||'解析失败','error');
+            document.getElementById('studentImportResult').innerHTML='<div class="empty-state">'+escapeHtml(res.msg||'解析失败')+'</div>';
+        }
+    }catch(e){
+        loading.style.display='none';
+        showToast('上传失败：'+(e.message||''),'error');
+    }
+}
+async function confirmStudentExcelImport(){
+    const classId=document.getElementById('studentImportClassSel').value;
+    if(!classId){showToast('请选择班级','error');return;}
+    const btn=document.getElementById('studentImportConfirmBtn');
+    btn.disabled=true;btn.textContent='导入中...';
+    try{
+        const res=await apiService.confirmImportStudents(Number(classId),_studentExcelRows);
+        btn.disabled=false;btn.textContent='确认导入';
+        if(res.code===200){
+            showToast(res.msg||'导入完成','success');
+            document.getElementById('studentImportResult').innerHTML='<div class="empty-state" style="color:var(--success);font-weight:600;">'+escapeHtml(res.msg||'导入完成')+'</div>';
+            document.getElementById('studentImportConfirmBtn').style.display='none';
+            closeStudentExcelImport();
+            loadStudents();
+            // 刷新数据
+            if(typeof refreshAllData==='function')refreshAllData();
+            if(typeof loadAllData==='function')loadAllData();
+        }else{
+            showToast(res.msg||'导入失败','error');
+        }
+    }catch(e){
+        btn.disabled=false;btn.textContent='确认导入';
+        showToast('导入失败：'+(e.message||''),'error');
+    }
+}
+document.addEventListener('change',function(e){if(e.target&&e.target.id==='studentImportFile'&&e.target.files&&e.target.files[0]){uploadStudentExcel();}});
 function getAllClasses(){var sem=getCurrentSemester();var a=sem?(sem.classes||[]):[];var b=appData.classes||[];var merged=a.concat(b);var seen={};return merged.filter(function(c){if(!c||!c.name||seen[c.name])return false;seen[c.name]=true;return true;});}
 function getClassIdByName(cn){var cls=getAllClasses().find(function(c){return c.name===cn;});return cls?cls.id:null;}
 async function saveNewStudent(){
