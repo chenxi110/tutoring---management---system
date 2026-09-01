@@ -121,6 +121,50 @@ public class AuthController {
         return authService.updateMyPassword(userId, oldPassword, newPassword, confirmPassword);
     }
 
+    // 管理员新增用户（仅 admin）
+    @PostMapping("/user/create")
+    public Map<String, Object> createUser(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        if (body == null) {
+            return authService.createUser(null, null, null, null, null, (Long) req.getAttribute("userId"), (String) req.getAttribute("role"));
+        }
+        String username = body.get("username") == null ? null : String.valueOf(body.get("username")).trim();
+        String password = body.get("password") == null ? null : String.valueOf(body.get("password")).trim();
+        String role = body.get("role") == null ? null : String.valueOf(body.get("role")).trim();
+        String displayName = body.get("displayName") == null ? null : String.valueOf(body.get("displayName")).trim();
+        String phone = body.get("phone") == null ? null : String.valueOf(body.get("phone")).trim();
+        return authService.createUser(username, password, role, displayName, phone, (Long) req.getAttribute("userId"), (String) req.getAttribute("role"));
+    }
+
+    // 管理员编辑用户（仅 admin）
+    @PostMapping("/user/update")
+    public Map<String, Object> updateUser(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Long targetUserId = null;
+        if (body != null && body.get("userId") != null) {
+            try { targetUserId = Long.valueOf(String.valueOf(body.get("userId"))); }
+            catch (NumberFormatException e) { targetUserId = null; }
+        }
+        String displayName = body == null || body.get("displayName") == null ? null : String.valueOf(body.get("displayName")).trim();
+        String phone = body == null || body.get("phone") == null ? null : String.valueOf(body.get("phone")).trim();
+        String role = body == null || body.get("role") == null ? null : String.valueOf(body.get("role")).trim();
+        return authService.updateUser(targetUserId, displayName, phone, role, (Long) req.getAttribute("userId"), (String) req.getAttribute("role"));
+    }
+
+    // 管理员启用/禁用用户（仅 admin）
+    @PostMapping("/user/toggleStatus")
+    public Map<String, Object> toggleUserStatus(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Long targetUserId = null;
+        Integer status = null;
+        if (body != null && body.get("userId") != null) {
+            try { targetUserId = Long.valueOf(String.valueOf(body.get("userId"))); }
+            catch (NumberFormatException e) { targetUserId = null; }
+        }
+        if (body != null && body.get("status") != null) {
+            try { status = Integer.valueOf(String.valueOf(body.get("status"))); }
+            catch (NumberFormatException e) { status = null; }
+        }
+        return authService.toggleUserStatus(targetUserId, status, (Long) req.getAttribute("userId"), (String) req.getAttribute("role"));
+    }
+
     // 获取用户列表（仅教师/管理员）
     @GetMapping("/user/list")
     public Map<String, Object> getUserList(HttpServletRequest req) {

@@ -397,6 +397,21 @@
         return await this.request('POST', '/user/resetPwd', { userId: userId });
     }
 
+    // 管理员新增用户（仅admin）
+    async createUser(data) {
+        return await this.request('POST', '/user/create', data);
+    }
+
+    // 管理员编辑用户（仅admin）
+    async updateUser(data) {
+        return await this.request('POST', '/user/update', data);
+    }
+
+    // 管理员启用/禁用用户（仅admin）
+    async toggleUserStatus(userId, status) {
+        return await this.request('POST', '/user/toggleStatus', { userId: userId, status: status });
+    }
+
     // 修改本人密码（所有角色）
     async updateMyPassword(oldPassword, newPassword, confirmPassword) {
         return await this.request('POST', '/user/updateMyPwd', {

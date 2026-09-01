@@ -44,6 +44,16 @@ public class AuthService {
             if (passwordHash == null || !encoder.matches(password, passwordHash)) {
                 return errorMap("密码错误");
             }
+            // 账号禁用检查：status=0 禁止登录
+            Object statusObj = user.get("status");
+            if (statusObj != null) {
+                int st;
+                try { st = ((Number) statusObj).intValue(); } catch (Exception ignore) { st = 1; }
+                if (st == 0) {
+                    log.warn("登录被拒绝：账号已禁用 username={}", user.get("username"));
+                    return errorMap("账号已被禁用，请联系管理员");
+                }
+            }
             Long id = ((Number) user.get("id")).longValue();
             String token = jwtUtil.generateToken(id,
                 (String) user.get("username"),
@@ -368,7 +378,7 @@ public class AuthService {
 
     // 获取所有用户列表（仅教师可调用，由Controller校验权限）
     public List<Map<String, Object>> getAllUsers() {
-        return jdbc.queryForList("SELECT id, username, display_name, role, phone, created_at FROM users ORDER BY id ASC");
+        return jdbc.queryForList("SELECT id, username, display_name, role, phone, created_at, status FROM users ORDER BY id ASC");
     }
 
     // 重置用户密码为初始密码（仅教师管理员可调用）
@@ -405,6 +415,178 @@ public class AuthService {
         } catch (Exception ex) {
             log.error("重置密码失败: operatorId={}, targetUserId={}, error={}", operatorId, targetUserId, ex.getMessage(), ex);
             return errorMap("重置密码失败：" + ex.getMessage());
+        }
+    }
+
+    // 管理员新增用户（仅 admin）
+    public Map<String, Object> createUser(String username, String password, String role, String displayName, String phone, Long operatorId, String operatorRole) {
+        try {
+            if (operatorId == null) {
+                return errorMap("未登录，无法操作");
+            }
+            if (!"admin".equals(operatorRole)) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：仅管理员可新增用户");
+                r.put("msg", "无权限：仅管理员可新增用户");
+                return r;
+            }
+            if (username == null || username.trim().isEmpty()) {
+                return errorMap("用户名不能为空");
+            }
+            if (password == null || password.trim().isEmpty()) {
+                return errorMap("密码不能为空");
+            }
+            if (role == null || role.trim().isEmpty()) {
+                return errorMap("角色不能为空");
+            }
+            String normalizedRole = role.trim();
+            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole)) {
+                return errorMap("角色参数非法");
+            }
+            if ("parent".equals(normalizedRole) && (displayName == null || displayName.trim().isEmpty())) {
+                return errorMap("家长角色必须填写显示名称");
+            }
+            String normalizedUsername = username.trim();
+            String normalizedPhone = normalizePhone(phone);
+            String normalizedDisplayName = displayName == null ? "" : displayName.trim();
+            if ("teacher".equals(normalizedRole) && normalizedDisplayName.isEmpty()) {
+                normalizedDisplayName = "教师";
+            }
+            if (normalizedPhone != null && !normalizedPhone.isEmpty() && !normalizedPhone.matches("^1[3-9]\\d{9}$")) {
+                return errorMap("手机号格式不正确，请输入正确的11位手机号");
+            }
+            if (normalizedUsername.length() > 50) {
+                return errorMap("用户名长度不能超过50个字符");
+            }
+            if (password.trim().length() < 6) {
+                return errorMap("密码长度不能少于6位");
+            }
+            if (normalizedDisplayName.length() > 50) {
+                return errorMap("姓名长度不能超过50个字符");
+            }
+            if (password.trim().length() > 100) {
+                return errorMap("密码长度不能超过100个字符");
+            }
+            Integer cnt = jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE username=?", Integer.class, normalizedUsername);
+            if (cnt != null && cnt > 0) {
+                return errorMap("用户名已存在");
+            }
+            String hash = encoder.encode(password.trim());
+            jdbc.update("INSERT INTO users (username, password_hash, role, display_name, phone, status) VALUES (?,?,?,?,?,1)",
+                normalizedUsername, hash, normalizedRole, normalizedDisplayName, normalizedPhone);
+            operationLogService.log(operatorId, "operator_" + operatorId, operatorRole, "新增用户",
+                "新增用户 username=" + normalizedUsername + " role=" + normalizedRole, null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "用户创建成功");
+            result.put("data", Map.of("username", normalizedUsername, "role", normalizedRole));
+            log.info("管理员新增用户: operatorId={}, username={}, role={}", operatorId, normalizedUsername, normalizedRole);
+            return result;
+        } catch (DataAccessException ex) {
+            String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+            log.warn("新增用户数据库异常: username={}, error={}", username, message);
+            if (message != null && message.toLowerCase().contains("duplicate")) {
+                return errorMap("用户名已存在");
+            }
+            return errorMap("新增用户失败：数据库写入异常");
+        } catch (Exception ex) {
+            log.error("新增用户失败: operatorId={}, error={}", operatorId, ex.getMessage(), ex);
+            return errorMap("新增用户失败：" + ex.getMessage());
+        }
+    }
+
+    // 管理员编辑用户（仅 admin，不改 admin 账号自身）
+    public Map<String, Object> updateUser(Long targetUserId, String displayName, String phone, String role, Long operatorId, String operatorRole) {
+        try {
+            if (operatorId == null) {
+                return errorMap("未登录，无法操作");
+            }
+            if (!"admin".equals(operatorRole)) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：仅管理员可编辑用户");
+                r.put("msg", "无权限：仅管理员可编辑用户");
+                return r;
+            }
+            if (targetUserId == null) {
+                return errorMap("缺少用户ID");
+            }
+            List<Map<String, Object>> users = jdbc.queryForList("SELECT id, username, role FROM users WHERE id=?", targetUserId);
+            if (users.isEmpty()) {
+                return errorMap("用户不存在");
+            }
+            String curRole = users.get(0).get("role") == null ? "" : String.valueOf(users.get(0).get("role"));
+            if ("admin".equals(curRole)) {
+                return errorMap("管理员账号不可编辑");
+            }
+            String normalizedRole = role == null || role.trim().isEmpty() ? curRole : role.trim();
+            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole)) {
+                return errorMap("角色参数非法");
+            }
+            String normalizedDisplayName = displayName == null ? "" : displayName.trim();
+            String normalizedPhone = normalizePhone(phone);
+            if (normalizedPhone != null && !normalizedPhone.isEmpty() && !normalizedPhone.matches("^1[3-9]\\d{9}$")) {
+                return errorMap("手机号格式不正确，请输入正确的11位手机号");
+            }
+            if (normalizedDisplayName.length() > 50) {
+                return errorMap("姓名长度不能超过50个字符");
+            }
+            jdbc.update("UPDATE users SET display_name=?, phone=?, role=? WHERE id=?", normalizedDisplayName, normalizedPhone, normalizedRole, targetUserId);
+            operationLogService.log(operatorId, "operator_" + operatorId, operatorRole, "编辑用户",
+                "编辑用户 ID=" + targetUserId + " username=" + users.get(0).get("username"), null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "用户信息更新成功");
+            log.info("管理员编辑用户: operatorId={}, targetUserId={}", operatorId, targetUserId);
+            return result;
+        } catch (Exception ex) {
+            log.error("编辑用户失败: operatorId={}, targetUserId={}, error={}", operatorId, targetUserId, ex.getMessage(), ex);
+            return errorMap("编辑用户失败：" + ex.getMessage());
+        }
+    }
+
+    // 管理员启用/禁用用户（仅 admin，禁止操作 admin 账号自身）
+    public Map<String, Object> toggleUserStatus(Long targetUserId, Integer status, Long operatorId, String operatorRole) {
+        try {
+            if (operatorId == null) {
+                return errorMap("未登录，无法操作");
+            }
+            if (!"admin".equals(operatorRole)) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：仅管理员可操作账号状态");
+                r.put("msg", "无权限：仅管理员可操作账号状态");
+                return r;
+            }
+            if (targetUserId == null) {
+                return errorMap("缺少用户ID");
+            }
+            if (status == null || (status != 0 && status != 1)) {
+                return errorMap("状态参数非法");
+            }
+            if (targetUserId.equals(operatorId)) {
+                return errorMap("不能禁用管理员自己");
+            }
+            List<Map<String, Object>> users = jdbc.queryForList("SELECT id, username, role FROM users WHERE id=?", targetUserId);
+            if (users.isEmpty()) {
+                return errorMap("用户不存在");
+            }
+            String curRole = users.get(0).get("role") == null ? "" : String.valueOf(users.get(0).get("role"));
+            if ("admin".equals(curRole)) {
+                return errorMap("管理员账号不可禁用");
+            }
+            jdbc.update("UPDATE users SET status=? WHERE id=?", status, targetUserId);
+            operationLogService.log(operatorId, "operator_" + operatorId, operatorRole, "账号状态",
+                (status == 1 ? "启用" : "禁用") + "用户 ID=" + targetUserId + " username=" + users.get(0).get("username"), null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", status == 1 ? "账号已启用" : "账号已禁用");
+            log.info("管理员{}用户: operatorId={}, targetUserId={}", status == 1 ? "启用" : "禁用", operatorId, targetUserId);
+            return result;
+        } catch (Exception ex) {
+            log.error("操作账号状态失败: operatorId={}, targetUserId={}, error={}", operatorId, targetUserId, ex.getMessage(), ex);
+            return errorMap("操作失败：" + ex.getMessage());
         }
     }
 
