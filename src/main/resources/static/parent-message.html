@@ -69,15 +69,17 @@
       padding: 0 5px;
       margin-left: 8px;
     }
-    textarea, button {
+    textarea, button, select {
       width: 100%;
       border: 1px solid #d9d9d9;
       border-radius: 10px;
       padding: 10px 12px;
       font-size: 14px;
       outline: none;
+      font-family: inherit;
     }
     textarea { min-height: 90px; resize: vertical; }
+    select { background: #fff; cursor: pointer; }
     button {
       background: #1890ff;
       border: none;
@@ -85,6 +87,17 @@
       cursor: pointer;
       font-weight: 600;
     }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: #1890ff;
+      text-decoration: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .compose-hint { color: #999; font-size: 12px; margin-top: 6px; }
     @media (max-width: 768px) {
       .container { padding: 0 12px 24px; }
     }
@@ -92,17 +105,26 @@
 </head>
 <body>
   <div class="container">
+    <a class="back-link" onclick="goBack()">← 返回系统</a>
     <div class="card">
-      <h2>家长消息中心</h2>
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span>未读消息</span>
-        <span id="unreadBadge" class="badge" style="display: none;">0</span>
+      <h2>联系老师</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <select id="teacherSelect" style="flex:1;"><option value="">加载老师中...</option></select>
       </div>
+      <textarea id="composeText" placeholder="请输入要发送给老师的内容..."></textarea>
+      <div style="margin-top:10px;">
+        <button id="sendBtn" onclick="sendToTeacher()">发送给老师</button>
+      </div>
+      <div class="compose-hint" id="composeHint">选择老师后，输入内容即可发送私信。</div>
     </div>
 
     <div class="card">
-      <h3>消息列表</h3>
-      <div id="parentMessageList" class="message-list"></div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin:0;">消息列表</h3>
+        <span>未读消息</span>
+        <span id="unreadBadge" class="badge" style="display: none;">0</span>
+      </div>
+      <div id="parentMessageList" class="message-list" style="margin-top:12px;"></div>
     </div>
   </div>
 
@@ -145,6 +167,10 @@
       return res.json();
     }
 
+    function goBack() {
+      window.location.href = 'tutoring-management.html';
+    }
+
     async function loadUnreadCount() {
       const res = await fetchJson(getBaseURL() + '/messages/unread/count');
       const count = (res && res.count) || 0;
@@ -158,10 +184,97 @@
       }
     }
 
+    // 加载家长可联系的老师列表
+    async function loadTeachers() {
+      const select = document.getElementById('teacherSelect');
+      const hint = document.getElementById('composeHint');
+      const btn = document.getElementById('sendBtn');
+      try {
+        const res = await fetchJson(getBaseURL() + '/messages/teachers');
+        const list = (res && res.data) || [];
+        if (!list.length) {
+          select.innerHTML = '<option value="">暂无可联系老师</option>';
+          hint.textContent = '当前未绑定孩子或孩子未分配班级老师，请联系管理员。';
+          btn.disabled = true;
+          return;
+        }
+        let opts = '<option value="">请选择老师</option>';
+        list.forEach(t => {
+          const label = (t.name || t.username || '老师') + (t.class_name ? '（' + t.class_name + '）' : '');
+          opts += '<option value="' + t.id + '">' + label + '</option>';
+        });
+        select.innerHTML = opts;
+        // 只有一个老师时自动选中
+        if (list.length === 1) {
+          select.value = String(list[0].id);
+          hint.textContent = '已自动选择 ' + (list[0].name || list[0].username) + '，输入内容即可发送。';
+        }
+      } catch (e) {
+        select.innerHTML = '<option value="">加载失败</option>';
+        hint.textContent = '加载老师列表失败，请稍后重试。';
+      }
+    }
+
+    // 发送私信给老师
+    async function sendToTeacher() {
+      const select = document.getElementById('teacherSelect');
+      const textarea = document.getElementById('composeText');
+      const btn = document.getElementById('sendBtn');
+      const teacherId = select.value;
+      const content = (textarea.value || '').trim();
+
+      if (!teacherId) {
+        alert('请先选择要联系的老师');
+        return;
+      }
+      if (!content) {
+        alert('请输入要发送的内容');
+        return;
+      }
+      if (content.length > 2000) {
+        alert('内容不能超过2000字');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '发送中...';
+      try {
+        const res = await fetchJson(getBaseURL() + '/messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: '家长咨询',
+            content: content,
+            receiverId: Number(teacherId),
+            msgType: 'consult'
+          })
+        });
+        if (res && res.code === 200) {
+          textarea.value = '';
+          alert('发送成功');
+          loadParentMessages();
+          loadUnreadCount();
+        } else {
+          alert((res && (res.error || res.msg)) || '发送失败');
+        }
+      } catch (e) {
+        alert('发送失败：' + (e.message || '网络异常'));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '发送给老师';
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
     async function openMessage(messageId) {
       const res = await fetchJson(getBaseURL() + '/messages');
       const list = (res && res.data) || [];
-      const target = list.find(item => item.id === messageId);
+      const target = list.find(item => String(item.id) === String(messageId));
       if (!target) return;
 
       const textarea = document.createElement('textarea');
@@ -185,21 +298,24 @@
 
         if (result && result.code === 200) {
           alert('回复成功');
+          overlay.remove();
           loadParentMessages();
           loadUnreadCount();
         } else {
-          alert((result && result.error) || '回复失败');
+          alert((result && (result.error || result.msg)) || '回复失败');
         }
       };
 
       const panel = document.createElement('div');
-      panel.innerHTML = '<div style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff;">' +
-        '<div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">' + (target.title || '通知') + '</div>' +
-        '<div style="color:#666; margin-bottom: 10px;">' + (target.content || '') + '</div>' +
-        '<div style="font-size:12px; color:#999;">来自：' + (target.sender_name || '系统') + ' · ' + (target.created_at || '') + '</div>' +
+      panel.innerHTML = '<div style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff;width:100%;max-width:520px;">' +
+        '<div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">' + escapeHtml(target.title || '通知') + '</div>' +
+        '<div style="color:#666; margin-bottom: 10px;white-space:pre-wrap;">' + escapeHtml(target.content || '') + '</div>' +
+        '<div style="font-size:12px; color:#999;">来自：' + escapeHtml(target.sender_name || '系统') + ' · ' + escapeHtml(target.created_at || '') + '</div>' +
         '<div style="margin-top:12px;">' +
         '<div style="font-weight:600; margin-bottom:8px;">历史留言</div>' +
-        ((target.replyList && target.replyList.length) ? target.replyList.map(reply => '<div class="reply-item"><strong>' + (reply.sender_name || '用户') + '：</strong>' + (reply.content || '') + '</div>').join('') : '<div class="reply-item">暂无留言</div>') +
+        ((target.replyList && target.replyList.length) ? target.replyList.map(function (reply) {
+          return '<div class="reply-item"><strong>' + escapeHtml(reply.sender_name || '用户') + '：</strong>' + escapeHtml(reply.content || '') + '</div>';
+        }).join('') : '<div class="reply-item">暂无留言</div>') +
         '</div>' +
         '</div>';
 
@@ -214,6 +330,7 @@
       overlay.style.alignItems = 'center';
       overlay.style.justifyContent = 'center';
       overlay.style.padding = '16px';
+      overlay.style.zIndex = '9999';
       overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
 
       overlay.appendChild(panel);
@@ -237,10 +354,11 @@
       box.innerHTML = list.map(item => {
         const unreadClass = item.status === 'unread' ? 'unread' : '';
         const badge = item.status === 'unread' ? '<span class="badge">新</span>' : '';
+        const sender = item.sender_name || '系统';
         return '<div class="message-item ' + unreadClass + '" onclick="openMessage(' + item.id + ')">' +
-          '<div class="meta"><span>' + (item.sender_name || '系统') + '</span><span>' + (item.created_at || '') + '</span></div>' +
-          '<div style="font-weight:700;">' + (item.title || '通知') + badge + '</div>' +
-          '<div style="margin: 10px 0;">' + (item.content || '') + '</div>' +
+          '<div class="meta"><span>' + escapeHtml(sender) + (item.sender_role === 'teacher' ? '（老师）' : '') + '</span><span>' + escapeHtml(item.created_at || '') + '</span></div>' +
+          '<div style="font-weight:700;">' + escapeHtml(item.title || '通知') + badge + '</div>' +
+          '<div style="margin: 10px 0;white-space:pre-wrap;">' + escapeHtml(item.content || '') + '</div>' +
           '<div style="font-size:12px; color:#666;">' + (item.status === 'unread' ? '未读' : '已读') + '</div>' +
           '</div>';
       }).join('');
@@ -248,6 +366,7 @@
 
     function init() {
       if (!ensureLogin()) return;
+      loadTeachers();
       loadUnreadCount();
       loadParentMessages();
       setInterval(() => {

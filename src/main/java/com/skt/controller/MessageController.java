@@ -78,6 +78,13 @@ public class MessageController {
         return messageService.markRead(id, userId);
     }
 
+    @GetMapping("/messages/teachers")
+    public Map<String, Object> listTeachers(HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        return messageService.listContactTeachers(userId, role);
+    }
+
     @GetMapping("/messages/unread/count")
     public Map<String, Object> unreadCount(HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");

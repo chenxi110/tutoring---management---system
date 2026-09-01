@@ -27,10 +27,10 @@ public class MessageService {
 
         if ("parent".equalsIgnoreCase(role)) {
             sql = "SELECT m.*, s.name AS student_name FROM messages m LEFT JOIN students s ON s.id = m.student_id " +
-                    "WHERE m.receiver_id = ? OR (m.student_id IN (SELECT id FROM students WHERE parent_user_id = ?)) " +
+                    "WHERE m.receiver_id = ? OR m.sender_id = ? OR (m.student_id IN (SELECT id FROM students WHERE parent_user_id = ?)) " +
                     "OR (m.class_id IN (SELECT class_id FROM students WHERE parent_user_id = ? AND class_id IS NOT NULL) AND m.student_id IS NULL) " +
                     "ORDER BY m.created_at DESC";
-            list = jdbc.queryForList(sql, userId, userId, userId);
+            list = jdbc.queryForList(sql, userId, userId, userId, userId);
         } else {
             sql = "SELECT m.*, s.name AS student_name FROM messages m LEFT JOIN students s ON s.id = m.student_id " +
                     "WHERE m.sender_id = ? OR m.receiver_id = ? OR m.sender_role = 'parent' " +
@@ -47,6 +47,30 @@ public class MessageService {
             item.put("replyList", replyList);
         }
         return list;
+    }
+
+    public Map<String, Object> listContactTeachers(Long userId, String role) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            List<Map<String, Object>> teachers = new ArrayList<>();
+            if ("parent".equalsIgnoreCase(role)) {
+                // 家长：通过绑定孩子的班级关联教师（兼容 parent_id 旧关联与 parent_user_id 新关联）
+                teachers = jdbc.queryForList(
+                    "SELECT DISTINCT u.id, u.username, u.display_name AS name, c.name AS class_name " +
+                    "FROM students s JOIN classes c ON s.class_id = c.id JOIN users u ON c.teacher_id = u.id " +
+                    "WHERE (s.parent_id = ? OR s.parent_user_id = ?) AND (s.is_deleted IS NULL OR s.is_deleted = 0) " +
+                    "AND u.role = 'teacher' AND u.id IS NOT NULL",
+                    userId, userId);
+            }
+            result.put("code", 200);
+            result.put("data", teachers == null ? Collections.emptyList() : teachers);
+            return result;
+        } catch (Exception ex) {
+            log.error("获取可联系教师失败 userId={}", userId, ex);
+            result.put("code", 500);
+            result.put("error", "获取教师列表失败：" + ex.getMessage());
+            return result;
+        }
     }
 
     public Map<String, Object> sendMessage(Long senderId, String senderName, String senderRole,

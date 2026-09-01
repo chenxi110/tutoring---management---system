@@ -2220,7 +2220,7 @@ function navigateTo(page){
     try{
         // 家长访问教师专属页面拦截
         if(apiService.isParent()){
-            const teacherOnlyPages=['records','students','classes','semesters','settings','finance','grades','export','ai','statistics','schedule','operation-logs'];
+            const teacherOnlyPages=['records','students','classes','semesters','settings','finance','grades','export','ai','statistics','operation-logs'];
             if(teacherOnlyPages.includes(page)){
                 showToast('无访问权限','error');
                 return;
