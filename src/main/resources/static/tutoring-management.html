@@ -323,7 +323,233 @@
         /* 卡片内边距统一 */
         .card { padding: 18px; margin-bottom: 16px; }
         .card-header { margin-bottom: 12px; padding-bottom: 10px; }
-    </style>
+    
+/* ===================== 高端商业级 UI 升级（覆盖层） ===================== */
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --brand-light: #3b82f6;
+  --accent: #06b6d4;
+  --shadow-sm: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  --shadow: 0 4px 16px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.04);
+  --shadow-lg: 0 16px 48px rgba(15,23,42,0.14), 0 4px 12px rgba(15,23,42,0.08);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --bg: #f6f8fb;
+  --border: #e9edf3;
+  --sidebar-w: 232px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.1px;
+}
+
+/* ---------- 侧边栏：现代深色 SaaS 风格 ---------- */
+.sidebar {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(59,130,246,0.18) 0%, transparent 55%),
+    linear-gradient(180deg, #0f172a 0%, #16213a 60%, #1e293b 100%);
+  width: var(--sidebar-w);
+  box-shadow: 2px 0 24px rgba(15,23,42,0.12);
+}
+.nav-item {
+  position: relative;
+  border-left: 3px solid transparent;
+  transition: all 0.25s ease;
+  margin: 2px 10px;
+  border-radius: 10px;
+  padding: 11px 14px;
+  color: rgba(255,255,255,0.72);
+}
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: -10px; top: 50%;
+  width: 3px; height: 0;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
+  transform: translateY(-50%);
+  transition: height 0.25s ease;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+.nav-item:hover::before { height: 60%; }
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(59,130,246,0.28) 0%, rgba(59,130,246,0.10) 100%);
+  border-left-color: transparent;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(96,165,250,0.15);
+}
+.nav-item.active::before { height: 70%; }
+.nav-item svg { transition: transform 0.2s ease; }
+.nav-item:hover svg { transform: scale(1.12); }
+
+/* ---------- 卡片：柔和层次 + hover 上浮 ---------- */
+.card {
+  border: 1px solid rgba(15,23,42,0.04);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 22px;
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow);
+  border-color: rgba(37,99,235,0.10);
+}
+.card-header {
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title { font-size: 16px; font-weight: 650; color: #0f172a; }
+
+/* ---------- 统计卡：品牌渐变 + 光效 ---------- */
+.stat-card {
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
+  box-shadow: 0 8px 24px rgba(37,99,235,0.22);
+  border: none;
+  overflow: hidden;
+  position: relative;
+}
+.stat-card::after {
+  content: "";
+  position: absolute;
+  top: -40%; right: -20%;
+  width: 70%; height: 180%;
+  background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.stat-card.success { background: linear-gradient(135deg, #059669 0%, #10b981 100%); box-shadow: 0 8px 24px rgba(16,185,129,0.22); }
+.stat-card.warning { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); box-shadow: 0 8px 24px rgba(245,158,11,0.22); }
+.stat-card.danger  { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); box-shadow: 0 8px 24px rgba(239,68,68,0.22); }
+.stat-card:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(37,99,235,0.28); }
+.stat-value { font-size: 28px; font-weight: 700; }
+.stat-label { opacity: 0.9; }
+
+/* ---------- 按钮：渐变主按钮 + 微动效 ---------- */
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  border: none;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.28);
+  transition: all 0.25s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(37,99,235,0.34);
+  filter: brightness(1.05);
+}
+.btn { border-radius: 9px; font-weight: 600; }
+
+/* ---------- 登录页：高端落地页 ---------- */
+.login-overlay {
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(99,102,241,0.35) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(59,130,246,0.32) 0%, transparent 50%),
+    linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
+  overflow: hidden;
+}
+.login-overlay::before,
+.login-overlay::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  animation: loginFloat 12s ease-in-out infinite alternate;
+}
+.login-overlay::before {
+  width: 420px; height: 420px;
+  left: 8%; top: 12%;
+  background: radial-gradient(circle, #3b82f6 0%, transparent 70%);
+}
+.login-overlay::after {
+  width: 360px; height: 360px;
+  right: 10%; bottom: 8%;
+  background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);
+  animation-delay: 4s;
+}
+@keyframes loginFloat {
+  from { transform: translateY(-24px) scale(1); }
+  to   { transform: translateY(24px) scale(1.08); }
+}
+.login-card {
+  position: relative;
+  z-index: 2;
+  width: min(420px, 92vw);
+  padding: 40px 36px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-radius: 22px;
+  box-shadow: 0 24px 80px rgba(2,6,23,0.35), inset 0 1px 0 rgba(255,255,255,0.6);
+  border: 1px solid rgba(255,255,255,0.35);
+}
+.login-title { font-size: 26px; font-weight: 750; color: #0f172a; letter-spacing: 0.5px; }
+.login-subtitle { color: #64748b; font-size: 14px; margin-bottom: 22px; }
+.login-tabs {
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+.login-tab { border-radius: 8px; font-weight: 600; color: #64748b; transition: all 0.25s; }
+.login-tab.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+}
+
+/* ---------- 表单 ---------- */
+.form-control {
+  border-radius: 10px;
+  border-color: #dbe3ee;
+  transition: all 0.25s ease;
+}
+.form-control:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.14);
+}
+
+/* ---------- 图表容器 ---------- */
+.chart-container { border-radius: 12px; }
+
+/* ---------- 弹窗 ---------- */
+.modal { border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+.modal-header { padding: 18px 24px; }
+
+/* ---------- 自定义滚动条 ---------- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.35); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.55); }
+
+/* ---------- 表格 ---------- */
+.table thead th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+.table tbody tr { transition: background 0.2s ease; }
+.table tbody tr:hover { background: #f8fafc; }
+
+/* ---------- 页头/内容区 ---------- */
+.main { margin-left: var(--sidebar-w); }
+.empty-state {
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 48px 20px;
+  text-align: center;
+}
+
+</style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
@@ -460,6 +686,14 @@
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 16px 16px;">
                         <div id="chartGradeTrend" class="chart-container"></div>
                         <div id="chartSubjectAvg" class="chart-container"></div>
+                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:0 16px 16px;">
+                         <div id="chartClassDist" class="chart-container" style="height:280px;"></div>
+                         <div id="chartMonthRecords" class="chart-container" style="height:280px;"></div>
+                         <div id="chartScoreDist" class="chart-container" style="height:280px;"></div>
+                         <div id="chartAttendanceRing" class="chart-container" style="height:280px;"></div>
+                         <div id="chartHomeworkRing" class="chart-container" style="height:280px;"></div>
+                         <div id="chartTaskStats" class="chart-container" style="height:280px;"></div>
+                     </div>
                     </div>
                 </div>
             </div>
@@ -6882,7 +7116,139 @@ function renderDashboardCharts(){
         yAxis:{type:'value',min:0,max:100},
         series:[{data:subjAvgs,type:'bar',itemStyle:{color:'#52c41a'},barWidth:'50%'}]
     });
-    window.addEventListener('resize',()=>{trendChart.resize();subjChart.resize();});
+    // ===== 新增可视化图表（班级/月度/分数段/出勤/作业/待办） =====
+    const charts = [];
+    const C1 = '#2563eb', C2 = '#06b6d4', C3 = '#8b5cf6', C4 = '#f59e0b', C5 = '#10b981', C6 = '#ef4444';
+    // 班级人数分布
+    const classDistEl = document.getElementById('chartClassDist');
+    if (classDistEl) {
+        const classDist = echarts.init(classDistEl); charts.push(classDist);
+        const classNames = (appData.classes || []).map(function(c){ return c.name || ''; });
+        const classCounts = (appData.classes || []).map(function(c){
+            return (appData.students && appData.students[c.name]) ? appData.students[c.name].length : (c.studentCount || 0);
+        });
+        classDist.setOption({
+            title:{text:'班级人数分布', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'axis'},
+            grid:{left:36, right:16, top:44, bottom:28},
+            xAxis:{type:'category', data:classNames.length ? classNames : ['暂无班级'], axisLabel:{fontSize:10, color:'#64748b'}},
+            yAxis:{type:'value', minInterval:1, axisLabel:{fontSize:10, color:'#64748b'}},
+            series:[{type:'bar', data:classCounts, barWidth:'46%',
+                itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#3b82f6'},{offset:1,color:'#93c5fd'}])},
+                label:{show:true, position:'top', fontSize:10, color:'#334155'}}]
+        });
+    }
+    // 月度上课节数
+    const monthEl = document.getElementById('chartMonthRecords');
+    if (monthEl) {
+        const monthChart = echarts.init(monthEl); charts.push(monthChart);
+        const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+        const curM = new Date().getMonth();
+        const recData = months.slice(0, curM+1).map(function(m, i){
+            return (appData.records || []).filter(function(r){ try{ return new Date(r.date).getMonth()===i; }catch(e){ return false; } }).length;
+        });
+        monthChart.setOption({
+            title:{text:'月度上课节数', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'axis'},
+            grid:{left:36, right:16, top:44, bottom:28},
+            xAxis:{type:'category', data:months.slice(0,curM+1), axisLabel:{fontSize:10, color:'#64748b'}},
+            yAxis:{type:'value', minInterval:1, axisLabel:{fontSize:10, color:'#64748b'}},
+            series:[{type:'line', smooth:true, data:recData,
+                lineStyle:{width:3, color:C2},
+                itemStyle:{color:C2},
+                areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(6,182,212,0.30)'},{offset:1,color:'rgba(6,182,212,0.02)'}])},
+                symbol:'circle', symbolSize:6}]
+        });
+    }
+    // 成绩分数段分布
+    const scoreEl = document.getElementById('chartScoreDist');
+    if (scoreEl) {
+        const scoreChart = echarts.init(scoreEl); charts.push(scoreChart);
+        const bands = ['<60','60-69','70-79','80-89','90-100'];
+        const bandData = bands.map(function(b){
+            const all = appData.grades || [];
+            if(b==='<60') return all.filter(function(g){ return (g.score||0) < 60; }).length;
+            if(b==='60-69') return all.filter(function(g){ var s=g.score||0; return s>=60 && s<70; }).length;
+            if(b==='70-79') return all.filter(function(g){ var s=g.score||0; return s>=70 && s<80; }).length;
+            if(b==='80-89') return all.filter(function(g){ var s=g.score||0; return s>=80 && s<90; }).length;
+            return all.filter(function(g){ var s=g.score||0; return s>=90; }).length;
+        });
+        scoreChart.setOption({
+            title:{text:'成绩分数段分布', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'axis'},
+            grid:{left:36, right:16, top:44, bottom:28},
+            xAxis:{type:'category', data:bands, axisLabel:{fontSize:10, color:'#64748b'}},
+            yAxis:{type:'value', minInterval:1, axisLabel:{fontSize:10, color:'#64748b'}},
+            series:[{type:'bar', data:bandData, barWidth:'52%',
+                itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#8b5cf6'},{offset:1,color:'#c4b5fd'}])},
+                label:{show:true, position:'top', fontSize:10, color:'#334155'}}]
+        });
+    }
+    // 出勤率环形图
+    const attEl = document.getElementById('chartAttendanceRing');
+    if (attEl) {
+        const attChart = echarts.init(attEl); charts.push(attChart);
+        const recs = appData.records || [];
+        const present = recs.filter(function(r){ return r.type==='present' || !r.type; }).length;
+        const absent = recs.filter(function(r){ return r.type==='absent'; }).length;
+        attChart.setOption({
+            title:{text:'出勤情况', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'item', formatter:'{b}: {c} ({d}%)'},
+            legend:{bottom:0, textStyle:{fontSize:11}},
+            series:[{type:'pie', radius:['52%','74%'], center:['50%','46%'], avoidLabelOverlap:false,
+                itemStyle:{borderRadius:8, borderColor:'#fff', borderWidth:2},
+                label:{show:true, formatter:'{d}%', fontSize:11, color:'#334155'},
+                data:[
+                    {value:present, name:'出勤', itemStyle:{color:C5}},
+                    {value:absent, name:'缺勤', itemStyle:{color:C6}}
+                ]}]
+        });
+    }
+    // 作业提交环形图
+    const hwEl = document.getElementById('chartHomeworkRing');
+    if (hwEl) {
+        const hwChart = echarts.init(hwEl); charts.push(hwChart);
+        const hw = appData.homework || [];
+        const submitted = hw.filter(function(h){ return h.submissions && h.submissions.length > 0; }).length;
+        const unsubmitted = Math.max(hw.length - submitted, 0);
+        hwChart.setOption({
+            title:{text:'作业提交情况', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'item', formatter:'{b}: {c} ({d}%)'},
+            legend:{bottom:0, textStyle:{fontSize:11}},
+            series:[{type:'pie', radius:['52%','74%'], center:['50%','46%'], avoidLabelOverlap:false,
+                itemStyle:{borderRadius:8, borderColor:'#fff', borderWidth:2},
+                label:{show:true, formatter:'{d}%', fontSize:11, color:'#334155'},
+                data:[
+                    {value:submitted, name:'已提交', itemStyle:{color:C1}},
+                    {value:unsubmitted, name:'未提交', itemStyle:{color:'#cbd5e1'}}
+                ]}]
+        });
+    }
+    // 待办事项统计
+    const taskEl = document.getElementById('chartTaskStats');
+    if (taskEl) {
+        const taskChart = echarts.init(taskEl); charts.push(taskChart);
+        const pendingGrade = (appData.homework || []).filter(function(h){ return (h.submissions||[]).some(function(s){ return !s.score && s.score !== 0; }); }).length;
+        const leavePending = (appData.leaveRequests || []).filter(function(l){ return l.status === 'pending'; }).length;
+        const pendingMakeup = (appData.records || []).filter(function(r){ return r.isAbsent && !r.madeUp; }).length;
+        const unread = (appData.messages || []).filter(function(m){ return m.status === 'unread'; }).length;
+        const tasks = [
+            {name:'待批改作业', value:pendingGrade, color:C1},
+            {name:'待审批请假', value:leavePending, color:C4},
+            {name:'待补课', value:pendingMakeup, color:C6},
+            {name:'未读消息', value:unread, color:C2}
+        ];
+        taskChart.setOption({
+            title:{text:'待办事项', left:'center', textStyle:{fontSize:14, color:'#334155', fontWeight:600}},
+            tooltip:{trigger:'item', formatter:'{b}: {c}'},
+            grid:{left:70, right:30, top:44, bottom:24},
+            xAxis:{type:'value', minInterval:1, axisLabel:{fontSize:10, color:'#64748b'}},
+            yAxis:{type:'category', data:tasks.map(function(t){ return t.name; }), axisLabel:{fontSize:11, color:'#334155'}},
+            series:[{type:'bar', data:tasks.map(function(t){ return {value:t.value, itemStyle:{color:t.color, borderRadius:[0,6,6,0]}}; }),
+                barWidth:14, label:{show:true, position:'right', fontSize:11, color:'#334155'}}]
+        });
+    }
+    window.addEventListener('resize',function(){ charts.forEach(function(c){ c.resize(); }); trendChart.resize(); subjChart.resize(); });
 }
 
 // ===== 操作审计日志 =====
@@ -9470,7 +9836,12 @@ async function loadNotifications(){
             container.innerHTML='<div class="empty-state">暂无消息</div>';
             return;
         }
-        container.innerHTML=list.map(m=>{
+        if(!window._notifPage)window._notifPage=1;
+        var notifPageSize=10;
+        var notifTotalPages=Math.max(1,Math.ceil(list.length/notifPageSize));
+        if(window._notifPage>notifTotalPages)window._notifPage=1;
+        var notifPageList=list.slice((window._notifPage-1)*notifPageSize, window._notifPage*notifPageSize);
+        container.innerHTML=notifPageList.map(m=>{
             const isUnread=m.status==='unread';
             const senderRole=m.sender_role==='parent'?'家长':m.sender_role==='teacher'?'教师':'系统';
             const msgType=typeLabels[m.msg_type]||m.msg_type||'通知';
@@ -9500,7 +9871,11 @@ async function loadNotifications(){
                     '<input type="text" class="form-control" id="reply-input-'+m.id+'" placeholder="输入回复内容..." style="flex:1;font-size:13px;padding:8px 10px;">' +
                     '<button class="btn btn-sm btn-primary" onclick="replyToMessage('+m.id+')">回复</button></div>':'') +
                 '</div>';
-        }).join('');
+        }).join('') + '<div style="display:flex;justify-content:center;align-items:center;gap:10px;padding:14px 0 4px;">' +
+            '<button class="btn btn-sm btn-secondary" onclick="window._notifPage=Math.max(1,(window._notifPage||1)-1);loadNotifications()" ' + (window._notifPage<=1?'disabled':'') + '>上一页</button>' +
+            '<span style="font-size:13px;color:#64748b;">' + window._notifPage + ' / ' + notifTotalPages + '</span>' +
+            '<button class="btn btn-sm btn-secondary" onclick="window._notifPage=Math.min(' + notifTotalPages + ',(window._notifPage||1)+1);loadNotifications()" ' + (window._notifPage>=notifTotalPages?'disabled':'') + '>下一页</button>' +
+        '</div>';
     }catch(e){
         container.innerHTML='<div class="empty-state">加载失败，请刷新重试</div>';
     }
@@ -10689,13 +11064,18 @@ async function loadParentMessages(){
     try{
         const res=await apiService.getMessages();
         const msgs=(res&&res.code===200)?((res.data||[]).filter(function(m){return m.msg_type!=='consult';})):[];
+        if(!window._parentNotifPage)window._parentNotifPage=1;
+        var pnSize=10;
+        var pnTotal=Math.max(1,Math.ceil(msgs.length/pnSize));
+        if(window._parentNotifPage>pnTotal)window._parentNotifPage=1;
+        var notifPageList=msgs.slice((window._parentNotifPage-1)*pnSize, window._parentNotifPage*pnSize);
         page.innerHTML=`
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">班级通知</h3>
                 </div>
                 <div style="padding:12px;">
-                    ${msgs.length>0?msgs.map(m=>{
+                    ${notifPageList.length>0?notifPageList.map(m=>{
                         const isUnread=m.status==='unread';
                         const isMine=m.sender_role==='parent';
                         const senderRole=isMine?'我':'老师';
@@ -10726,6 +11106,11 @@ async function loadParentMessages(){
                             ${replies}
                         </div>`;
                     }).join(''):'<div style="text-align:center;color:#999;padding:40px;">暂无消息</div>'}
+                    <div style="display:flex;justify-content:center;align-items:center;gap:10px;padding:12px 0 4px;">
+                        <button class="btn btn-sm btn-secondary" onclick="window._parentNotifPage=Math.max(1,(window._parentNotifPage||1)-1);loadParentMessages()" ${window._parentNotifPage<=1?'disabled':''}>上一页</button>
+                        <span style="font-size:13px;color:#64748b;">${window._parentNotifPage} / ${pnTotal}</span>
+                        <button class="btn btn-sm btn-secondary" onclick="window._parentNotifPage=Math.min(${pnTotal},(window._parentNotifPage||1)+1);loadParentMessages()" ${window._parentNotifPage>=pnTotal?'disabled':''}>下一页</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -11214,7 +11599,7 @@ function renderSidebarMenu(role){
         {page:'attendance',label:'缺勤记录',svg:'<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>'},
         {page:'classroom',label:'上课模式',svg:'<path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zm-4 2h4v16h-4V5zm-4 0h4v16h-4V5zm-4 0h4v16H6V5z"/>'},
         {page:'notifications',label:'通知公告',svg:'<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>'},
-        {page:'teacher-message',label:'家校互通',svg:'<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/>'}
+        {page:'parent-message',label:'消息中心',svg:'<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/>'}
     ];
     const items = currentRole === 'parent' ? parentItems : teacherItems;
     const nav = clearSidebarDom();
