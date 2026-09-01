@@ -32,8 +32,10 @@ public class MessageService {
                     "ORDER BY m.created_at DESC";
             list = jdbc.queryForList(sql, userId, userId, userId, userId);
         } else {
+            // 教师/管理员：只返回与自己相关的消息（自己发送的 + 发给自己的），实现教师数据隔离，
+            // 避免看到其他教师的家长私信却无法标记已读（与 markRead 权限一致）
             sql = "SELECT m.*, s.name AS student_name FROM messages m LEFT JOIN students s ON s.id = m.student_id " +
-                    "WHERE m.sender_id = ? OR m.receiver_id = ? OR m.sender_role = 'parent' " +
+                    "WHERE m.sender_id = ? OR m.receiver_id = ? " +
                     "ORDER BY m.created_at DESC";
             list = jdbc.queryForList(sql, userId, userId);
         }

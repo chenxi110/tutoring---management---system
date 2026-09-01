@@ -981,6 +981,17 @@ body {
                     <div id="notificationList"></div>
                 </div>
             </div>
+            <!-- 家校互通·家长私信（教师端） -->
+            <div class="page" id="page-teacher-message">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">💬 家校互通 · 家长私信</h3><button class="btn btn-sm btn-secondary" onclick="loadTeacherPrivateMessages()">刷新</button></div>
+                    <div style="display:flex;gap:12px;padding:12px 16px 0;">
+                        <div style="background:#f0f7ff;border-radius:10px;padding:8px 16px;font-size:13px;color:#666;"><b id="tmTotal" style="color:#1890ff;font-size:18px;margin-right:4px;">0</b>条家长私信</div>
+                        <div style="background:#fff1f0;border-radius:10px;padding:8px 16px;font-size:13px;color:#666;"><b id="tmUnread" style="color:#ff4d4f;font-size:18px;margin-right:4px;">0</b>条未读</div>
+                    </div>
+                    <div style="padding:16px;"><div id="teacherMsgList"></div></div>
+                </div>
+            </div>
             <!-- 财务台账模块 -->
             <div class="page" id="page-finance">
                 <div class="card">
@@ -2515,7 +2526,7 @@ function navigateTo(page){
             grades:()=>apiService.isParent()?loadParentGrades():loadGrades(),
             'parent-grades':()=>loadParentGrades(),
             notifications:()=>apiService.isParent()?loadParentMessages():loadNotifications(),
-            'teacher-message':()=>{ window.location.href=apiService.isParent()?'parent-message.html':'teacher-message.html'; },
+            'teacher-message':()=>{ if(apiService.isParent()){ window.location.href='parent-message.html'; } else { loadTeacherPrivateMessages(); } },
             'parent-message':()=>{ window.location.href='parent-message.html'; },
             finance:()=>loadFinanceRecords(),
             export:()=>loadExportPage(),
@@ -10003,6 +10014,76 @@ async function markNotificationRead(id,el){
         }
         updateUnreadBadge();
     }catch(e){/* ignore */}
+}
+
+/* ========== 教师端家校互通 · 家长私信中心（主界面内） ========== */
+let tmPollTimer=null;
+async function loadTeacherPrivateMessages(){
+    const box=document.getElementById('teacherMsgList');
+    if(!box)return;
+    box.innerHTML='<div class="empty-state">加载中...</div>';
+    try{
+        const res=await apiService.getMessages();
+        const all=(res&&res.data)||[];
+        const list=all.filter(function(m){return m.msg_type==='consult'&&m.sender_role==='parent';});
+        const totalEl=document.getElementById('tmTotal');
+        const unreadEl=document.getElementById('tmUnread');
+        if(totalEl)totalEl.textContent=list.length;
+        const unread=list.filter(function(m){return m.status==='unread';}).length;
+        if(unreadEl)unreadEl.textContent=unread;
+        if(!list.length){box.innerHTML='<div class="empty-state">暂无家长私信</div>';return;}
+        box.innerHTML=list.map(function(m){
+            const isUnread=m.status==='unread';
+            const replies=(m.replyList||[]).map(function(r){
+                const who=r.sender_role==='teacher'?'我':(r.sender_name||'家长');
+                return '<div style="background:#f6f9fc;border-radius:8px;padding:8px 12px;font-size:13px;color:#444;line-height:1.5;margin-top:6px;"><b style="color:#1890ff;">'+escapeHtml(who)+'</b> '+escapeHtml(r.content||'')+'</div>';
+            }).join('');
+            return '<div id="msg-item-'+m.id+'" class="tm-item'+(isUnread?' tm-unread':'')+'" style="border:1px solid '+(isUnread?'#91d5ff':'#e8e8e8')+';border-radius:10px;padding:14px 16px;margin-bottom:12px;cursor:pointer;'+(isUnread?'background:#f0f7ff;':'')+'" onclick="tmMarkRead('+m.id+',this)">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+                    '<div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:600;font-size:14px;">'+escapeHtml(m.sender_name||'家长')+'</span><span class="tm-status" style="font-size:12px;color:'+(isUnread?'#ff4d4f':'#999')+';font-weight:'+(isUnread?'600':'400')+';">'+(isUnread?'未读':'已读')+'</span></div>' +
+                    '<span style="font-size:12px;color:#999;">'+new Date(m.created_at).toLocaleString()+'</span>' +
+                '</div>' +
+                '<div style="font-weight:600;font-size:14px;margin-bottom:4px;">'+escapeHtml(m.title||'家长咨询')+'</div>' +
+                '<div style="font-size:14px;color:#333;line-height:1.6;margin-bottom:6px;">'+escapeHtml(m.content||'')+'</div>' +
+                '<div style="display:flex;gap:8px;margin-top:10px;">' +
+                    '<button class="btn btn-primary btn-sm" style="background:#1890ff;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-weight:600;" onclick="event.stopPropagation();openQuickReplyModal('+m.sender_id+',\''+escapeHtml((m.sender_name||'家长')).replace(/'/g,"\\'")+'\','+m.id+')">⚡ 快捷回复</button>' +
+                    (isUnread?'<button class="tm-read-btn" style="background:#f0f0f0;color:#555;border:none;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;" onclick="event.stopPropagation();tmMarkRead('+m.id+',this.closest(\'.tm-item\'))">标记已读</button>':'') +
+                '</div>' +
+            '</div>';
+        }).join('');
+        if(tmPollTimer)clearInterval(tmPollTimer);
+        tmPollTimer=setInterval(function(){var pg=document.getElementById('page-teacher-message');if(pg&&pg.classList.contains('active'))loadTeacherPrivateMessages();},30000);
+    }catch(e){
+        box.innerHTML='<div class="empty-state">加载失败，请刷新重试</div>';
+    }
+}
+
+async function tmMarkRead(id,el){
+    if(!el||el.dataset.reading)return;
+    if(!el.querySelector('.tm-read-btn'))return;
+    el.dataset.reading='1';
+    try{
+        const res=await apiService.markMessageRead(id);
+        if(res&&res.code===200){
+            const wasUnread=el.classList.contains('tm-unread');
+            el.style.background='';el.style.borderColor='#e8e8e8';
+            el.classList.remove('tm-unread');
+            const status=el.querySelector('.tm-status');
+            if(status){status.textContent='已读';status.style.color='#999';status.style.fontWeight='400';}
+            const btn=el.querySelector('.tm-read-btn');
+            if(btn)btn.remove();
+            if(wasUnread){
+                const ue=document.getElementById('tmUnread');
+                if(ue)ue.textContent=Math.max(0,(parseInt(ue.textContent)||0)-1);
+                updateUnreadBadge();
+            }
+        } else {
+            showToast((res&&(res.message||res.error))||'标记已读失败','error');
+        }
+    }catch(e){
+        showToast('标记已读失败：'+e.message,'error');
+    }
+    delete el.dataset.reading;
 }
 
 function resetNotificationFilters(){
