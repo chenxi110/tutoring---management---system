@@ -5412,7 +5412,9 @@ async function loadAdminDashboard(){
             `<div class="stat-card" onclick="navigateTo('classes')"><div class="stat-value">${classList.length}</div><div class="stat-label">总班级数</div></div>`,
             `<div class="stat-card" onclick="navigateTo('users')"><div class="stat-value">${teacherCount}</div><div class="stat-label">总教师数</div></div>`,
             `<div class="stat-card warning" onclick="navigateTo('settings')"><div class="stat-value">${courseCount}</div><div class="stat-label">总课程数</div></div>`,
+            `<div class="stat-card" onclick="openDashboardDetail('today')"><div class="stat-value">${todayRecords.length>0?todayRecords.length+'节课':'无课'}</div><div class="stat-label">今日上课</div></div>`,
             `<div class="stat-card" onclick="openDashboardDetail('month-sessions')"><div class="stat-value">${semesterSessions}</div><div class="stat-label">本学期总课时</div></div>`,
+            `<div class="stat-card success" onclick="openDashboardDetail('month-income')"><div class="stat-value">${(ms.totalIncome||0).toFixed(0)}</div><div class="stat-label">本月课时费(元)</div></div>`,
             `<div class="stat-card" onclick="navigateTo('homework')"><div class="stat-value">${totalHomework}</div><div class="stat-label">总作业数量</div></div>`,
             `<div class="stat-card danger" onclick="navigateTo('leave-requests')"><div class="stat-value">${pendingLeave}</div><div class="stat-label">待审批请假</div></div>`,
             `<div class="stat-card success" onclick="navigateTo('notifications')"><div class="stat-value" id="statUnreadMsg">0</div><div class="stat-label">系统未读消息</div></div>`
