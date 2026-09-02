@@ -14,6 +14,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class AIService {
@@ -41,11 +43,15 @@ public class AIService {
     @Value("${ai.timeout:60}")
     private int timeoutSeconds;
 
+    private String provider = "doubao-free";
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
             .build();
 
     public Map<String, Object> chat(Long userId, String sessionId, String prompt, List<Map<String, Object>> history) {
+        refreshConfig();
         Map<String, Object> result = new HashMap<>();
 
         if (prompt == null || prompt.trim().isEmpty()) {
@@ -185,6 +191,7 @@ public class AIService {
      * 对超时、402 额度不足、401 认证失败、网络异常等均返回友好中文提示。
      */
     public Map<String, Object> testConnection() {
+        refreshConfig();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("configured", isConfigured());
         result.put("model", model);
@@ -299,7 +306,179 @@ public class AIService {
         return result;
     }
 
+    // 运行时 AI 配置（数据库 ai_config 优先，未配置时使用 yml 默认）
+    private void refreshConfig() {
+        try {
+            List<Map<String, Object>> list = jdbc.queryForList("SELECT * FROM ai_config LIMIT 1");
+            if (!list.isEmpty()) {
+                Map<String, Object> row = list.get(0);
+                String pv = sv(row.get("provider")); if (!pv.isEmpty()) this.provider = pv;
+                String m = sv(row.get("model")); if (!m.isEmpty()) this.model = m;
+                String b = sv(row.get("base_url")); if (!b.isEmpty()) this.baseUrl = b;
+                String k = sv(row.get("api_key")); if (!k.isEmpty()) this.apiKey = k;
+            }
+        } catch (Exception e) {
+            log.debug("AI运行时配置读取失败(使用默认配置): {}", e.getMessage());
+        }
+    }
+
+    private String sv(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
+
+    // 供前端 AI配置页读取（格式：data[0].provider/apiKey/model/baseUrl/configured）
+    public Map<String, Object> getConfigForApi() {
+        refreshConfig();
+        Map<String, Object> cfg = new LinkedHashMap<>();
+        cfg.put("provider", provider);
+        cfg.put("apiKey", apiKey);
+        cfg.put("model", model);
+        cfg.put("baseUrl", baseUrl);
+        cfg.put("configured", isConfigured());
+        return cfg;
+    }
+
+    // 保存 AI 运行时配置（数据库 ai_config，保存后立即生效）
+    public Map<String, Object> saveConfig(String provider, String apiKey, String model, String baseUrl) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            String p = provider != null && !provider.trim().isEmpty() ? provider.trim() : "doubao-free";
+            String ak = apiKey, m = model, bu = baseUrl;
+            // 免费渠道统一走已验证可用的免费通道（Agnes-2.5-flash）
+            if ("doubao-free".equals(p) || "freegpt".equals(p) || "freechat".equals(p)) {
+                ak = this.apiKey;
+                m = "agnes-2.5-flash";
+                bu = "https://apihub.agnes-ai.com/v1";
+            }
+            if (ak == null || ak.trim().isEmpty()) ak = this.apiKey;
+            if (m == null || m.trim().isEmpty()) m = this.model;
+            if (bu == null || bu.trim().isEmpty()) bu = this.baseUrl;
+            Integer cnt = jdbc.queryForObject("SELECT COUNT(*) FROM ai_config", Integer.class);
+            if (cnt != null && cnt > 0) {
+                Long minId = jdbc.queryForObject("SELECT MIN(id) FROM ai_config", Long.class);
+                jdbc.update("UPDATE ai_config SET provider=?, api_key=?, model=?, base_url=? WHERE id=?", p, ak, m, bu, minId);
+            } else {
+                jdbc.update("INSERT INTO ai_config (provider, api_key, model, base_url) VALUES (?,?,?,?)", p, ak, m, bu);
+            }
+            refreshConfig();
+            result.put("code", 200);
+            result.put("success", true);
+            result.put("msg", "配置保存成功");
+            return result;
+        } catch (Exception e) {
+            log.error("AI配置保存失败", e);
+            result.put("code", 500);
+            result.put("success", false);
+            result.put("error", "配置保存失败: " + e.getMessage());
+            return result;
+        }
+    }
+
+    // 智能出题：调用 AI 生成测试题目
+    public Map<String, Object> generateQuestions(String topic, int count, List<String> types) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (topic == null || topic.trim().isEmpty()) {
+            result.put("code", 400); result.put("success", false); result.put("error", "请填写出题主题");
+            return result;
+        }
+        refreshConfig();
+        if (!isConfigured()) {
+            result.put("code", 503); result.put("success", false);
+            result.put("error", "AI服务未配置，请联系管理员配置API Key");
+            return result;
+        }
+        int c = count <= 0 ? 5 : Math.min(count, 20);
+        String typeStr = (types == null || types.isEmpty()) ? "单选题、判断题、填空题、问答题" : String.join("、", types);
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> sys = new HashMap<>();
+        sys.put("role", "system");
+        sys.put("content", "你是一位经验丰富的K12课外辅导出题专家，根据主题生成教学测试题目，题目严谨、难度适中、答案准确。");
+        messages.add(sys);
+        Map<String, String> user = new HashMap<>();
+        user.put("role", "user");
+        user.put("content", "请围绕《" + topic + "》生成" + c + "道" + typeStr + "。只返回JSON数组，每项格式：{\"type\":\"single|multiple|truefalse|fill|essay\",\"question\":\"题目内容\",\"options\":[\"A.选项1\",\"B.选项2\",\"C.选项3\",\"D.选项4\"](选择题必填),\"answer\":\"正确答案\"}。不要输出多余文字。");
+        messages.add(user);
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", model);
+            requestBody.put("messages", messages);
+            requestBody.put("stream", false);
+            requestBody.put("max_tokens", 3000);
+            requestBody.put("temperature", 0.7);
+            String jsonBody = buildJson(requestBody);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/chat/completions"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                String errMsg = extractErrorMessage(response.body());
+                if (response.statusCode() == 401) errMsg = "AI服务认证失败，请检查API Key配置";
+                else if (response.statusCode() == 429) errMsg = "AI调用频率超限或额度不足，请稍后重试";
+                else if (response.statusCode() == 503) errMsg = "AI服务暂时不可用，请稍后重试";
+                result.put("code", 502); result.put("success", false); result.put("error", errMsg);
+                return result;
+            }
+            String aiContent = extractAiContent(response.body());
+            if (aiContent == null || aiContent.trim().isEmpty()) {
+                result.put("code", 502); result.put("success", false); result.put("error", "AI返回内容为空");
+                return result;
+            }
+            List<Map<String, Object>> questions = parseQuestionsFromAI(aiContent);
+            if (questions.isEmpty()) {
+                result.put("code", 502); result.put("success", false); result.put("error", "AI生成题目解析失败，请重试");
+                return result;
+            }
+            result.put("code", 200); result.put("success", true);
+            result.put("questions", questions);
+            result.put("local", false);
+            result.put("msg", "AI生成成功，共 " + questions.size() + " 道题");
+            return result;
+        } catch (java.net.http.HttpTimeoutException e) {
+            result.put("code", 504); result.put("success", false); result.put("error", "AI服务响应超时，请稍后重试");
+            return result;
+        } catch (Exception e) {
+            log.error("AI出题失败", e);
+            result.put("code", 500); result.put("success", false); result.put("error", "AI出题异常: " + e.getMessage());
+            return result;
+        }
+    }
+
+    private List<Map<String, Object>> parseQuestionsFromAI(String content) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            int start = content.indexOf('[');
+            int end = content.lastIndexOf(']');
+            if (start < 0 || end < 0 || end <= start) return out;
+            String json = content.substring(start, end + 1);
+            JsonNode arr = objectMapper.readTree(json);
+            if (arr == null || !arr.isArray()) return out;
+            for (JsonNode node : arr) {
+                if (node == null) continue;
+                String type = node.has("type") ? node.get("type").asText("essay") : "essay";
+                String question = node.has("question") ? node.get("question").asText("") : "";
+                String answer = node.has("answer") ? node.get("answer").asText("") : "";
+                if (question.trim().isEmpty()) continue;
+                Map<String, Object> q = new LinkedHashMap<>();
+                q.put("type", type);
+                q.put("question", question);
+                List<String> opts = new ArrayList<>();
+                if (node.has("options") && node.get("options").isArray()) {
+                    for (JsonNode o : node.get("options")) opts.add(o.asText(""));
+                }
+                q.put("options", opts);
+                q.put("answer", answer);
+                out.add(q);
+            }
+        } catch (Exception e) {
+            log.debug("AI出题JSON解析失败: {}", e.getMessage());
+        }
+        return out;
+    }
+
     // Simple JSON builder (avoids adding Jackson dependency)
+
     private String buildJson(Map<String, Object> map) {
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;

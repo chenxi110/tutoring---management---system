@@ -9118,6 +9118,11 @@ const AI_API_BASE='/api';
 let currentChatSessionId=null;
 
 function getAIUrl(endpoint){return AI_API_BASE+endpoint;}
+  function aiFetch(endpoint, options){
+      options=options||{};
+      options.headers=Object.assign({},options.headers||{},{'Authorization':'Bearer '+((window.apiService&&apiService.token)||localStorage.getItem('skt_token')||'')});
+      return fetch(getAIUrl(endpoint),options);
+  }
 
 function loadAI(){
     // AI页面加载，初始化知识库列表和配置
@@ -9212,7 +9217,7 @@ async function sendChatMessage(){
     scrollChatToBottom();
     
     try{
-        const res=await fetch(getAIUrl('/ai/chat'),{
+        const res=await aiFetch('/ai/chat',{
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({message,useKnowledge,sessionId:currentChatSessionId})
         });
@@ -9275,7 +9280,7 @@ async function loadKnowledgeList(){
     if(category&&category!=='all')params.set('category',category);
     
     try{
-        const res=await fetch(getAIUrl('/knowledge?'+params));
+        const res=await aiFetch('/knowledge?'+params);
         const data=await res.json();
         const tbody=document.getElementById('knowledgeTableBody');
         if(data.data&&data.data.length>0){
@@ -9294,7 +9299,7 @@ async function loadKnowledgeList(){
 
 async function loadKnowledgeCategories(){
     try{
-        const res=await fetch(getAIUrl('/knowledge/categories'));
+        const res=await aiFetch('/knowledge/categories');
         const data=await res.json();
         const sel=document.getElementById('knowledgeCategory');
         sel.innerHTML='<option value="all">全部分类</option>'+data.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -9318,7 +9323,7 @@ function openKnowledgeModal(id=null){
     document.body.appendChild(modal);
     
     if(id){
-        fetch(getAIUrl('/knowledge?id='+id)).then(r=>r.json()).then(data=>{
+        aiFetch('/knowledge?id='+id).then(r=>r.json()).then(data=>{
             const item=data.data?data.data[0]:null;
             if(item){
                 document.getElementById('knowledgeTitle').value=item.title;
@@ -9352,7 +9357,7 @@ async function saveKnowledge(){
 async function deleteKnowledge(id){
     openConfirmModal('确定要删除这条知识吗？',async()=>{
         try{
-            const res=await fetch(getAIUrl('/knowledge/'+id),{method:'DELETE'});
+            const res=await aiFetch('/knowledge/'+id,{method:'DELETE'});
             const data=await res.json();
             if(data.success){showToast('删除成功');loadKnowledgeList();}
             else{showToast(data.error,'error');}
@@ -9374,7 +9379,7 @@ async function generateQuestions(){
     resultDiv.innerHTML='<div style="text-align:center;padding:20px;"><span style="color:#4a90d9;">🤖 AI正在生成题目...</span></div>';
     
     try{
-        const res=await fetch(getAIUrl('/ai/generate-questions'),{
+        const res=await aiFetch('/ai/generate-questions',{
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({topic,count,types})
         });
@@ -9488,7 +9493,7 @@ function saveGeneratedToKnowledge(){
         return text;
     }).join('');
     
-    fetch(getAIUrl('/knowledge'),{
+    aiFetch('/knowledge',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({title, content, category:'AI生成试题'})
@@ -9523,10 +9528,11 @@ function importGeneratedQuestions(){
 
 async function loadAIConfig(){
     try{
-        const res=await fetch(getAIUrl('/ai/config'));
+        const res=await aiFetch('/ai/config');
         const data=await res.json();
-        if(data&&data.length>0){
-            const cfg=data[0];
+        const cfgArr=data&&data.data&&data.data.length>0?data.data:(Array.isArray(data)?data:[]);
+        if(cfgArr.length>0){
+            const cfg=cfgArr[0];
             document.getElementById('configProvider').value=cfg.provider;
             document.getElementById('configApiKey').value=cfg.apiKey;
             document.getElementById('configModel').value=cfg.model||'';
@@ -9605,7 +9611,7 @@ async function saveAIConfig(){
     if(['huggingface','openai','google','doubao','deepseek'].includes(provider)&&!apiKey){showToast('该提供商需要输入API密钥','error');return;}
     
     try{
-        const res=await fetch(getAIUrl('/ai/config'),{
+        const res=await aiFetch('/ai/config',{
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({provider,apiKey:apiKey||'free',model,baseUrl})
         });

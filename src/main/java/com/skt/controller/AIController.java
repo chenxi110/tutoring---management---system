@@ -75,10 +75,30 @@ public class AIController {
     public Map<String, Object> config() {
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
-        Map<String, Object> data = new HashMap<>();
-        data.put("model", aiService.getModel());
-        data.put("configured", aiService.isConfigured());
-        result.put("data", data);
+        List<Map<String, Object>> list = new ArrayList<>();
+        list.add(aiService.getConfigForApi());
+        result.put("data", list);
         return result;
+    }
+
+    @PostMapping("/config")
+    public Map<String, Object> saveConfig(@RequestBody Map<String, Object> body) {
+        String provider = body.get("provider") != null ? String.valueOf(body.get("provider")) : null;
+        String apiKey = body.get("apiKey") != null ? String.valueOf(body.get("apiKey")) : null;
+        String model = body.get("model") != null ? String.valueOf(body.get("model")) : null;
+        String baseUrl = body.get("baseUrl") != null ? String.valueOf(body.get("baseUrl")) : null;
+        return aiService.saveConfig(provider, apiKey, model, baseUrl);
+    }
+
+    @PostMapping("/generate-questions")
+    public Map<String, Object> generateQuestions(@RequestBody Map<String, Object> body) {
+        String topic = body.get("topic") != null ? String.valueOf(body.get("topic")) : null;
+        int count = 5;
+        if (body.get("count") != null) {
+            try { count = Integer.parseInt(String.valueOf(body.get("count"))); } catch (Exception ignored) { }
+        }
+        @SuppressWarnings("unchecked")
+        List<String> types = (List<String>) body.get("types");
+        return aiService.generateQuestions(topic, count, types);
     }
 }
