@@ -2450,7 +2450,7 @@ function saveData(){
     _dashboardRefreshTimer=setTimeout(()=>{
         const page=document.querySelector('.page.active');
         if(page&&(page.id==='page-dashboard'||page.id==='page-records'||page.id==='page-students'||page.id==='page-attendance')){
-            if(apiService.isAdmin()){loadAdminDashboard();}else{loadDashboard();}
+            if(apiService.isAdmin()){loadAdminDashboard();}else if(apiService.isParent()){loadParentDashboard();}else if(apiService.isStudent()){loadStudentDashboard();}else{loadDashboard();}
         }
     },300);
 }
@@ -8625,7 +8625,7 @@ async function safeInit(){
     }
     
     try{
-        if(apiService.isAdmin()){loadAdminDashboard();}else{loadDashboard();}
+        if(apiService.isAdmin()){loadAdminDashboard();}else if(apiService.isParent()){loadParentDashboard();}else if(apiService.isStudent()){loadStudentDashboard();}else{loadDashboard();}
     }catch(e){
 
         showToast('仪表盘加载失败','error');
