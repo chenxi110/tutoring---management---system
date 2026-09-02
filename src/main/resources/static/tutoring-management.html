@@ -579,6 +579,18 @@ body {
   text-align: center;
 }
 
+
+/* ===== 家长端 AI 学习助手样式 ===== */
+.ai-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;padding-bottom:12px;border-bottom:1px solid #eee;}
+.ai-tab-btn{background:#fff;border:1px solid #d9d9d9;color:#555;border-radius:20px;padding:6px 16px;font-size:13px;cursor:pointer;transition:all .2s;}
+.ai-tab-btn:hover{border-color:#4a90d9;color:#4a90d9;}
+.ai-tab-btn.active{background:#4a90d9;border-color:#4a90d9;color:#fff;font-weight:600;}
+.ai-stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
+.ai-stat-card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px 12px;text-align:center;}
+.ai-stat-value{font-size:22px;font-weight:700;color:#4a90d9;}
+.ai-stat-label{font-size:12px;color:#888;margin-top:4px;}
+.ai-tag{display:inline-block;background:#e6f7ff;color:#1890ff;border-radius:4px;padding:1px 8px;font-size:12px;margin-left:4px;}
+/* ===== 家长端 AI 学习助手样式 end ===== */
 </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
@@ -998,6 +1010,28 @@ body {
                             <thead><tr><th>考试名称</th><th>考试类型</th><th>考试时间</th><th>分数</th><th>满分</th><th>排名</th><th>备注</th></tr></thead>
                             <tbody id="parentGradesTableBody"></tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+            <div class="page" id="page-parent-ai">
+                <div class="card" id="parentAiCard">
+                    <div class="card-header" style="flex-wrap:wrap;gap:12px;">
+                        <h3 class="card-title">AI 学习助手</h3>
+                        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+                            <span style="font-size:13px;color:#666;">孩子</span>
+                            <select class="form-control" id="parentAiChild" style="width:auto;min-width:160px;" onchange="switchParentAiTab('overview')"><option value="">请选择孩子</option></select>
+                        </div>
+                    </div>
+                    <div class="ai-tabs">
+                        <button class="ai-tab-btn active" data-ai-tab="overview" onclick="switchParentAiTab('overview')">学情总览</button>
+                        <button class="ai-tab-btn" data-ai-tab="wrong" onclick="switchParentAiTab('wrong')">错题本</button>
+                        <button class="ai-tab-btn" data-ai-tab="submissions" onclick="switchParentAiTab('submissions')">作答详情</button>
+                        <button class="ai-tab-btn" data-ai-tab="plan" onclick="switchParentAiTab('plan')">学习方案</button>
+                        <button class="ai-tab-btn" data-ai-tab="quiz" onclick="switchParentAiTab('quiz')">AI出题自检</button>
+                        <button class="ai-tab-btn" data-ai-tab="chat" onclick="switchParentAiTab('chat')">AI问答</button>
+                    </div>
+                    <div id="parentAiContent" style="min-height:200px;">
+                        <div style="text-align:center;color:#999;padding:30px;">正在加载 AI 学习助手...</div>
                     </div>
                 </div>
             </div>
@@ -2570,6 +2604,7 @@ function navigateTo(page){
             notifications:'通知公告',
             'teacher-message':'家校互通',
             'parent-message':'消息中心',
+            'parent-ai':'AI学习助手',
             finance:'财务台账',
             export:'导出打印',
             classroom:'上课模式',
@@ -2603,6 +2638,7 @@ function navigateTo(page){
             notifications:()=>apiService.isParent()?loadParentMessages():loadNotifications(),
             'teacher-message':()=>{ if(apiService.isParent()){ window.location.href='parent-message.html'; } else { loadTeacherPrivateMessages(); } },
             'parent-message':()=>{ window.location.href='parent-message.html'; },
+            'parent-ai':()=>loadParentAI(),
             finance:()=>loadFinanceRecords(),
             export:()=>loadExportPage(),
             ai:()=>loadAI(),
@@ -11508,6 +11544,423 @@ function renderParentBindRequired(pageElement, title, description){
 }
 
 // 家长端仪表盘
+// ===== 家长端 AI 学习助手 =====
+let _parentAiQuizQuestions = [];
+let _parentAiQuizAnswers = {};
+
+function loadParentAI(){
+    const box=document.getElementById('parentAiContent');
+    if(!box)return;
+    const sel=document.getElementById('parentAiChild');
+    sel.innerHTML='<option value="">加载中...</option>';
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">正在加载孩子信息...</div>';
+    apiService.parentAiChildren().then(function(r){
+        if(r&&r.code===200&&r.data&&r.data.length>0){
+            sel.innerHTML=r.data.map(function(c){
+                return '<option value="'+c.id+'">'+escapeHtml(c.name)+'（'+escapeHtml(c.class_name||'未分班')+'）</option>';
+            }).join('');
+            switchParentAiTab('overview');
+        }else{
+            sel.innerHTML='';
+            box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">尚未绑定孩子，请先在「仪表盘-绑定孩子」中绑定后再使用 AI 学习助手</div>';
+        }
+    }).catch(function(){
+        box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">加载孩子信息失败，请重试</div>';
+    });
+}
+
+function getParentAiChildId(){
+    const sel=document.getElementById('parentAiChild');
+    if(sel&&sel.value){ return parseInt(sel.value,10); }
+    return null;
+}
+
+function switchParentAiTab(tab){
+    document.querySelectorAll('#parentAiCard .ai-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.aiTab===tab); });
+    const box=document.getElementById('parentAiContent');
+    const sid=getParentAiChildId();
+    if(!sid){ box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">请先选择孩子</div>'; return; }
+    if(tab==='overview')renderParentAiOverview(sid);
+    else if(tab==='wrong')renderParentAiWrong(sid);
+    else if(tab==='submissions')renderParentAiSubmissions(sid);
+    else if(tab==='plan')renderParentAiPlan(sid);
+    else if(tab==='quiz')renderParentAiQuiz(sid);
+    else if(tab==='chat')renderParentAiChat(sid);
+}
+
+function _paScore(v,d){ return (v===undefined||v===null)?(d||'-'):v; }
+
+function renderParentAiOverview(sid){
+    const box=document.getElementById('parentAiContent');
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">🤖 AI 正在整理孩子学情...</div>';
+    apiService.parentAiOverview(sid).then(function(r){
+        if(!r||r.code!==200){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'加载失败')+'</div>'; return; }
+        const an=r.analysis||{};
+        const bh=an.classroomBehavior||{};
+        let html='';
+        html+='<div class="ai-stat-grid">';
+        html+='<div class="ai-stat-card"><div class="ai-stat-value">'+_paScore(an.overallScore)+'</div><div class="ai-stat-label">综合评分</div></div>';
+        html+='<div class="ai-stat-card"><div class="ai-stat-value">'+_paScore(an.avgScore)+'</div><div class="ai-stat-label">平均分</div></div>';
+        html+='<div class="ai-stat-card"><div class="ai-stat-value">'+_paScore(an.homeworkSubmitRate)+'%</div><div class="ai-stat-label">作业提交率</div></div>';
+        html+='<div class="ai-stat-card"><div class="ai-stat-value">'+_paScore(an.attendanceRate)+'%</div><div class="ai-stat-label">出勤率</div></div>';
+        html+='<div class="ai-stat-card"><div class="ai-stat-value">'+_paScore(an.wrongQuestionCount,0)+'</div><div class="ai-stat-label">错题数</div></div>';
+        html+='<div class="ai-stat-card"><div class="ai-stat-value">'+_paScore(bh.totalScore,0)+'</div><div class="ai-stat-label">课堂积分</div></div>';
+        html+='</div>';
+        html+='<div style="margin-top:14px;padding:16px;background:#f0f7ff;border-radius:10px;">';
+        html+='<div style="font-weight:600;margin-bottom:8px;">📊 学习数据明细</div>';
+        html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;font-size:13px;color:#444;">';
+        html+='<div>成绩记录：<b>'+_paScore(an.examCount,0)+'</b> 次</div>';
+        html+='<div>最高分：<b>'+_paScore(an.maxScore)+'</b></div>';
+        html+='<div>最低分：<b>'+_paScore(an.minScore)+'</b></div>';
+        html+='<div>作业总数：<b>'+_paScore(an.homeworkTotal,0)+'</b></div>';
+        html+='<div>已提交作业：<b>'+_paScore(an.homeworkSubmitted,0)+'</b></div>';
+        html+='<div>出勤 <b>'+_paScore(an.presentCount,0)+'</b> / 缺勤 <b>'+_paScore(an.absentCount,0)+'</b></div>';
+        html+='<div>签到：<b>'+_paScore(bh.signinCount,0)+'</b> 次</div>';
+        html+='<div>举手：<b>'+_paScore(bh.raiseHandCount,0)+'</b> 次</div>';
+        html+='<div>答题：<b>'+_paScore(bh.answerCount,0)+'</b> 次</div>';
+        html+='<div>已掌握错题：<b>'+_paScore(an.masteredQuestionCount,0)+'</b> 道</div>';
+        html+='</div></div>';
+        html+='<div style="margin-top:14px;"><button class="btn btn-primary" onclick="genParentAiAnalysis('+sid+')">🤖 生成 AI 学情分析报告</button></div>';
+        html+='<div id="parentAiReportWrap" style="margin-top:12px;"></div>';
+        html+='<div style="margin-top:14px;" id="parentAiReportsHistory"></div>';
+        box.innerHTML=html;
+        apiService.parentAiReports(sid).then(function(rr){
+            const wrap=document.getElementById('parentAiReportsHistory');
+            if(!wrap)return;
+            if(rr&&rr.code===200&&rr.data&&rr.data.length>0){
+                let hh='<div style="font-weight:600;margin-bottom:8px;">📁 历史学情报告</div>';
+                hh+='<div style="display:flex;flex-direction:column;gap:8px;">'+rr.data.map(function(rep){
+                    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fff;border:1px solid #e8e8e8;border-radius:8px;"><span style="font-size:13px;">'+escapeHtml(String(rep.report_type||''))+' · '+escapeHtml(String(rep.student_name||''))+' · '+escapeHtml(String(rep.created_at||'').slice(0,16))+'</span><button class="btn btn-sm btn-secondary" onclick="showParentAiReport('+rep.id+',\''+escapeAttr(String(rep.report_content||''))+'\')">查看</button></div>';
+                }).join('')+'</div>';
+                wrap.innerHTML=hh;
+            }
+        }).catch(function(){});
+    }).catch(function(){
+        box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">加载学情失败，请重试</div>';
+    });
+}
+
+function genParentAiAnalysis(sid){
+    const wrap=document.getElementById('parentAiReportWrap');
+    if(!wrap)return;
+    wrap.innerHTML='<div style="text-align:center;color:#999;padding:20px;">🤖 AI 正在生成学情分析报告，请稍候...</div>';
+    apiService.parentAiAnalysis(sid,null,'custom').then(function(r){
+        if(r&&r.code===200){
+            const content=r.reportContent||'';
+            wrap.innerHTML='<div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:16px;"><div style="font-weight:600;margin-bottom:10px;">📄 AI 学情分析报告</div><div style="white-space:pre-wrap;font-size:13px;line-height:1.8;color:#333;">'+escapeHtml(content)+'</div></div>';
+            if(r.analysis&&r.analysis.suggestions&&r.analysis.suggestions.length){
+                wrap.innerHTML+='<div style="margin-top:10px;padding:12px;background:#fffbe6;border-radius:10px;font-size:13px;"><b>💡 改进建议：</b>'+r.analysis.suggestions.map(function(s){return escapeHtml(String(s));}).join('；')+'</div>';
+            }
+        }else{
+            wrap.innerHTML='<div style="color:#f5222d;padding:10px;">'+(r&&r.msg?escapeHtml(r.msg):'生成失败，请检查AI服务配置')+'</div>';
+        }
+    }).catch(function(){ wrap.innerHTML='<div style="color:#f5222d;padding:10px;">生成失败</div>'; });
+}
+
+function showParentAiReport(id, content){
+    const ov=document.createElement('div');
+    ov.className='modal-overlay active';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;';
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:680px;width:100%;max-height:80vh;overflow:auto;padding:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h4 style="margin:0;">📄 学情分析报告</h4><button class="btn btn-sm btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button></div><div style="white-space:pre-wrap;font-size:13px;line-height:1.8;color:#333;">'+escapeHtml(content||'')+'</div></div>';
+    document.body.appendChild(ov);
+}
+
+function renderParentAiWrong(sid){
+    const box=document.getElementById('parentAiContent');
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">正在加载错题本...</div>';
+    apiService.parentAiWrongQuestions(sid).then(function(r){
+        if(!r||r.code!==200){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'加载失败')+'</div>'; return; }
+        const list=r.data||[];
+        const st=r.stats||{};
+        let html='';
+        html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">';
+        html+='<div class="ai-stat-card" style="flex:1;min-width:120px;"><div class="ai-stat-value">'+list.length+'</div><div class="ai-stat-label">错题总数</div></div>';
+        html+='<div class="ai-stat-card" style="flex:1;min-width:120px;"><div class="ai-stat-value">'+_paScore(st.mastered,0)+'</div><div class="ai-stat-label">已掌握</div></div>';
+        html+='<div class="ai-stat-card" style="flex:1;min-width:120px;"><div class="ai-stat-value">'+_paScore(st.unmastered,0)+'</div><div class="ai-stat-label">待复习</div></div>';
+        html+='</div>';
+        if(list.length===0){
+            html+='<div style="text-align:center;color:#999;padding:30px;">暂无错题记录，孩子表现不错！</div>';
+        }else{
+            html+='<div style="display:flex;flex-direction:column;gap:10px;">';
+            list.forEach(function(w){
+                const kp=w.knowledge_point_name?('【'+escapeHtml(String(w.knowledge_point_name))+'】'):'';
+                html+='<div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px;">';
+                html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-weight:600;font-size:14px;">'+escapeHtml(String(w.question_text||'').slice(0,80))+'</span><span class="ai-tag">'+(w.subject||'')+'</span></div>';
+                html+='<div style="font-size:13px;color:#666;">'+kp+' · 错误 '+(w.wrong_count||1)+' 次 · '+(w.last_wrong_at?String(w.last_wrong_at).slice(0,16):'')+'</div>';
+                html+='<div style="margin-top:8px;display:flex;gap:16px;font-size:13px;flex-wrap:wrap;"><span style="color:#f5222d;">✗ 学生答案：'+escapeHtml(String(w.student_answer||'空'))+'</span><span style="color:#52c41a;">✓ 正确答案：'+escapeHtml(String(w.correct_answer||''))+'</span></div>';
+                if(w.analysis){ html+='<div style="margin-top:6px;font-size:12px;color:#8c8c8c;">📝 '+escapeHtml(String(w.analysis))+'</div>'; }
+                html+='<div style="margin-top:8px;font-size:12px;">掌握度：'+(w.mastery_level?'✅ 已掌握':'⏳ 待复习')+'</div>';
+                html+='</div>';
+            });
+            html+='</div>';
+        }
+        box.innerHTML=html;
+    }).catch(function(){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">加载错题失败</div>'; });
+}
+
+function renderParentAiSubmissions(sid){
+    const box=document.getElementById('parentAiContent');
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">正在加载作答记录...</div>';
+    apiService.parentAiSubmissions(sid).then(function(r){
+        if(!r||r.code!==200){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'加载失败')+'</div>'; return; }
+        const list=r.data||[];
+        let html='<div style="font-size:13px;color:#666;margin-bottom:12px;">共 '+list.length+' 次考试作答，点击「查看试卷」查看逐题作答详情。</div>';
+        if(list.length===0){
+            html+='<div style="text-align:center;color:#999;padding:30px;">暂无考试作答记录</div>';
+        }else{
+            html+='<div class="table-wrapper"><table class="data-table"><thead><tr><th>考试名称</th><th>得分情况</th><th>状态</th><th>提交时间</th><th>操作</th></tr></thead><tbody>';
+            list.forEach(function(su){
+                const scoreTxt=su.graded?('总分 '+su.score):('AI判分 '+su.auto_score);
+                html+='<tr><td>'+escapeHtml(String(su.title||su.exam_code||('考试#'+su.exam_id)))+'</td><td>'+escapeHtml(String(scoreTxt))+'</td><td>'+(su.graded?'已批阅':'AI已判')+'</td><td>'+escapeHtml(String(su.submitted_at||'').slice(0,16))+'</td><td><button class="btn btn-sm btn-primary" onclick="viewParentAiPaper('+su.id+')">📄 查看试卷</button></td></tr>';
+            });
+            html+='</tbody></table></div>';
+        }
+        box.innerHTML=html;
+    }).catch(function(){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">加载作答记录失败</div>'; });
+}
+
+function viewParentAiPaper(submissionId){
+    const ov=document.createElement('div');
+    ov.className='modal-overlay active';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;';
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:82vh;overflow:auto;padding:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h4 style="margin:0;">📄 学生试卷</h4><button class="btn btn-sm btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button></div><div id="paperBody" style="text-align:center;color:#999;padding:30px;">🤖 AI 正在加载试卷...</div></div>';
+    document.body.appendChild(ov);
+    const body=ov.querySelector('#paperBody');
+    apiService.parentAiPaper(submissionId).then(function(r){
+        if(!r||r.code!==200){ body.innerHTML='<div style="color:#f5222d;">'+(r&&r.msg?escapeHtml(r.msg):'加载失败')+'</div>'; return; }
+        let html='';
+        html+='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:13px;">';
+        html+='<span>学生：'+escapeHtml(String(r.studentName||''))+'</span>';
+        html+='<span>AI客观题得分：<b>'+escapeHtml(String(r.autoScore))+'</b></span>';
+        html+='<span>答对：<b>'+r.correctCount+'</b> / '+r.totalQuestions+'</span>';
+        html+='</div>';
+        html+='<div style="display:flex;flex-direction:column;gap:10px;">';
+        (r.paper||[]).forEach(function(p,idx){
+            const opt=(p.options&&p.options.length)?p.options.map(function(o,oi){return '<div style="padding:2px 0;">'+String.fromCharCode(65+oi)+'. '+escapeHtml(String(o))+'</div>';}).join(''):'';
+            html+='<div style="background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;">';
+            html+='<div style="display:flex;justify-content:space-between;gap:8px;"><b>'+(idx+1)+'. '+escapeHtml(String(p.question))+'</b><span class="ai-tag">'+(p.type||'')+' · '+(p.score||0)+'分</span></div>';
+            if(opt)html+='<div style="font-size:13px;margin-top:6px;">'+opt+'</div>';
+            html+='<div style="font-size:13px;margin-top:6px;"><span style="color:#f5222d;">学生答案：'+escapeHtml(String(p.studentAnswer||'未作答'))+'</span></div>';
+            html+='<div style="font-size:13px;"><span style="color:#52c41a;">正确答案：'+escapeHtml(String(p.correctAnswer||''))+'</span> · <b>'+(p.isCorrect?'✓ 正确 得'+p.earned+'分':'✗ 错误 得'+p.earned+'分')+'</b></div>';
+            html+='</div>';
+        });
+        html+='</div>';
+        body.innerHTML=html;
+    }).catch(function(){ body.innerHTML='<div style="color:#f5222d;">加载试卷失败</div>'; });
+}
+
+function renderParentAiPlan(sid){
+    const box=document.getElementById('parentAiContent');
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">正在加载学习方案...</div>';
+    apiService.parentAiPlans(sid).then(function(r){
+        if(!r||r.code!==200){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'加载失败')+'</div>'; return; }
+        const list=r.data||[];
+        let html='';
+        html+='<div style="background:#f0f7ff;border-radius:10px;padding:14px;margin-bottom:14px;">';
+        html+='<div style="font-weight:600;margin-bottom:8px;">🎯 定制学习方案</div>';
+        html+='<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+        html+='<input type="text" id="parentAiPlanFocus" class="form-control" placeholder="如：数学薄弱点巩固 / 英语提升" style="flex:1;min-width:200px;">';
+        html+='<button class="btn btn-primary" onclick="genParentAiPlan('+sid+')">🤖 生成方案</button>';
+        html+='</div>';
+        html+='<div style="font-size:12px;color:#888;margin-top:6px;">AI 将根据孩子学情数据自动生成可执行的分周学习计划，支持进度跟踪。</div>';
+        html+='</div>';
+        if(list.length===0){
+            html+='<div style="text-align:center;color:#999;padding:20px;">暂无学习方案，点击上方「生成方案」定制</div>';
+        }else{
+            html+='<div style="display:flex;flex-direction:column;gap:12px;">';
+            list.forEach(function(p){
+                html+='<div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px;">';
+                html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>'+escapeHtml(String(p.plan_title||'学习方案'))+'</b><span class="ai-tag">'+(p.status==='done'?'✅已完成':'⏳进行中')+'</span></div>';
+                html+='<div style="white-space:pre-wrap;font-size:13px;line-height:1.7;color:#444;max-height:180px;overflow:auto;background:#fafafa;border-radius:8px;padding:10px;">'+escapeHtml(String(p.plan_content||''))+'</div>';
+                html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap;">';
+                html+='<div style="font-size:13px;color:#666;">📅 当前进度：'+escapeHtml(String(p.week_progress||'执行中'))+'</div>';
+                html+='<div style="display:flex;gap:6px;">';
+                html+='<button class="btn btn-sm btn-secondary" onclick="updateParentAiProgress('+p.id+')">更新进度</button>';
+                if(p.status!=='done')html+='<button class="btn btn-sm btn-success" onclick="finishParentAiPlan('+p.id+')">标记完成</button>';
+                html+='</div></div>';
+                html+='</div>';
+            });
+            html+='</div>';
+        }
+        box.innerHTML=html;
+    }).catch(function(){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">加载学习方案失败</div>'; });
+}
+
+function genParentAiPlan(sid){
+    const focus=(document.getElementById('parentAiPlanFocus')||{}).value||'';
+    const btn=document.getElementById('parentAiPlanFocus');
+    const box=document.getElementById('parentAiContent');
+    if(btn)btn.disabled=true;
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">🤖 AI 正在为孩子定制学习方案，请稍候（约20秒）...</div>';
+    apiService.parentAiSavePlan(sid,focus).then(function(r){
+        if(r&&r.code===200){ renderParentAiPlan(sid); }
+        else{ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'生成失败，请检查AI服务配置')+'</div>'; }
+    }).catch(function(){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">生成失败</div>'; });
+}
+
+function updateParentAiProgress(planId){
+    const pr=prompt('请输入当前进度说明（如：第2周-完成错题复习）：','第2周：执行中');
+    if(pr===null)return;
+    apiService.parentAiPlanProgress(planId,pr,null).then(function(r){
+        showToast(r&&r.code===200?'进度已更新':(r&&r.msg||'更新失败'),r&&r.code===200?'success':'error');
+        const sid=getParentAiChildId(); if(sid)renderParentAiPlan(sid);
+    }).catch(function(){ showToast('更新失败','error'); });
+}
+
+function finishParentAiPlan(planId){
+    apiService.parentAiPlanProgress(planId,null,'done').then(function(r){
+        showToast(r&&r.code===200?'方案已标记完成':(r&&r.msg||'操作失败'),r&&r.code===200?'success':'error');
+        const sid=getParentAiChildId(); if(sid)renderParentAiPlan(sid);
+    }).catch(function(){ showToast('操作失败','error'); });
+}
+
+function renderParentAiQuiz(sid){
+    const box=document.getElementById('parentAiContent');
+    _parentAiQuizQuestions=[]; _parentAiQuizAnswers={};
+    let html='';
+    html+='<div style="background:#f0f7ff;border-radius:10px;padding:14px;margin-bottom:14px;">';
+    html+='<div style="font-weight:600;margin-bottom:8px;">✏️ AI 出题自检</div>';
+    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    html+='<input type="text" id="parentAiQuizTopic" class="form-control" placeholder="出题主题（留空则按孩子错题自动出题）" style="flex:1;min-width:200px;">';
+    html+='<select id="parentAiQuizCount" class="form-control" style="width:auto;"><option value="3">3题</option><option value="5" selected>5题</option><option value="8">8题</option></select>';
+    html+='<button class="btn btn-primary" onclick="genParentAiQuiz('+sid+')">🤖 开始出题</button>';
+    html+='</div>';
+    html+='<div style="font-size:12px;color:#888;margin-top:6px;">针对孩子薄弱知识点自动出题，孩子在线作答后即时判分，检测掌握情况。</div>';
+    html+='</div>';
+    html+='<div id="parentAiQuizBody" style="text-align:center;color:#999;padding:20px;">点击「开始出题」生成自检题目</div>';
+    box.innerHTML=html;
+}
+
+function genParentAiQuiz(sid){
+    const body=document.getElementById('parentAiQuizBody');
+    const topic=(document.getElementById('parentAiQuizTopic')||{}).value||'';
+    const count=parseInt((document.getElementById('parentAiQuizCount')||{}).value||5,10);
+    body.innerHTML='<div style="text-align:center;color:#999;padding:30px;">🤖 AI 正在出题，请稍候...</div>';
+    apiService.parentAiGenerateQuestions(sid,topic,count,['single','truefalse']).then(function(r){
+        const qs=r&&r.questions?r.questions:(r&&r.data?r.data:null);
+        if(!qs||qs.length===0){
+            body.innerHTML='<div style="color:#f5222d;padding:10px;">'+(r&&r.error?escapeHtml(String(r.error)):'出题失败，请检查AI服务配置')+'</div>';
+            return;
+        }
+        _parentAiQuizQuestions=qs; _parentAiQuizAnswers={};
+        let h='<div style="display:flex;flex-direction:column;gap:14px;">';
+        qs.forEach(function(q,idx){
+            h+='<div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px;">';
+            h+='<div style="display:flex;justify-content:space-between;margin-bottom:8px;"><b>'+(idx+1)+'. '+escapeHtml(String(q.question))+'</b><span class="ai-tag">'+(q.type||'single')+' · '+(q.score||10)+'分</span></div>';
+            if(q.options&&q.options.length){
+                q.options.forEach(function(o,oi){
+                    h+='<label style="display:block;padding:6px 10px;margin:4px 0;background:#fafafa;border-radius:6px;cursor:pointer;"><input type="radio" name="paq'+idx+'" value="'+escapeAttr(String(o))+'" onchange="_parentAiQuizAnswers['+idx+']=this.value"> '+String.fromCharCode(65+oi)+'. '+escapeHtml(String(o))+'</label>';
+                });
+            }else{
+                const isTF=(q.type==='truefalse'||q.type==='judge');
+                const opts=isTF?['对','错']:['正确','错误'];
+                opts.forEach(function(o){
+                    h+='<label style="display:block;padding:6px 10px;margin:4px 0;background:#fafafa;border-radius:6px;cursor:pointer;"><input type="radio" name="paq'+idx+'" value="'+o+'" onchange="_parentAiQuizAnswers['+idx+']=this.value"> '+o+'</label>';
+                });
+            }
+            h+='</div>';
+        });
+        h+='</div>';
+        h+='<div style="margin-top:14px;text-align:center;"><button class="btn btn-primary" onclick="submitParentAiQuiz('+sid+')">✅ 提交自检</button></div>';
+        body.innerHTML=h;
+    }).catch(function(){ body.innerHTML='<div style="color:#f5222d;padding:10px;">出题失败</div>'; });
+}
+
+function submitParentAiQuiz(sid){
+    const body=document.getElementById('parentAiQuizBody');
+    const qs=_parentAiQuizQuestions;
+    if(!qs.length){ showToast('请先生成题目','error'); return; }
+    function _normPaAns(x){
+        let v=String(x||'').trim();
+        v=v.replace(/^[A-H]\s*\.\s*/,''); // 去选项前缀如 "B. "
+        if(v==='true')v='对'; if(v==='false')v='错';
+        if(v==='正确')v='对'; if(v==='错误')v='错'; if(v==='√')v='对'; if(v==='×')v='错';
+        return v;
+    }
+    let correct=0, total=0, score=0, maxScore=0;
+    const details=[];
+    qs.forEach(function(q,idx){
+        const stu=_parentAiQuizAnswers[idx]||'';
+        let cor=String(q.correctAnswer||q.answer||'').trim();
+        // 字母答案映射到选项文本
+        if(q.options&&q.options.length&&/^[A-H]$/i.test(cor)){
+            const li=cor.toUpperCase().charCodeAt(0)-65;
+            if(li>=0&&li<q.options.length)cor=String(q.options[li]);
+        }
+        const full=Number(q.score||10);
+        maxScore+=full;
+        let earned=0, ok=false;
+        const stuN=_normPaAns(stu), corN=_normPaAns(cor);
+        if(corN.indexOf(',')>=0){
+            // 多选：选对部分得对应比例分，选错/多选得0
+            const cs=corN.split(',').map(function(x){return x.trim();}).filter(Boolean);
+            const ss=stuN?stuN.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+            let allOk=ss.length===cs.length&&cs.every(function(c){return ss.indexOf(c)>=0;});
+            if(allOk){ earned=full; ok=true; }
+            else if(ss.length>0&&ss.every(function(s){return cs.indexOf(s)>=0;})){ earned=Math.round(full*ss.length/cs.length*100)/100; ok=false; }
+        }else{
+            if(stuN&&stuN===corN){ earned=full; ok=true; }
+        }
+        if(ok)correct++;
+        total++;
+        score+=earned;
+        details.push({q:q,stu:stu,cor:cor,earned:earned,ok:ok,full:full});
+    });
+    let h='';
+    h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">';
+    h+='<div class="ai-stat-card" style="flex:1;min-width:110px;"><div class="ai-stat-value">'+score+'/'+maxScore+'</div><div class="ai-stat-label">自检得分</div></div>';
+    h+='<div class="ai-stat-card" style="flex:1;min-width:110px;"><div class="ai-stat-value">'+correct+'/'+total+'</div><div class="ai-stat-label">答对题数</div></div>';
+    h+='<div class="ai-stat-card" style="flex:1;min-width:110px;"><div class="ai-stat-value">'+(total?Math.round(score/maxScore*100)+'%':'0%')+'</div><div class="ai-stat-label">正确率</div></div>';
+    h+='</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:10px;">';
+    details.forEach(function(d,idx){
+        h+='<div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:12px;">';
+        h+='<div style="display:flex;justify-content:space-between;"><b>'+(idx+1)+'. '+escapeHtml(String(d.q.question))+'</b><span class="ai-tag">'+(d.ok?'✓ 正确 +'+d.earned+'分':'✗ 得'+d.earned+'分')+'</span></div>';
+        h+='<div style="font-size:13px;margin-top:6px;"><span style="color:#f5222d;">你的答案：'+escapeHtml(String(d.stu||'未作答'))+'</span></div>';
+        h+='<div style="font-size:13px;"><span style="color:#52c41a;">正确答案：'+escapeHtml(String(d.cor))+'</span></div>';
+        h+='</div>';
+    });
+    h+='</div>';
+    h+='<div style="margin-top:14px;text-align:center;"><button class="btn btn-secondary" onclick="renderParentAiQuiz('+sid+')">↺ 重新自检</button> <button class="btn btn-primary" onclick="genParentAiQuiz('+sid+')">🤖 再出一组</button></div>';
+    body.innerHTML=h;
+    showToast('自检完成：'+correct+'/'+total+' 正确','success');
+}
+
+function renderParentAiChat(sid){
+    const box=document.getElementById('parentAiContent');
+    let html='';
+    html+='<div style="display:flex;flex-direction:column;height:480px;border:1px solid #e8e8e8;border-radius:10px;overflow:hidden;">';
+    html+='<div style="padding:10px 14px;background:#f0f7ff;font-weight:600;font-size:13px;">💬 针对孩子的 AI 学习问答（AI 已自动带入孩子学情）</div>';
+    html+='<div id="parentAiChatBody" style="flex:1;overflow:auto;padding:14px;background:#fafafa;display:flex;flex-direction:column;gap:10px;"><div style="text-align:center;color:#999;font-size:13px;padding:20px;">你可以这样问：<br>「孩子最近成绩下滑，怎么帮他分析？」<br>「根据孩子错题，推荐复习重点」<br>「孩子作业总是不按时交，怎么引导？」</div></div>';
+    html+='<div style="display:flex;gap:8px;padding:10px;border-top:1px solid #e8e8e8;background:#fff;">';
+    html+='<input type="text" id="parentAiChatInput" class="form-control" placeholder="输入你的问题，回车发送" onkeydown="if(event.keyCode===13)sendParentAiChat('+sid+')">';
+    html+='<button class="btn btn-primary" onclick="sendParentAiChat('+sid+')">发送</button>';
+    html+='</div></div>';
+    box.innerHTML=html;
+}
+
+function sendParentAiChat(sid){
+    const input=document.getElementById('parentAiChatInput');
+    const body=document.getElementById('parentAiChatBody');
+    const msg=(input.value||'').trim();
+    if(!msg)return;
+    input.value='';
+    body.insertAdjacentHTML('beforeend','<div style="align-self:flex-end;max-width:80%;background:#4a90d9;color:#fff;padding:8px 12px;border-radius:10px;font-size:13px;white-space:pre-wrap;">'+escapeHtml(msg)+'</div>');
+    body.insertAdjacentHTML('beforeend','<div style="align-self:flex-start;color:#999;font-size:12px;">🤖 AI 思考中...</div>');
+    body.scrollTop=body.scrollHeight;
+    apiService.parentAiChat(sid,msg).then(function(r){
+        const loading=body.querySelector('div:last-child');
+        const aiText=r&&r.code===200&&r.response?String(r.response):(r&&r.error?String(r.error):'AI 服务暂不可用');
+        if(loading)loading.remove();
+        body.insertAdjacentHTML('beforeend','<div style="align-self:flex-start;max-width:85%;background:#fff;border:1px solid #e8e8e8;padding:8px 12px;border-radius:10px;font-size:13px;white-space:pre-wrap;line-height:1.7;">'+escapeHtml(aiText)+'</div>');
+        body.scrollTop=body.scrollHeight;
+    }).catch(function(){
+        const loading=body.querySelector('div:last-child');
+        if(loading)loading.remove();
+        body.insertAdjacentHTML('beforeend','<div style="align-self:flex-start;color:#f5222d;font-size:13px;">请求失败，请重试</div>');
+    });
+}
+
 async function loadParentDashboard(){
     const dashboard=document.getElementById('page-dashboard');
     if(!dashboard)return;
@@ -12513,7 +12966,8 @@ function renderSidebarMenu(role){
         {page:'attendance',label:'缺勤记录',svg:'<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>'},
         {page:'classroom',label:'上课模式',svg:'<path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zm-4 2h4v16h-4V5zm-4 0h4v16h-4V5zm-4 0h4v16H6V5z"/>'},
         {page:'notifications',label:'通知公告',svg:'<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>'},
-        {page:'parent-message',label:'消息中心',svg:'<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/>'}
+        {page:'parent-message',label:'消息中心',svg:'<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/>'},
+        {page:'parent-ai',label:'AI学习助手',svg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'}
     ];
     const adminItems=[
         {page:'dashboard',label:'仪表盘',svg:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>'},

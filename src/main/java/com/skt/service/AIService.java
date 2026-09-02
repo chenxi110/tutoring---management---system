@@ -448,11 +448,19 @@ public class AIService {
     private List<Map<String, Object>> parseQuestionsFromAI(String content) {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
-            int start = content.indexOf('[');
-            int end = content.lastIndexOf(']');
-            if (start < 0 || end < 0 || end <= start) return out;
-            String json = content.substring(start, end + 1);
-            JsonNode arr = objectMapper.readTree(json);
+            String c = content;
+            // 去掉 markdown 代码块标记
+            c = c.replaceAll("(?s)```[a-zA-Z]*", "").replaceAll("(?s)```", "");
+            JsonNode arr = null;
+            // 尝试1：整体直接解析为数组
+            try { arr = objectMapper.readTree(c); } catch (Exception ignored) { }
+            if (arr == null || !arr.isArray()) {
+                // 尝试2：提取第一个 [ 到最后一个 ]
+                int start = c.indexOf('[');
+                int end = c.lastIndexOf(']');
+                if (start < 0 || end < 0 || end <= start) return out;
+                try { arr = objectMapper.readTree(c.substring(start, end + 1)); } catch (Exception ignored2) { }
+            }
             if (arr == null || !arr.isArray()) return out;
             for (JsonNode node : arr) {
                 if (node == null) continue;

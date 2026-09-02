@@ -131,6 +131,19 @@
     async getProfile() { return this.request('GET', '/auth/profile'); }
 
     async getParentChildren() { return this.request('GET', '/parent/children'); }
+    // ===== 家长端 AI 学习助手 =====
+    async parentAiChildren() { return this.request('GET', '/parent-ai/children'); }
+    async parentAiOverview(studentId) { return this.request('GET', '/parent-ai/overview?studentId=' + studentId); }
+    async parentAiWrongQuestions(studentId, subject) { return this.request('GET', '/parent-ai/wrong-questions?studentId=' + studentId + (subject ? '&subject=' + encodeURIComponent(subject) : '')); }
+    async parentAiSubmissions(studentId) { return this.request('GET', '/parent-ai/submissions?studentId=' + studentId); }
+    async parentAiPaper(submissionId) { return this.request('GET', '/parent-ai/submissions/' + submissionId + '/paper'); }
+    async parentAiAnalysis(studentId, classId, reportType) { return this.request('POST', '/parent-ai/analysis', { studentId: studentId, classId: classId, reportType: reportType }); }
+    async parentAiReports(studentId) { return this.request('GET', '/parent-ai/reports?studentId=' + studentId); }
+    async parentAiChat(studentId, message) { return this.request('POST', '/parent-ai/chat', { studentId: studentId, message: message }); }
+    async parentAiGenerateQuestions(studentId, topic, count, types) { return this.request('POST', '/parent-ai/generate-questions', { studentId: studentId, topic: topic, count: count, types: types }); }
+    async parentAiSavePlan(studentId, focus) { return this.request('POST', '/parent-ai/learning-plan', { studentId: studentId, focus: focus }); }
+    async parentAiPlans(studentId) { return this.request('GET', '/parent-ai/learning-plans?studentId=' + studentId); }
+    async parentAiPlanProgress(planId, progress, status) { return this.request('POST', '/parent-ai/learning-plan/' + planId + '/progress', { progress: progress, status: status }); }
     async bindStudent(studentName, parentPhone) { return this.request('POST', '/parent/bind', { studentName: studentName, parentPhone: parentPhone }); }
 
     async getSemesters() { return this.request('GET', '/semesters'); }

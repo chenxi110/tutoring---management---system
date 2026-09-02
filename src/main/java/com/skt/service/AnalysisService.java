@@ -67,16 +67,16 @@ public class AnalysisService {
         analysis.put("homeworkSubmitRate", homework.size() > 0 ? Math.round(submittedCount * 100.0 / homework.size()) : 0);
         analysis.put("homeworkAvgScore", Math.round(homeworkAvg * 10) / 10.0);
 
-        // 3. 出勤情况
-        List<Map<String, Object>> attendance = jdbc.queryForList(
-            "SELECT type, COUNT(*) as cnt FROM records WHERE student_id=? GROUP BY type", studentId);
+        // 3. 出勤情况（基于课堂签到记录 signin_records 统计）
         int presentCount = 0, absentCount = 0;
-        for (Map<String, Object> a : attendance) {
-            String type = (String) a.get("type");
-            int cnt = ((Number) a.get("cnt")).intValue();
-            if ("absent".equals(type)) absentCount = cnt;
-            else presentCount += cnt;
-        }
+        try {
+            Integer p = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM signin_records WHERE student_id=? AND status='present'", Integer.class, studentId);
+            Integer a = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM signin_records WHERE student_id=? AND status='absent'", Integer.class, studentId);
+            presentCount = p != null ? p : 0;
+            absentCount = a != null ? a : 0;
+        } catch (Exception e) { log.warn("查询出勤统计失败: {}", e.getMessage()); }
         analysis.put("presentCount", presentCount);
         analysis.put("absentCount", absentCount);
         analysis.put("attendanceRate", (presentCount + absentCount) > 0 ?
@@ -118,14 +118,25 @@ public class AnalysisService {
         // 6. 综合评分
         double overallScore = 0;
         int weight = 0;
-        if (analysis.containsKey("avgScore")) {
-            overallScore += (Double) analysis.get("avgScore") * 0.4;
+        Number avgScoreNum = (Number) analysis.get("avgScore");
+        if (avgScoreNum != null) {
+            overallScore += avgScoreNum.doubleValue() * 0.4;
             weight += 40;
         }
-        overallScore += (Integer) analysis.get("homeworkAvgScore") * 0.2;
-        overallScore += (Integer) analysis.get("attendanceRate") * 0.2;
-        int participationScore = Math.min(100, ((Integer) behavior.getOrDefault("totalScore", 0)) * 2);
+        Number hwAvgNum = (Number) analysis.get("homeworkAvgScore");
+        if (hwAvgNum != null) {
+            overallScore += hwAvgNum.doubleValue() * 0.2;
+            weight += 20;
+        }
+        Number atRateNum = (Number) analysis.get("attendanceRate");
+        if (atRateNum != null) {
+            overallScore += atRateNum.doubleValue() * 0.2;
+            weight += 20;
+        }
+        Number behScoreNum = (Number) behavior.getOrDefault("totalScore", 0);
+        int participationScore = Math.min(100, behScoreNum.intValue() * 2);
         overallScore += participationScore * 0.2;
+        if (weight > 0) overallScore = overallScore * 100.0 / weight;
         analysis.put("overallScore", Math.round(overallScore * 10) / 10.0);
 
         // 7. 改进建议
@@ -133,13 +144,16 @@ public class AnalysisService {
         if (analysis.containsKey("trend") && "down".equals(analysis.get("trend"))) {
             suggestions.add("近期成绩呈下降趋势，建议加强薄弱知识点的复习");
         }
-        if ((Integer) analysis.get("homeworkSubmitRate") < 80) {
+        Number hwRateNum = (Number) analysis.get("homeworkSubmitRate");
+        if (hwRateNum != null && hwRateNum.intValue() < 80) {
             suggestions.add("作业提交率偏低，建议按时完成作业");
         }
-        if ((Integer) analysis.get("attendanceRate") < 90) {
+        Number atRateNum2 = (Number) analysis.get("attendanceRate");
+        if (atRateNum2 != null && atRateNum2.intValue() < 90) {
             suggestions.add("出勤率有待提高，建议尽量不缺勤");
         }
-        if ((Integer) behavior.getOrDefault("raiseHandCount", 0) < 3) {
+        Number raiseNum = (Number) behavior.getOrDefault("raiseHandCount", 0);
+        if (raiseNum.intValue() < 3) {
             suggestions.add("课堂互动较少，建议积极举手参与课堂");
         }
         if (suggestions.isEmpty()) {
