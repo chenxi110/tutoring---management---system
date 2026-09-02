@@ -1,6 +1,7 @@
 package com.skt.controller;
 
 import com.skt.security.RoleAccess;
+import com.skt.service.AuthService;
 import com.skt.service.ScheduleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,8 @@ public class ScheduleController {
 
     @Autowired
     private ScheduleService scheduleService;
+    @Autowired
+    private AuthService authService;
 
     @GetMapping("/schedules")
     public Map<String, Object> list(@RequestParam(required = false) Long classId,
@@ -45,11 +48,26 @@ public class ScheduleController {
 
     @GetMapping("/schedules/child")
     public Map<String, Object> childSchedules(HttpServletRequest req) {
-        if (!RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("仅家长账号可查看孩子课表");
+        Long userId = (Long) req.getAttribute("userId");
+        List<Map<String, Object>> list;
+        if (RoleAccess.isStudent(req)) {
+            // 学生：按本人 students.user_id 严格隔离
+            Map<String, Object> stu = authService.getStudentRowByUserId(userId);
+            if (stu == null) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("code", 404);
+                err.put("msg", "未找到您的学生档案，请联系教师或家长确认绑定");
+                return err;
+            }
+            Long sid = ((Number) stu.get("id")).longValue();
+            Object cidObj = stu.get("class_id");
+            Long cid = cidObj == null ? null : ((Number) cidObj).longValue();
+            list = scheduleService.studentSchedules(sid, cid);
+        } else if (RoleAccess.isParent(req)) {
+            list = scheduleService.childSchedules(userId);
+        } else {
+            return RoleAccess.forbidParentWrite("仅家长/学生账号可查看课表");
         }
-        Long parentId = (Long) req.getAttribute("userId");
-        List<Map<String, Object>> list = scheduleService.childSchedules(parentId);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         result.put("data", list);

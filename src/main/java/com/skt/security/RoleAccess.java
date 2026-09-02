@@ -24,6 +24,11 @@ public final class RoleAccess {
         return "parent".equals(role == null ? null : role.toString());
     }
 
+    public static boolean isStudent(HttpServletRequest req) {
+        Object role = req == null ? null : req.getAttribute("role");
+        return "student".equals(role == null ? null : role.toString());
+    }
+
     public static Map<String, Object> forbidParentWrite(String message) {
         Map<String, Object> result = new HashMap<>();
         result.put("code", 403);

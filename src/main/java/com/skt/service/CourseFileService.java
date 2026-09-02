@@ -87,7 +87,7 @@ public class CourseFileService {
 
     // ==================== 学生提交作业 ====================
 
-    public Map<String, Object> uploadStudentWork(MultipartFile file, Long classId, Long studentId, Long parentId, String parentName) {
+    public Map<String, Object> uploadStudentWork(MultipartFile file, Long classId, Long studentId, Long userId, String userName, String role) {
         Map<String, Object> result = new HashMap<>();
         String validation = validateFile(file);
         if (validation != null) {
@@ -95,11 +95,19 @@ public class CourseFileService {
             result.put("error", validation);
             return result;
         }
-        // 校验：该学生是否属于当前家长且属于该班级（students表用 parent_user_id）
-        Integer ownCount = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM students WHERE id=? AND parent_user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",
-            Integer.class, studentId, parentId, classId
-        );
+        // 校验：家长可代孩子提交（parent_user_id），学生只能本人提交（user_id 严格隔离）
+        Integer ownCount;
+        if ("student".equalsIgnoreCase(role)) {
+            ownCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM students WHERE id=? AND user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                Integer.class, studentId, userId, classId
+            );
+        } else {
+            ownCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM students WHERE id=? AND parent_user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                Integer.class, studentId, userId, classId
+            );
+        }
         if (ownCount == null || ownCount == 0) {
             result.put("code", 403);
             result.put("error", "无权为该学生提交作业");
@@ -127,9 +135,11 @@ public class CourseFileService {
             );
             Long fileId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
-            // 通知教师：有学生提交了作业
+            // 通知教师：有学生提交了作业（家长代交以家长身份，学生本人提交以学生身份）
+            String fromRole = "student".equalsIgnoreCase(role) ? "student" : "parent";
+            String fromName = userName != null ? userName : (fromRole.equals("student") ? studentName : "家长");
             messageService.sendMessage(
-                parentId, parentName != null ? parentName : "家长", "parent",
+                userId, fromName, fromRole,
                 "学生提交作业", studentName + " 提交了作业：" + file.getOriginalFilename(),
                 studentId, classId, teacherId, "notice"
             );
@@ -152,6 +162,22 @@ public class CourseFileService {
      * - 家长：可见教师课件 + 自己孩子提交的作业（看不到其他同学）
      */
     public List<Map<String, Object>> listByClassId(Long classId, Long userId, String role) {
+        if ("student".equalsIgnoreCase(role)) {
+            // 学生：可见教师课件 + 本人提交的作业（按 students.user_id 隔离，看不到其他同学）
+            return jdbc.queryForList(
+                "SELECT cf.*, " +
+                "CASE WHEN cf.is_teacher_upload=1 THEN u.display_name ELSE s.name END as uploader_name, " +
+                "s.name as student_name " +
+                "FROM course_file cf " +
+                "LEFT JOIN users u ON u.id=cf.teacher_id " +
+                "LEFT JOIN students s ON s.id=cf.student_id " +
+                "WHERE cf.class_id=? AND (" +
+                "  cf.is_teacher_upload=1 " +
+                "  OR cf.student_id IN (SELECT id FROM students WHERE user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0))" +
+                ") ORDER BY cf.upload_time DESC",
+                classId, userId, classId
+            );
+        }
         if ("parent".equalsIgnoreCase(role)) {
             return jdbc.queryForList(
                 "SELECT cf.*, " +
@@ -200,7 +226,24 @@ public class CourseFileService {
         boolean isTeacherUpload = fileRecord.get("is_teacher_upload") != null
             && ((Number) fileRecord.get("is_teacher_upload")).intValue() == 1;
 
-        if ("parent".equalsIgnoreCase(role)) {
+        if ("student".equalsIgnoreCase(role)) {
+            // 学生：本人必须在班级；作业只能下载本人提交的
+            List<Map<String, Object>> self = jdbc.queryForList(
+                "SELECT id FROM students WHERE user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                userId, classId
+            );
+            if (self.isEmpty()) {
+                return forbidden("无权下载此文件：您不在该班级");
+            }
+            if (!isTeacherUpload) {
+                Long fileStudentId = fileRecord.get("student_id") != null
+                    ? ((Number) fileRecord.get("student_id")).longValue() : null;
+                long myStudentId = ((Number) self.get(0).get("id")).longValue();
+                if (fileStudentId == null || fileStudentId != myStudentId) {
+                    return forbidden("只能下载自己提交的作业文件");
+                }
+            }
+        } else if ("parent".equalsIgnoreCase(role)) {
             // 家长：必须有孩子在该班级
             List<Map<String, Object>> children = jdbc.queryForList(
                 "SELECT id FROM students WHERE parent_user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",

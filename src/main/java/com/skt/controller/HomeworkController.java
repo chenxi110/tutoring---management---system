@@ -1,6 +1,7 @@
 package com.skt.controller;
 
 import com.skt.security.RoleAccess;
+import com.skt.service.AuthService;
 import com.skt.service.HomeworkService;
 import com.skt.util.ExcelExportUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,8 @@ public class HomeworkController {
 
     @Autowired
     private HomeworkService homeworkService;
+    @Autowired
+    private AuthService authService;
 
     @GetMapping("/homework")
     public Map<String, Object> list(@RequestParam(required = false) Long classId, HttpServletRequest req) {
@@ -61,11 +64,26 @@ public class HomeworkController {
 
     @GetMapping("/homework/my")
     public Map<String, Object> listMy(HttpServletRequest req) {
-        if (!RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("仅家长账号可查看关联学生作业");
+        Long userId = (Long) req.getAttribute("userId");
+        List<Map<String, Object>> list;
+        if (RoleAccess.isStudent(req)) {
+            // 学生：按本人 students.user_id 隔离
+            Map<String, Object> stu = authService.getStudentRowByUserId(userId);
+            if (stu == null) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("code", 404);
+                err.put("msg", "未找到您的学生档案，请联系教师或家长确认绑定");
+                return err;
+            }
+            Long sid = ((Number) stu.get("id")).longValue();
+            Object cidObj = stu.get("class_id");
+            Long cid = cidObj == null ? null : ((Number) cidObj).longValue();
+            list = homeworkService.listForStudent(sid, cid);
+        } else if (RoleAccess.isParent(req)) {
+            list = homeworkService.listForParent(userId);
+        } else {
+            return RoleAccess.forbidParentWrite("仅家长/学生账号可查看作业");
         }
-        Long parentId = (Long) req.getAttribute("userId");
-        List<Map<String, Object>> list = homeworkService.listForParent(parentId);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         result.put("data", list);

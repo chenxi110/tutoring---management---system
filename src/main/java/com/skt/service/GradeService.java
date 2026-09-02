@@ -56,6 +56,17 @@ public class GradeService {
         return jdbc.queryForList(sql.toString(), params.toArray());
     }
 
+    public List<Map<String, Object>> listForStudent(Long studentId, Long classId, String examName, Long semesterId) {
+        StringBuilder sql = new StringBuilder("SELECT g.* FROM grades g WHERE g.student_id=?");
+        List<Object> params = new ArrayList<>();
+        params.add(studentId);
+        if (classId != null) { sql.append(" AND g.class_id=?"); params.add(classId); }
+        if (examName != null && !examName.trim().isEmpty()) { sql.append(" AND g.exam_name=?"); params.add(examName.trim()); }
+        if (semesterId != null) { sql.append(" AND g.semester_id=?"); params.add(semesterId); }
+        sql.append(" ORDER BY g.created_at DESC");
+        return jdbc.queryForList(sql.toString(), params.toArray());
+    }
+
     public Long create(Long studentId, String studentName, Long classId, String className,
                        String examName, String examType, Double score, Double totalScore,
                        Long semesterId, Long teacherId, String remark, Long rank) {

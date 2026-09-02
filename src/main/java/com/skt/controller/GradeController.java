@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.skt.security.RoleAccess;
+import com.skt.service.AuthService;
 import com.skt.service.GradeService;
 import com.skt.service.OperationLogService;
 import com.skt.util.ExcelExportUtil;
@@ -27,6 +28,8 @@ public class GradeController {
     private GradeService gradeService;
     @Autowired
     private OperationLogService operationLogService;
+    @Autowired
+    private AuthService authService;
 
     @GetMapping("/grades")
     public Map<String, Object> list(@RequestParam(required = false) Long classId,
@@ -49,10 +52,26 @@ public class GradeController {
                                        @RequestParam(required = false) String examName,
                                        @RequestParam(required = false) Long semesterId,
                                        HttpServletRequest req) {
-        if (!RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("仅家长账号可查看个人绑定学生成绩");
+        Long userId = (Long) req.getAttribute("userId");
+        if (RoleAccess.isStudent(req)) {
+            // 学生只能查看本人成绩（按 students.user_id 隔离）
+            Long selfStudentId = authService.getStudentIdByUserId(userId);
+            if (selfStudentId == null) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("code", 404);
+                err.put("msg", "未找到您的学生档案，请联系教师或家长确认绑定");
+                return err;
+            }
+            List<Map<String, Object>> list = gradeService.listForStudent(selfStudentId, classId, examName, semesterId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("data", list);
+            return result;
         }
-        Long parentId = (Long) req.getAttribute("userId");
+        if (!RoleAccess.isParent(req)) {
+            return RoleAccess.forbidParentWrite("仅家长/学生账号可查看个人成绩");
+        }
+        Long parentId = userId;
         List<Map<String, Object>> list = gradeService.listForParent(parentId, classId, studentId, examName, semesterId);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);

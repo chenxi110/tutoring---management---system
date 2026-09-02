@@ -92,11 +92,11 @@ public class AuthService {
                 return errorMap("角色不能为空");
             }
             String normalizedRole = role.trim();
-            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole)) {
+            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole) && !"student".equals(normalizedRole)) {
                 return errorMap("角色参数非法");
             }
-            if ("parent".equals(normalizedRole) && (displayName == null || displayName.trim().isEmpty())) {
-                return errorMap("家长角色必须填写显示名称");
+            if (("parent".equals(normalizedRole) || "student".equals(normalizedRole)) && (displayName == null || displayName.trim().isEmpty())) {
+                return errorMap("家长/学生角色必须填写显示名称");
             }
 
             String normalizedUsername = username.trim();
@@ -183,6 +183,24 @@ public class AuthService {
         return jdbc.queryForList(sql, parentId);
     }
 
+    /** 学生角色按 students.user_id 取本人记录（形状与家长 children 一致，便于前端复用家长页面） */
+    public List<Map<String, Object>> getSelfStudentChild(Long userId) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+        String sql = "SELECT s.id, s.name, s.class_id, s.parent_phone, s.status, " +
+                "c.name AS class_name, c.course AS class_course, c.teacher_id, " +
+                "u.display_name AS teacher_name " +
+                "FROM students s " +
+                "LEFT JOIN classes c ON c.id = s.class_id " +
+                "LEFT JOIN users u ON u.id = c.teacher_id " +
+                "WHERE s.user_id=?";
+        if (hasStudentSoftDeleteColumn()) {
+            sql += " AND (s.is_deleted IS NULL OR s.is_deleted = 0)";
+        }
+        return jdbc.queryForList(sql, userId);
+    }
+
     public Map<String, Object> bindParent(Long parentId, String studentName, String parentPhone) {
         try {
             if (parentId == null) {
@@ -245,6 +263,11 @@ public class AuthService {
             s.put("id", sid);
             s.put("name", student.get("name"));
             result.put("student", s);
+            // 自动为该学生创建 student 角色登录账号并写入 students.user_id（家长绑定孩子后孩子即可登录学生端）
+            Map<String, Object> stuAcc = ensureStudentAccountForStudent(sid, String.valueOf(student.get("name")));
+            if (stuAcc != null) {
+                result.put("studentAccount", stuAcc);
+            }
             result.put("msg", "绑定成功");
             log.info("家长绑定学生成功: parentId={}, studentId={}", parentId, sid);
             return result;
@@ -285,6 +308,170 @@ public class AuthService {
         } catch (Exception ex) {
             log.error("解绑学生失败: parentId={}, studentId={}, error={}", parentId, studentId, ex.getMessage(), ex);
             return errorMap("解绑失败：" + ex.getMessage());
+        }
+    }
+
+    // ==================== 学生账号自动创建 / 补建 / 删除 ====================
+
+    /** 为该学生确保存在一个 student 角色登录账号，并写入 students.user_id。
+     *  账号命名：stu_<学生ID>（清晰可辨且唯一）；初始密码 123456。
+     *  返回 {username, password, accountCreated, userId}；若已存在则返回既有账号且 accountCreated=false。 */
+    public Map<String, Object> ensureStudentAccountForStudent(Long studentId, String studentName) {
+        if (studentId == null) return null;
+        try {
+            List<Map<String, Object>> st = jdbc.queryForList(
+                "SELECT user_id, phone FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
+            if (st.isEmpty()) return null;
+            Object existingUserId = st.get(0).get("user_id");
+            if (existingUserId != null) {
+                Long uid = ((Number) existingUserId).longValue();
+                List<Map<String, Object>> u = jdbc.queryForList("SELECT username FROM users WHERE id=?", uid);
+                if (!u.isEmpty()) {
+                    Map<String, Object> r = new HashMap<>();
+                    r.put("username", u.get(0).get("username"));
+                    r.put("password", null);
+                    r.put("accountCreated", false);
+                    r.put("userId", uid);
+                    return r;
+                }
+            }
+            String base = "stu_" + studentId;
+            String username = base;
+            Long uid = null;
+            List<Map<String, Object>> existing = jdbc.queryForList("SELECT id FROM users WHERE username=?", base);
+            if (!existing.isEmpty()) {
+                // 优先复用未被任何学生绑定的 student 角色遗留账号（解绑后遗留）
+                List<Map<String, Object>> reusable = jdbc.queryForList(
+                    "SELECT id FROM users WHERE username=? AND role='student' AND " +
+                    "id NOT IN (SELECT user_id FROM students WHERE user_id IS NOT NULL AND (is_deleted IS NULL OR is_deleted=0))",
+                    base);
+                if (!reusable.isEmpty()) {
+                    uid = ((Number) reusable.get(0).get("id")).longValue();
+                } else {
+                    for (int i = 1; i < 100; i++) {
+                        String cand = base + "_" + i;
+                        List<Map<String, Object>> dup = jdbc.queryForList("SELECT id FROM users WHERE username=?", cand);
+                        if (dup.isEmpty()) { username = cand; break; }
+                    }
+                }
+            }
+            if (uid == null) {
+                String phone = st.get(0).get("phone") == null ? null : String.valueOf(st.get(0).get("phone"));
+                String hash = encoder.encode("123456");
+                jdbc.update("INSERT INTO users (username, password_hash, role, display_name, phone, status) VALUES (?,?,?,?,?,1)",
+                    username, hash, "student", studentName == null ? "" : studentName, phone);
+                uid = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("自动创建学生账号: studentId={}, username={}", studentId, username);
+            }
+            jdbc.update("UPDATE students SET user_id=? WHERE id=?", uid, studentId);
+            Map<String, Object> r = new HashMap<>();
+            r.put("username", username);
+            r.put("password", "123456");
+            r.put("accountCreated", true);
+            r.put("userId", uid);
+            return r;
+        } catch (Exception e) {
+            log.error("自动创建学生账号失败: studentId={}, error={}", studentId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /** 为「已绑定家长但尚无学生账号」的存量学生补建 student 账号（仅管理员） */
+    public Map<String, Object> backfillStudentAccounts(Long operatorId, String operatorRole) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (operatorId == null) return errorMap("未登录，无法操作");
+            if (!"admin".equals(operatorRole)) {
+                result.put("code", 403);
+                result.put("error", "无权限：仅管理员可执行学生账号补建");
+                result.put("msg", "无权限：仅管理员可执行学生账号补建");
+                return result;
+            }
+            List<Map<String, Object>> targets = jdbc.queryForList(
+                "SELECT id, name FROM students WHERE parent_user_id IS NOT NULL AND user_id IS NULL " +
+                "AND (is_deleted IS NULL OR is_deleted=0) ORDER BY id");
+            List<Map<String, Object>> created = new ArrayList<>();
+            int skipped = 0;
+            for (Map<String, Object> t : targets) {
+                Long sid = ((Number) t.get("id")).longValue();
+                Map<String, Object> acc = ensureStudentAccountForStudent(sid, String.valueOf(t.get("name")));
+                if (acc == null) { skipped++; continue; }
+                Map<String, Object> item = new HashMap<>();
+                item.put("studentId", sid);
+                item.put("studentName", t.get("name"));
+                item.put("username", acc.get("username"));
+                item.put("password", acc.get("password"));
+                item.put("accountCreated", acc.get("accountCreated"));
+                created.add(item);
+            }
+            result.put("code", 200);
+            result.put("data", created);
+            result.put("count", created.size());
+            result.put("skipped", skipped);
+            result.put("msg", "学生账号补建完成，共补建 " + created.size() + " 个账号");
+            operationLogService.log(operatorId, "operator_" + operatorId, operatorRole, "学生账号补建",
+                "为已绑定家长但无账号的存量学生补建账号 " + created.size() + " 个", null);
+            return result;
+        } catch (Exception e) {
+            log.error("学生账号补建失败: operatorId={}, error={}", operatorId, e.getMessage(), e);
+            return errorMap("学生账号补建失败：" + e.getMessage());
+        }
+    }
+
+    // 删除用户（仅 admin，不可删除 admin 与自身；同步清理 students.user_id 引用）
+    public Map<String, Object> deleteUser(Long targetUserId, Long operatorId, String operatorRole) {
+        try {
+            if (operatorId == null) return errorMap("未登录，无法操作");
+            if (!"admin".equals(operatorRole)) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：仅管理员可删除用户");
+                r.put("msg", "无权限：仅管理员可删除用户");
+                return r;
+            }
+            if (targetUserId == null) return errorMap("缺少用户ID");
+            if (targetUserId.equals(operatorId)) return errorMap("不能删除管理员自己");
+            List<Map<String, Object>> users = jdbc.queryForList("SELECT id, username, role FROM users WHERE id=?", targetUserId);
+            if (users.isEmpty()) return errorMap("用户不存在");
+            String curRole = users.get(0).get("role") == null ? "" : String.valueOf(users.get(0).get("role"));
+            if ("admin".equals(curRole)) return errorMap("管理员账号不可删除");
+            // 清理学生绑定引用
+            jdbc.update("UPDATE students SET user_id=NULL WHERE user_id=? AND (is_deleted IS NULL OR is_deleted=0)", targetUserId);
+            jdbc.update("DELETE FROM users WHERE id=?", targetUserId);
+            operationLogService.log(operatorId, "operator_" + operatorId, operatorRole, "删除用户",
+                "删除用户 ID=" + targetUserId + " username=" + users.get(0).get("username") + " role=" + curRole, null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "用户已删除");
+            log.info("管理员删除用户: operatorId={}, targetUserId={}", operatorId, targetUserId);
+            return result;
+        } catch (Exception ex) {
+            log.error("删除用户失败: operatorId={}, targetUserId={}, error={}", operatorId, targetUserId, ex.getMessage(), ex);
+            return errorMap("删除用户失败：" + ex.getMessage());
+        }
+    }
+
+    /** 根据学生账号(user_id)解析对应 students.id */
+    public Long getStudentIdByUserId(Long userId) {
+        if (userId == null) return null;
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id FROM students WHERE user_id=? AND (is_deleted IS NULL OR is_deleted=0) LIMIT 1", userId);
+            return rows.isEmpty() ? null : ((Number) rows.get(0).get("id")).longValue();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 根据学生账号(user_id)返回 students 行（id/name/class_id 等），用于学生端数据隔离 */
+    public Map<String, Object> getStudentRowByUserId(Long userId) {
+        if (userId == null) return null;
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, name, class_id FROM students WHERE user_id=? AND (is_deleted IS NULL OR is_deleted=0) LIMIT 1", userId);
+            return rows.isEmpty() ? null : rows.get(0);
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -521,7 +708,7 @@ public class AuthService {
                 return errorMap("管理员账号不可编辑");
             }
             String normalizedRole = role == null || role.trim().isEmpty() ? curRole : role.trim();
-            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole)) {
+            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole) && !"student".equals(normalizedRole)) {
                 return errorMap("角色参数非法");
             }
             String normalizedDisplayName = displayName == null ? "" : displayName.trim();

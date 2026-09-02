@@ -66,15 +66,16 @@ public class CourseFileController {
             @RequestParam("classId") Long classId,
             @RequestParam("studentId") Long studentId,
             HttpServletRequest req) {
-        if (!RoleAccess.isParent(req)) {
+        if (!RoleAccess.isParent(req) && !RoleAccess.isStudent(req)) {
             Map<String, Object> err = new HashMap<>();
             err.put("code", 403);
-            err.put("error", "仅家长账号可提交作业文件");
+            err.put("error", "仅家长或学生本人可提交作业文件");
             return err;
         }
-        Long parentId = RoleAccess.getUserId(req);
-        String parentName = (String) req.getAttribute("displayName");
-        return courseFileService.uploadStudentWork(file, classId, studentId, parentId, parentName);
+        Long userId = RoleAccess.getUserId(req);
+        String userName = (String) req.getAttribute("displayName");
+        String role = (String) req.getAttribute("role");
+        return courseFileService.uploadStudentWork(file, classId, studentId, userId, userName, role);
     }
 
     /**

@@ -40,6 +40,20 @@ public class HomeworkService {
         return jdbc.queryForList(sql, parentId);
     }
 
+    /** 学生端「我的作业」：按 students.user_id 隔离，只返回本人班级作业并带本人提交/批改状态 */
+    public List<Map<String, Object>> listForStudent(Long studentId, Long classId) {
+        if (classId == null) return Collections.emptyList();
+        return jdbc.queryForList(
+            "SELECT DISTINCT h.*, c.name AS class_name, " +
+            "hs.content AS submit_content, hs.score AS submit_score, hs.comment AS submit_comment, " +
+            "hs.submitted_at, hs.graded_at, " +
+            "CASE WHEN hs.id IS NULL THEN 0 ELSE 1 END AS submitted " +
+            "FROM homework h " +
+            "LEFT JOIN classes c ON h.class_id = c.id " +
+            "LEFT JOIN homework_submissions hs ON hs.homework_id=h.id AND hs.student_id=? " +
+            "WHERE h.class_id=? ORDER BY h.created_at DESC", studentId, classId);
+    }
+
     public Long create(Long classId, String title, String content, String deadline, Long createdBy) {
         jdbc.update("INSERT INTO homework (class_id, title, content, deadline, created_by) VALUES (?,?,?,?,?)",
             classId, title, content != null ? content : "", deadline != null ? deadline : "", createdBy);

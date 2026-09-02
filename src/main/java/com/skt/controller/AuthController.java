@@ -55,12 +55,36 @@ public class AuthController {
 
     @GetMapping("/parent/children")
     public Map<String, Object> parentChildren(HttpServletRequest req) {
-        Long parentId = (Long) req.getAttribute("userId");
-        List<Map<String, Object>> children = authService.getParentChildren(parentId);
+        String role = (String) req.getAttribute("role");
+        Long uid = (Long) req.getAttribute("userId");
+        List<Map<String, Object>> children;
+        if ("student".equals(role)) {
+            // 学生角色：返回本人记录，形状与家长 children 一致
+            children = authService.getSelfStudentChild(uid);
+        } else {
+            children = authService.getParentChildren(uid);
+        }
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         result.put("data", children);
         return result;
+    }
+
+    // 管理员为学生账号补建（仅 admin；为已绑定家长但无账号的存量学生自动创建账号）
+    @PostMapping("/student/backfill")
+    public Map<String, Object> backfillStudentAccounts(HttpServletRequest req) {
+        return authService.backfillStudentAccounts((Long) req.getAttribute("userId"), (String) req.getAttribute("role"));
+    }
+
+    // 管理员删除用户（仅 admin）
+    @PostMapping("/user/delete")
+    public Map<String, Object> deleteUser(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Long targetUserId = null;
+        if (body != null && body.get("userId") != null) {
+            try { targetUserId = Long.valueOf(String.valueOf(body.get("userId"))); }
+            catch (NumberFormatException e) { targetUserId = null; }
+        }
+        return authService.deleteUser(targetUserId, (Long) req.getAttribute("userId"), (String) req.getAttribute("role"));
     }
 
     @PostMapping("/parent/bind")

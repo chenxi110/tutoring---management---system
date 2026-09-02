@@ -42,6 +42,17 @@ public class ScheduleService {
             parentId);
     }
 
+    /** 学生课表：按本人 students.user_id 严格隔离，只返回本人班级课程 */
+    public List<Map<String, Object>> studentSchedules(Long studentId, Long classId) {
+        if (classId == null) return Collections.emptyList();
+        return jdbc.queryForList(
+            "SELECT s.*, c.name as class_name, c.course, st.name as student_name " +
+            "FROM schedules s JOIN classes c ON s.class_id=c.id " +
+            "JOIN students st ON st.id=? " +
+            "WHERE s.class_id=? ORDER BY s.weekday, s.start_time",
+            studentId, classId);
+    }
+
     public Map<String, Object> nextClass(Long userId, String role) {
         Calendar now = Calendar.getInstance();
         int currentWeekday = now.get(Calendar.DAY_OF_WEEK) - 1;
@@ -54,6 +65,12 @@ public class ScheduleService {
                 "SELECT s.*, c.name as class_name, c.course, " +
                 "(SELECT COUNT(*) FROM students WHERE class_id=c.id AND status='active') as student_count " +
                 "FROM schedules s JOIN classes c ON s.class_id=c.id WHERE s.teacher_id=?", userId);
+        } else if ("student".equals(role)) {
+            // 学生：按 students.user_id 隔离，只看本人所在班级的课
+            schedules = jdbc.queryForList(
+                "SELECT s.*, c.name as class_name, c.course, st.name as student_name " +
+                "FROM schedules s JOIN classes c ON s.class_id=c.id " +
+                "JOIN students st ON st.class_id=c.id WHERE st.user_id=? AND st.status='active'", userId);
         } else {
             schedules = jdbc.queryForList(
                 "SELECT s.*, c.name as class_name, c.course, st.name as student_name " +

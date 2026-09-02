@@ -1,5 +1,7 @@
 package com.skt.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -25,21 +27,58 @@ public class StudentService {
     // 获取学生成绩列表
     public List<Map<String, Object>> getStudentGrades(Long studentId) {
         return jdbc.queryForList(
-            "SELECT * FROM grades WHERE student_id=? ORDER BY created_at DESC", studentId);
+            "SELECT g.*, c.name as class_name FROM grades g LEFT JOIN classes c ON c.id=g.class_id " +
+            "WHERE g.student_id=? ORDER BY g.created_at DESC", studentId);
     }
 
     // 获取学生作业列表
     public List<Map<String, Object>> getStudentHomework(Long studentId, Long classId) {
         return jdbc.queryForList(
-            "SELECT h.*, hs.content as submit_content, hs.score, hs.comment, hs.submitted_at, hs.graded_at " +
-            "FROM homework h LEFT JOIN homework_submissions hs ON hs.homework_id=h.id AND hs.student_id=? " +
+            "SELECT h.*, c.name as class_name, hs.content as submit_content, hs.score, hs.comment, hs.submitted_at, hs.graded_at, " +
+            "CASE WHEN hs.id IS NULL THEN 0 ELSE 1 END as submitted " +
+            "FROM homework h LEFT JOIN classes c ON c.id=h.class_id " +
+            "LEFT JOIN homework_submissions hs ON hs.homework_id=h.id AND hs.student_id=? " +
             "WHERE h.class_id=? ORDER BY h.created_at DESC", studentId, classId);
     }
 
-    // 获取学生出勤记录
+    // 获取学生出勤记录（按学生班级查询 records，结合 absent_json 判定缺勤/补课状态）
     public List<Map<String, Object>> getStudentAttendance(Long studentId) {
-        return jdbc.queryForList(
-            "SELECT * FROM records WHERE student_id=? ORDER BY date DESC", studentId);
+        List<Map<String, Object>> st = jdbc.queryForList(
+            "SELECT name, class_id FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
+        if (st.isEmpty()) return Collections.emptyList();
+        String studentName = String.valueOf(st.get(0).get("name"));
+        Object cid = st.get(0).get("class_id");
+        List<Map<String, Object>> records;
+        if (cid != null) {
+            records = jdbc.queryForList(
+                "SELECT * FROM records WHERE class_id=? OR (class_id IS NULL AND class_name=?) ORDER BY date DESC",
+                cid, studentName);
+        } else {
+            records = jdbc.queryForList("SELECT * FROM records WHERE class_name=? ORDER BY date DESC", studentName);
+        }
+        ObjectMapper om = new ObjectMapper();
+        for (Map<String, Object> r : records) {
+            boolean absent = false;
+            boolean madeUp = false;
+            Object aj = r.get("absent_json");
+            if (aj != null && String.valueOf(aj).length() > 0) {
+                try {
+                    List<Map<String, Object>> arr = om.readValue(String.valueOf(aj),
+                        new TypeReference<List<Map<String, Object>>>() {});
+                    for (Map<String, Object> item : arr) {
+                        if (studentName.equals(String.valueOf(item.get("name")))) {
+                            absent = true;
+                            madeUp = Boolean.TRUE.equals(item.get("madeUp"));
+                            break;
+                        }
+                    }
+                } catch (Exception ignore) { }
+            }
+            r.put("is_absent", absent);
+            r.put("is_made_up", madeUp);
+            r.put("attended", !absent);
+        }
+        return records;
     }
 
     // 获取学生课堂行为统计
