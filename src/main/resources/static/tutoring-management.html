@@ -120,30 +120,34 @@
         .batch-toolbar-label { font-size: 12px; color: var(--text-secondary); margin-right: 4px; }
 
         /* ===== 学生名单管理 UI 增强 ===== */
-        #page-students .student-class-card { background: #fff; border: 1px solid #edf0f4; box-shadow: 0 1px 6px rgba(30,60,120,0.06); border-radius: 12px; padding: 18px 20px; transition: box-shadow .2s ease; }
+        #page-students .student-class-card { background: #fff; border: 1px solid #edf0f4; box-shadow: 0 1px 6px rgba(30,60,120,0.06); border-radius: 12px; padding: 20px 22px; transition: box-shadow .2s ease; }
         #page-students .student-class-card:hover { box-shadow: 0 4px 16px rgba(30,60,120,0.10); }
-        #page-students .student-class-header { border-bottom: 2px solid #eef2f8; }
-        #page-students .batch-toolbar { background: #f6f9ff; border: 1px solid #e6ecf8; border-radius: 8px; padding: 8px 12px; gap: 10px; }
+        #page-students .student-class-header { border-bottom: 2px solid #eef2f8; margin-bottom: 14px; }
+        #page-students .batch-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 14px; background: #f6f9ff; border: 1px solid #e6ecf8; border-radius: 8px; margin-bottom: 12px; }
         .batch-toolbar-divider { width: 1px; height: 18px; background: #dfe6f0; }
-        .batch-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .batch-btn { background: #fff; border: 1px solid #d9dee8; color: #3c4a5e; border-radius: 6px; padding: 5px 14px; font-size: 13px; transition: all .15s ease; }
+        .batch-toolbar-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        .batch-btn { height: 32px; padding: 0 16px; display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid #d9dee8; color: #3c4a5e; border-radius: 8px; font-size: 13px; line-height: 1; transition: all .15s ease; cursor: pointer; }
         .batch-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: #f0f7ff; }
-        .batch-btn:disabled { opacity: .5; cursor: not-allowed; background: #f5f6f8; }
-        .batch-btn-danger { color: #ff4d4f; border-color: #ffd0cf; }
-        .batch-btn-danger:hover:not(:disabled) { border-color: #ff4d4f; color: #ff4d4f; background: #fff1f0; }
-        #page-students .student-item { padding: 10px 8px; border-radius: 6px; }
+        .batch-btn:disabled { opacity: .45; cursor: not-allowed; background: #f6f7f9; }
+        .batch-btn-danger { color: #e5484d; border-color: #f3c0c0; background: #fffafb; }
+        .batch-btn-danger:hover:not(:disabled) { border-color: #e5484d; color: #e5484d; background: #fff1f0; }
+        #page-students .student-item { padding: 12px 10px; border-radius: 8px; }
         #page-students .student-item:hover { background: #f6f9ff; }
-        .student-item-actions { display: flex; gap: 8px; }
-        .student-btn { background: #fff; border: 1px solid #d9dee8; color: #3c4a5e; border-radius: 6px; padding: 4px 12px; font-size: 13px; transition: all .15s ease; }
+        .student-item-actions { display: flex; gap: 10px; }
+        .student-btn { height: 30px; padding: 0 14px; display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid #d9dee8; color: #3c4a5e; border-radius: 8px; font-size: 13px; line-height: 1; transition: all .15s ease; cursor: pointer; }
         .student-btn:hover { border-color: var(--primary); color: var(--primary); background: #f0f7ff; }
         .student-btn-purple { color: #722ed1; border-color: #d3c0ee; }
         .student-btn-purple:hover { border-color: #722ed1; color: #722ed1; background: #f9f0ff; }
-        #page-students .batch-import { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 12px; background: #fafbfc; border: 1px dashed #dde3ec; border-radius: 8px; }
-        .import-btn { background: #fff; border: 1px solid #d9dee8; color: #3c4a5e; border-radius: 6px; padding: 6px 14px; font-size: 13px; transition: all .15s ease; }
+        #page-students .batch-import { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; background: #fafbfc; border: 1px dashed #dde3ec; border-radius: 10px; }
+        .import-btn { height: 34px; padding: 0 16px; display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid #d9dee8; color: #3c4a5e; border-radius: 8px; font-size: 13px; line-height: 1; transition: all .15s ease; cursor: pointer; }
         .import-btn:hover { border-color: var(--primary); color: var(--primary); background: #f0f7ff; }
         .import-btn-warn { color: #d48806; border-color: #f0d9a5; }
         .import-btn-warn:hover { border-color: #faad14; color: #faad14; background: #fffbe6; }
         #page-students .student-count-badge { background: #eef4ff; color: var(--primary); font-weight: 600; }
+        #page-students .student-list-container { padding: 4px; }
+        #page-students .student-name { font-size: 14px; font-weight: 500; color: #2c3a50; }
+        #page-students .student-checkbox { width: 17px; height: 17px; }
+        #page-students .select-all-wrapper { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #3c4a5e; cursor: pointer; user-select: none; }
         .batch-toolbar .btn { font-size: 12px; padding: 4px 10px; }
         .batch-toolbar .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .select-all-wrapper { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-secondary); }
