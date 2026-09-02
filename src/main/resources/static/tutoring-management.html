@@ -879,7 +879,7 @@ body {
                 <!-- 用户管理（仅管理员可见，admin 专属页面） -->
                 <div class="card" id="userManagementCard">
                     <div class="card-header"><h3 class="card-title">👥 用户管理</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" onclick="openAddUserModal()">+ 新增用户</button><button class="btn btn-sm btn-success" onclick="backfillStudentAccounts()">补建学生账号</button><button class="btn btn-sm btn-secondary" onclick="loadUserList()">刷新</button></div></div>
-                    <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可管理全部教师/家长/学生账号：新增、编辑、禁用/启用、重置密码（初始密码123456）、删除。「补建学生账号」为已绑定家长但尚无账号的存量学生自动创建 student 登录账号。</div>
+                    <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可管理全部教师/家长/学生账号：新增、编辑、禁用/启用、重置密码（123456）、自定义修改密码、删除。「补建学生账号」为已绑定家长但尚无账号的存量学生自动创建 student 登录账号。</div>
                     <div class="table-wrapper"><table><thead><tr><th>ID</th><th>账号</th><th>姓名</th><th>角色</th><th>手机号</th><th>状态</th><th>操作</th></tr></thead><tbody id="userListTableBody"></tbody></table></div>
                 </div>
             </div>
@@ -7706,7 +7706,7 @@ async function loadUserList(){
                 }else{
                     opBtns+='<button class="btn btn-sm btn-secondary" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-dname="'+escapeAttr(u.display_name||u.displayName||'')+'" data-phone="'+escapeAttr(u.phone||'')+'" data-role="'+u.role+'" onclick="openEditUserModal(this)">编辑</button> ';
                     opBtns+='<button class="btn btn-sm '+(u.status===0?'btn-success':'btn-danger')+'" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-st="'+(u.status===0?0:1)+'" onclick="confirmToggleUser(this)">'+(u.status===0?'启用':'禁用')+'</button> ';
-                    opBtns+='<button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="resetUserPassword(this)">重置密码</button> ';
+                    opBtns+='<button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="showAdminSetPwdModal(this)">修改密码</button> <button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="resetUserPassword(this)">重置密码</button> ';
                     opBtns+='<button class="btn btn-sm btn-danger" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="deleteUserAccount(this)">删除</button>';
                 }
                 return `<tr>
@@ -9419,7 +9419,46 @@ function showLeaderboard(type){
 const AI_API_BASE='/api';
 let currentChatSessionId=null;
 
-function getAIUrl(endpoint){return AI_API_BASE+endpoint;}
+function getAIUrl(endpoint){return AI_API_BASE+endpoint;}  
+  function showAdminSetPwdModal(btn){ 
+      const userId=btn.getAttribute('data-uid'); 
+      const uname=btn.getAttribute('data-uname')||''; 
+      const modal=document.createElement('div'); 
+      modal.className='modal-overlay active'; 
+      modal.innerHTML=`<div class="modal" style="max-width:420px;"> 
+          <div class="modal-header"><h3 class="modal-title">修改用户密码</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div> 
+          <div class="modal-body"> 
+              <div style="font-size:13px;color:#666;margin-bottom:14px;">为账号「<b>${escapeHtml(uname)}</b>」设置新密码（至少6位），修改后该用户需用新密码登录。</div> 
+              <div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">新密码</label><input type="password" id="aspNew" class="form-control" placeholder="至少6位"></div> 
+              <div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">确认新密码</label><input type="password" id="aspConfirm" class="form-control" placeholder="请再次输入"></div> 
+              <input type="hidden" id="aspUid" value="${userId}"> 
+          </div> 
+          <div class="modal-footer"> 
+              <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">取消</button> 
+              <button class="btn btn-primary" onclick="submitAdminSetPwd()">确认修改</button> 
+          </div> 
+      </div>`; 
+      document.body.appendChild(modal); 
+  } 
+  async function submitAdminSetPwd(){ 
+      const userId=document.getElementById('aspUid').value; 
+      const newP=document.getElementById('aspNew').value; 
+      const conf=document.getElementById('aspConfirm').value; 
+      if(!newP||!conf){showToast('请填写完整密码','error');return;} 
+      if(newP.length<6){showToast('新密码至少6位','error');return;} 
+      if(newP!==conf){showToast('两次输入的新密码不一致','error');return;} 
+      try{ 
+          const res=await apiService.adminSetPassword(userId,newP); 
+          if(res&&res.code===200){ 
+              showToast('密码修改成功','success'); 
+              const ov=document.querySelector('.modal-overlay.active'); if(ov)ov.remove(); 
+              logOperation('修改密码','用户ID:'+userId); 
+          }else{ 
+              showToast((res&&(res.error||res.msg))||'修改失败','error'); 
+          } 
+      }catch(e){ showToast('修改失败：'+e.message,'error'); } 
+  } 
+
   function aiFetch(endpoint, options){
       options=options||{};
       options.headers=Object.assign({},options.headers||{},{'Authorization':'Bearer '+((window.apiService&&apiService.token)||localStorage.getItem('skt_token')||'')});
@@ -11736,16 +11775,37 @@ async function submitParentLeave(){
 async function loadParentProfile(){
     const body=document.getElementById('parentProfileBody');
     if(!body)return;
-    body.innerHTML='<div style="max-width:440px;">'
+    let children=[];
+    try{ const r=await apiService.getParentChildrenAccounts(); if(r&&r.code===200&&r.data) children=r.data; }catch(e){}
+    let childHtml='<div style="text-align:center;color:#999;padding:14px;">暂无绑定孩子，请先在「绑定孩子」中添加</div>';
+    if(children.length>0){
+        childHtml='<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            +'<thead><tr style="text-align:left;color:#666;"><th style="padding:8px;border-bottom:1px solid #eee;">孩子</th><th style="padding:8px;border-bottom:1px solid #eee;">学生账号</th><th style="padding:8px;border-bottom:1px solid #eee;width:110px;">操作</th></tr></thead><tbody>'
+            +children.map(function(c){
+                const hasAcc=c.accountExists;
+                const acctCell=hasAcc?'<span style="font-family:monospace;font-weight:600;">'+escapeHtml(c.username||'')+'</span>':'<span style="color:#999;">未生成账号</span>';
+                const btn=hasAcc?'<button class="btn btn-sm btn-primary" onclick="showChildAccountModal('+c.studentId+',\''+escapeAttr(c.name||'')+'\')">账号管理</button>':'<span style="color:#999;font-size:12px;">需重新绑定生成</span>';
+                return '<tr><td style="padding:8px;border-bottom:1px solid #f5f5f5;">'+escapeHtml(c.name||'')+'</td><td style="padding:8px;border-bottom:1px solid #f5f5f5;">'+acctCell+'</td><td style="padding:8px;border-bottom:1px solid #f5f5f5;">'+btn+'</td></tr>';
+            }).join('')+'</tbody></table>'
+            +'<div style="font-size:12px;color:#999;margin-top:8px;">密码加密存储无法明文显示；点击「账号管理」可查看账号或为孩子设置新密码。</div>';
+    }
+    body.innerHTML='<div style="max-width:860px;">'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;">'
+        +'<div class="card" style="padding:16px;">'
+        +'<h4 style="margin-bottom:12px;">孩子账号管理</h4>'
+        +childHtml
+        +'</div>'
+        +'<div class="card" style="padding:16px;">'
         +'<h4 style="margin-bottom:12px;">修改密码</h4>'
         +'<div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">旧密码</label><input type="password" id="ppOld" class="form-control" placeholder="请输入当前密码"></div>'
         +'<div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">新密码</label><input type="password" id="ppNew" class="form-control" placeholder="请输入新密码（至少6位）"></div>'
         +'<div style="margin-bottom:14px;"><label style="display:block;margin-bottom:6px;font-weight:600;">确认新密码</label><input type="password" id="ppConfirm" class="form-control" placeholder="请再次输入新密码"></div>'
         +'<button class="btn btn-primary" onclick="changeParentPassword()">确认修改</button>'
         +'<div style="margin-top:16px;font-size:12px;color:#999;">忘记密码？请联系机构管理员重置。</div>'
+        +'</div>'
+        +'</div>'
         +'</div>';
 }
-
 async function changeParentPassword(){
     const oldP=document.getElementById('ppOld').value;
     const newP=document.getElementById('ppNew').value;

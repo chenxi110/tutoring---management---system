@@ -690,6 +690,48 @@ public class AuthService {
         }
     }
 
+    // 管理员为指定用户设置自定义新密码（仅 admin）
+    public Map<String, Object> adminSetPassword(Long targetUserId, String newPassword, Long operatorId, String operatorRole) {
+        try {
+            if (operatorId == null) {
+                return errorMap("未登录，无法操作");
+            }
+            if (!"admin".equals(operatorRole)) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：仅管理员可修改用户密码");
+                r.put("msg", "无权限：仅管理员可修改用户密码");
+                return r;
+            }
+            if (targetUserId == null) {
+                return errorMap("缺少用户ID");
+            }
+            if (newPassword == null || newPassword.trim().isEmpty()) {
+                return errorMap("新密码不能为空");
+            }
+            if (newPassword.length() < 6) {
+                return errorMap("新密码至少6位");
+            }
+            List<Map<String, Object>> users = jdbc.queryForList("SELECT id, username, role FROM users WHERE id=?", targetUserId);
+            if (users.isEmpty()) {
+                return errorMap("用户不存在");
+            }
+            String hash = encoder.encode(newPassword);
+            jdbc.update("UPDATE users SET password_hash=? WHERE id=?", hash, targetUserId);
+            operationLogService.log(operatorId, "operator_" + operatorId, operatorRole, "修改密码",
+                "管理员为用户ID=" + targetUserId + "设置自定义新密码", null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "密码修改成功");
+            result.put("data", Map.of("userId", targetUserId, "username", users.get(0).get("username")));
+            log.info("管理员修改用户密码成功: operatorId={}, targetUserId={}", operatorId, targetUserId);
+            return result;
+        } catch (Exception ex) {
+            log.error("管理员修改用户密码失败: operatorId={}, targetUserId={}, error={}", operatorId, targetUserId, ex.getMessage(), ex);
+            return errorMap("修改密码失败：" + ex.getMessage());
+        }
+    }
+
     // 管理员新增用户（仅 admin）
     public Map<String, Object> createUser(String username, String password, String role, String displayName, String phone, Long operatorId, String operatorRole) {
         try {

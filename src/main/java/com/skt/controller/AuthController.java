@@ -169,6 +169,20 @@ public class AuthController {
         return authService.resetPassword(targetUserId, operatorId, operatorRole);
     }
 
+    // 管理员为指定用户设置自定义新密码（仅 admin）
+    @PostMapping("/user/adminSetPwd")
+    public Map<String, Object> adminSetPassword(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Long operatorId = (Long) req.getAttribute("userId");
+        String operatorRole = (String) req.getAttribute("role");
+        Long targetUserId = null;
+        if (body != null && body.get("userId") != null) {
+            try { targetUserId = Long.valueOf(String.valueOf(body.get("userId"))); }
+            catch (NumberFormatException e) { targetUserId = null; }
+        }
+        String newPassword = body != null && body.get("newPassword") != null ? String.valueOf(body.get("newPassword")) : null;
+        return authService.adminSetPassword(targetUserId, newPassword, operatorId, operatorRole);
+    }
+
     // 修改本人密码（所有角色）
     @PostMapping("/user/updateMyPwd")
     public Map<String, Object> updateMyPassword(@RequestBody Map<String, Object> body, HttpServletRequest req) {

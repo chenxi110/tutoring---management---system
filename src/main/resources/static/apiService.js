@@ -149,7 +149,7 @@ class ApiService {
     // 管理员为存量绑定学生补建学生账号（仅 admin）
     async backfillStudentAccounts() { return this.request('POST', '/student/backfill', {}); }
     // 管理员删除用户（仅 admin）
-    async deleteUser(userId) { return this.request('POST', '/user/delete', { userId: userId }); }
+    async deleteUser(userId) { return this.request('POST', '/user/delete', { userId: userId }); } async adminSetPassword(userId, newPassword) { return this.request('POST', '/user/adminSetPwd', { userId: userId, newPassword: newPassword }); }
     // ===== 家长端 AI 学习助手 =====
     async parentAiChildren() { return this.request('GET', '/parent-ai/children'); }
     async parentAiOverview(studentId) { return this.request('GET', '/parent-ai/overview?studentId=' + studentId); }
