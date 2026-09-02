@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -875,8 +875,8 @@ body {
             <div class="page" id="page-users">
                 <!-- 用户管理（仅管理员可见，admin 专属页面） -->
                 <div class="card" id="userManagementCard">
-                    <div class="card-header"><h3 class="card-title">👥 用户管理</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" onclick="openAddUserModal()">+ 新增用户</button><button class="btn btn-sm btn-secondary" onclick="loadUserList()">刷新</button></div></div>
-                    <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可管理全部教师/家长账号：新增、编辑、禁用/启用、重置密码（初始密码123456）。</div>
+                    <div class="card-header"><h3 class="card-title">👥 用户管理</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" onclick="openAddUserModal()">+ 新增用户</button><button class="btn btn-sm btn-success" onclick="backfillStudentAccounts()">补建学生账号</button><button class="btn btn-sm btn-secondary" onclick="loadUserList()">刷新</button></div></div>
+                    <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可管理全部教师/家长/学生账号：新增、编辑、禁用/启用、重置密码（初始密码123456）、删除。「补建学生账号」为已绑定家长但尚无账号的存量学生自动创建 student 登录账号。</div>
                     <div class="table-wrapper"><table><thead><tr><th>ID</th><th>账号</th><th>姓名</th><th>角色</th><th>手机号</th><th>状态</th><th>操作</th></tr></thead><tbody id="userListTableBody"></tbody></table></div>
                 </div>
             </div>
@@ -1670,7 +1670,7 @@ body {
                 <div class="form-group" style="margin-bottom:12px;"><label class="form-label">账号 *</label><input type="text" class="form-control" id="userFormUsername" placeholder="登录账号"></div>
                 <div class="form-group" style="margin-bottom:12px;"><label class="form-label">密码 *</label><input type="text" class="form-control" id="userFormPassword" placeholder="初始密码（至少6位）"></div>
                 <div class="form-group" style="margin-bottom:12px;"><label class="form-label">姓名 *</label><input type="text" class="form-control" id="userFormDisplayName" placeholder="显示名称"></div>
-                <div class="form-group" style="margin-bottom:12px;"><label class="form-label">角色 *</label><select class="form-control" id="userFormRole"><option value="teacher">教师</option><option value="parent">家长</option></select></div>
+                <div class="form-group" style="margin-bottom:12px;"><label class="form-label">角色 *</label><select class="form-control" id="userFormRole"><option value="teacher">教师</option><option value="parent">家长</option><option value="student">学生</option></select></div>
                 <div class="form-group" style="margin-bottom:12px;"><label class="form-label">手机号</label><input type="text" class="form-control" id="userFormPhone" placeholder="11位手机号"></div>
             </div>
             <div class="modal-footer">
@@ -2613,7 +2613,7 @@ function navigateTo(page){
             if(sb)sb.classList.remove('mobile-open');
         }
         // 家长访问教师专属页面拦截
-        if(apiService.isParent()){
+        if(apiService.isParent()||apiService.isStudent()){
             const teacherOnlyPages=['records','students','classes','semesters','settings','finance','grades','export','ai','statistics','operation-logs'];
             if(teacherOnlyPages.includes(page)){
                 showToast('无访问权限','error');
@@ -2665,22 +2665,22 @@ function navigateTo(page){
         
         // 加载对应页面内容
         const pageLoaders={
-            dashboard:()=>{ if(apiService.isParent())return loadParentDashboard(); if(apiService.isAdmin())return loadAdminDashboard(); return loadDashboard(); },
+            dashboard:()=>{ if(apiService.isParent())return loadParentDashboard(); if(apiService.isStudent())return loadStudentDashboard(); if(apiService.isAdmin())return loadAdminDashboard(); return loadDashboard(); },
             records:()=>loadRecords(),
             students:()=>loadStudents(),
-            attendance:()=>apiService.isParent()?loadParentAttendance():initAttendancePage(),
-            statistics:()=>apiService.isParent()?loadParentStatistics():initStatisticsPage(),
-            schedule:()=>apiService.isParent()?loadParentSchedule():loadSchedule(),
+            attendance:()=>{ if(apiService.isParent())return loadParentAttendance(); if(apiService.isStudent())return loadStudentAttendance(); return initAttendancePage(); },
+            statistics:()=>{ if(apiService.isParent())return loadParentStatistics(); if(apiService.isStudent())return loadStudentAttendance(); return initStatisticsPage(); },
+            schedule:()=>{ if(apiService.isParent()||apiService.isStudent())return loadParentSchedule(); return loadSchedule(); },
             classroom:()=>loadClassroom(),
             semesters:()=>loadSemesters(),
             settings:()=>loadSettings(),
             users:()=>loadUserList(),
             classes:()=>loadClasses(),
-            homework:()=>apiService.isParent()?loadParentHomework():loadHomeworkList(),
-            grades:()=>apiService.isParent()?loadParentGrades():loadGrades(),
+            homework:()=>{ if(apiService.isParent()||apiService.isStudent())return loadParentHomework(); return loadHomeworkList(); },
+            grades:()=>{ if(apiService.isParent()||apiService.isStudent())return loadParentGrades(); return loadGrades(); },
             'parent-grades':()=>loadParentGrades(),
             notifications:()=>apiService.isParent()?loadParentMessages():loadNotifications(),
-            'teacher-message':()=>{ if(apiService.isParent()){ window.location.href='parent-message.html'; } else { loadTeacherPrivateMessages(); } },
+            'teacher-message':()=>{ if(apiService.isParent()||apiService.isStudent()){ window.location.href='parent-message.html'; } else { loadTeacherPrivateMessages(); } },
             'parent-message':()=>{ window.location.href='parent-message.html'; },
             'parent-ai':()=>loadParentAI(),
             'parent-leave':()=>loadParentLeave(),
@@ -2724,7 +2724,7 @@ async function loadClassroom(){
     document.getElementById('classroomMain').style.display='none';
     document.getElementById('courseFileSection').style.display='none';
     currentClassroomSession=null;
-    if(apiService.isParent()){
+    if(apiService.isParent()||apiService.isStudent()){
         document.getElementById('crCourse').parentElement.style.display='none';
         document.getElementById('crDate').parentElement.style.display='none';
         document.getElementById('crStartBtn').textContent='进入课堂';
@@ -2758,7 +2758,7 @@ async function loadClassroom(){
 function onCrClassChange(){
     const sel=document.getElementById('crClassSelect');
     const selectedOption=sel.options[sel.selectedIndex];
-    if(apiService.isParent()){
+    if(apiService.isParent()||apiService.isStudent()){
         document.getElementById('crCourse').value=selectedOption?selectedOption.dataset.course||'':'';
     }else{
         const cn=sel.value;
@@ -2771,7 +2771,7 @@ function startClassroomSession(){
     const selectedOption=sel.options[sel.selectedIndex];
     const cn=sel.value;
     if(!cn){showToast('请选择班级','error');return;}
-    if(apiService.isParent()){
+    if(apiService.isParent()||apiService.isStudent()){
         // 改为异步，确保parentData加载完成
         (async ()=>{
             const classId=cn;
@@ -2885,7 +2885,7 @@ async function loadCourseFiles(){
 function renderCourseFiles(){
     const container=document.getElementById('courseFileArea');
     if(!container)return;
-    const isParent=apiService.isParent();
+    const isParent=apiService.isParent()||apiService.isStudent();
     const teacherFiles=courseFileListCache.filter(f=>f.is_teacher_upload==1||f.is_teacher_upload===true);
     const studentFiles=courseFileListCache.filter(f=>f.is_teacher_upload==0||f.is_teacher_upload===false||(f.is_teacher_upload===null&&f.student_id));
     container.innerHTML=`
@@ -7692,8 +7692,8 @@ async function loadUserList(){
                 return;
             }
             tb.innerHTML=users.map(u=>{
-                const roleName=u.role==='admin'?'管理员':(u.role==='teacher'?'教师':'家长');
-                const roleBadge=u.role==='admin'?'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">管理员</span>':(u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>');
+                const roleName=u.role==='admin'?'管理员':(u.role==='teacher'?'教师':(u.role==='student'?'学生':'家长'));
+                const roleBadge=u.role==='admin'?'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">管理员</span>':(u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':(u.role==='student'?'<span style="background:#e0f2f1;color:#00695c;padding:2px 8px;border-radius:4px;font-size:12px;">学生</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>'));
                 const stBadge=u.status===0?'<span style="background:#ffebee;color:#c62828;padding:2px 8px;border-radius:4px;font-size:12px;">已禁用</span>':'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">正常</span>';
                 let opBtns='';
                 if(u.role==='admin'){
@@ -7701,7 +7701,8 @@ async function loadUserList(){
                 }else{
                     opBtns+='<button class="btn btn-sm btn-secondary" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-dname="'+escapeAttr(u.display_name||u.displayName||'')+'" data-phone="'+escapeAttr(u.phone||'')+'" data-role="'+u.role+'" onclick="openEditUserModal(this)">编辑</button> ';
                     opBtns+='<button class="btn btn-sm '+(u.status===0?'btn-success':'btn-danger')+'" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-st="'+(u.status===0?0:1)+'" onclick="confirmToggleUser(this)">'+(u.status===0?'启用':'禁用')+'</button> ';
-                    opBtns+='<button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="resetUserPassword(this)">重置密码</button>';
+                    opBtns+='<button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="resetUserPassword(this)">重置密码</button> ';
+                    opBtns+='<button class="btn btn-sm btn-danger" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="deleteUserAccount(this)">删除</button>';
                 }
                 return `<tr>
                     <td>${u.id}</td>
@@ -7831,6 +7832,41 @@ function confirmToggleUser(btn){
                 logOperation('账号状态','用户ID:'+userId+',操作:'+action);
             }else{showToast(data.error||data.msg||'操作失败','error');}
         }catch(e){showToast('操作失败：'+e.message,'error');}
+    });
+}
+
+
+// 管理员删除用户（家长/学生/教师账号均可，admin 除外）
+function deleteUserAccount(btn){
+    if(!apiService.isAdmin()){showToast('无权限','error');return;}
+    const userId=btn.getAttribute('data-uid');
+    const username=btn.getAttribute('data-uname')||'';
+    openConfirmModal('确定删除用户「'+username+'」吗？删除后不可恢复；若为学生账号将同时解除学生与账号的绑定。',async ()=>{
+        closeConfirmModal();
+        try{
+            const data=await apiService.deleteUser(userId);
+            if(data.code===200){
+                showToast('用户已删除','success');
+                loadUserList();
+                logOperation('删除用户','用户ID:'+userId+',账号:'+username);
+            }else{showToast(data.error||data.msg||'删除失败','error');}
+        }catch(e){showToast('删除失败：'+e.message,'error');}
+    });
+}
+// 管理员为已绑定家长但尚无账号的存量学生补建 student 登录账号
+async function backfillStudentAccounts(){
+    if(!apiService.isAdmin()){showToast('无权限','error');return;}
+    openConfirmModal('将为已绑定家长但尚无学生登录账号的存量学生自动补建 student 账号（初始密码123456），是否继续？',async ()=>{
+        closeConfirmModal();
+        try{
+            const data=await apiService.backfillStudentAccounts();
+            if(data.code===200){
+                const created=(data.data&&data.data.created)?data.data.created:[];
+                showToast('已补建 '+created.length+' 个学生账号','success');
+                loadUserList();
+                logOperation('补建学生账号','数量:'+created.length);
+            }else{showToast(data.error||data.msg||'补建失败','error');}
+        }catch(e){showToast('补建失败：'+e.message,'error');}
     });
 }
 
@@ -12272,6 +12308,154 @@ async function loadParentDashboard(){
     loadParentHomeworkSummary();
 }
 
+async function loadStudentDashboard(){
+    const dashboard=document.getElementById('page-dashboard');
+    if(!dashboard)return;
+    dashboard.innerHTML='<div class="card" style="text-align:center;padding:40px;color:#999;">加载中...</div>';
+    let info=null,grades=[],homework=[],attendance=[],nextCls=null;
+    try{const r=await apiService.getStudentInfo();if(r&&r.code===200&&r.data)info=r.data;}catch(e){}
+    try{const r=await apiService.getStudentGrades2();if(r&&r.code===200&&r.data)grades=r.data;}catch(e){}
+    try{const r=await apiService.getStudentHomework2();if(r&&r.code===200&&r.data)homework=r.data;}catch(e){}
+    try{const r=await apiService.getStudentAttendance();if(r&&r.code===200&&r.data)attendance=r.data;}catch(e){}
+    try{const r=await apiService.getNextClass();if(r&&r.code===200&&r.data)nextCls=r.data;}catch(e){}
+    if(!info){
+        dashboard.innerHTML='<div class="card" style="text-align:center;padding:40px;color:#999;">未找到学生档案，请联系教师或家长确认绑定</div>';
+        return;
+    }
+    const name=info.name||'';
+    const className=info.class_name||('班级'+info.class_id);
+    const course=info.class_course||'';
+    const teacherName=info.teacher_name||'-';
+    const avg=grades.length>0?(grades.reduce((s,g)=>s+(parseFloat(g.score)||0),0)/grades.length).toFixed(1):'-';
+    const totalAbsent=attendance.filter(a=>a.is_absent&&!a.is_made_up).length;
+    const pendingHomework=homework.filter(h=>!h.submitted).length;
+    const submitted=homework.filter(h=>h.submitted).length;
+    const graded=homework.filter(h=>h.submitted&&h.score!==null&&h.score!==undefined&&h.score!=='').length;
+    const WEEKDAY_DASH=['周日','周一','周二','周三','周四','周五','周六'];
+    let nextClassHtml='<div style="text-align:center;color:#999;padding:20px;">暂无排课</div>';
+    if(nextCls&&nextCls.class_name){
+        const wd=nextCls.weekday!==undefined?WEEKDAY_DASH[nextCls.weekday]||('周'+(nextCls.weekday+1)):'';
+        const ahead=(nextCls.minutesAhead!==undefined&&nextCls.minutesAhead>0)?(nextCls.minutesAhead<1440?(' · '+Math.floor(nextCls.minutesAhead/60)+'小时'+((nextCls.minutesAhead%60)?(nextCls.minutesAhead%60)+'分':'')+'后'):''):'';
+        nextClassHtml='<div style="padding:12px;"><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid #e6f0ff;border-radius:8px;background:#f0f7ff;">'+
+            '<div><strong>'+escapeHtml(nextCls.class_name||'')+'</strong> <span style="color:#999;font-size:12px;">('+escapeHtml(course||'')+')</span></div>'+
+            '<div style="color:#1890ff;font-weight:500;">'+escapeHtml(wd+' '+String(nextCls.start_time||''))+'<span style="font-size:12px;">'+ahead+'</span></div>'+
+            '</div></div>';
+    }
+    const recentGrades=grades.slice(0,5);
+    const recentHomework=homework.slice(0,5);
+    const recentAtt=attendance.slice(0,6);
+    dashboard.innerHTML=`
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value">${avg}</div><div class="stat-label">平均成绩</div></div>
+            <div class="stat-card success"><div class="stat-value">${pendingHomework}</div><div class="stat-label">待完成作业</div></div>
+            <div class="stat-card warning"><div class="stat-value">${totalAbsent}</div><div class="stat-label">待补课次数</div></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">我的信息</h3></div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <tbody>
+                        <tr><td style="width:120px;">姓名</td><td><strong>${escapeHtml(name)}</strong></td><td style="width:120px;">班级</td><td>${escapeHtml(className)}</td></tr>
+                        <tr><td>课程</td><td>${escapeHtml(course||'-')}</td><td>授课老师</td><td>${escapeHtml(teacherName)}</td></tr>
+                        <tr><td>作业进度</td><td>已提交 ${submitted} / ${homework.length}</td><td>已批改</td><td>${graded}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">快捷操作</h3></div>
+            <div class="quick-actions">
+                <button class="btn btn-secondary" onclick="navigateTo('classroom')">进入上课模式</button>
+                <button class="btn btn-primary" onclick="navigateTo('parent-grades')">查看我的成绩</button>
+                <button class="btn btn-secondary" onclick="navigateTo('homework')">我的作业</button>
+                <button class="btn btn-primary" onclick="navigateTo('parent-ai')">AI学习助手</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">下一节课</h3></div>
+            ${nextClassHtml}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">最近成绩</h3></div>
+                <div style="padding:12px;">
+                    ${recentGrades.length>0?recentGrades.map(g=>{
+                        const pct=parseFloat(g.total_score)?(parseFloat(g.score)/parseFloat(g.total_score)*100).toFixed(0):'-';
+                        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #f0f0f0;">'+
+                            '<div><strong>'+escapeHtml(g.exam_name||'')+'</strong><div style="font-size:12px;color:#999;">'+escapeHtml(g.class_name||'')+'</div></div>'+
+                            '<div style="font-weight:600;color:'+(pct>=60?'#52c41a':(pct>=0&&pct<60?'#f5222d':'#333'))+';">'+escapeHtml(String(g.score))+'<span style="font-size:12px;color:#999;">/'+(g.total_score||'-')+'</span></div></div>';
+                    }).join(''):'<div style="text-align:center;color:#999;padding:20px;">暂无成绩</div>'}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">最近作业</h3></div>
+                <div style="padding:12px;">
+                    ${recentHomework.length>0?recentHomework.map(h=>{
+                        const status=h.submitted?(h.score!==null&&h.score!==undefined&&h.score!==''?'已批改':'已提交待批改'):'待提交';
+                        const color=h.submitted?(h.score!==null&&h.score!==undefined&&h.score!==''?'#52c41a':'#faad14'):'#f5222d';
+                        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #f0f0f0;">'+
+                            '<div><strong>'+escapeHtml(h.title||h.name||'')+'</strong><div style="font-size:12px;color:#999;">截止: '+escapeHtml(h.deadline||'-')+'</div></div>'+
+                            '<span style="font-size:12px;color:'+color+';font-weight:500;">'+status+'</span></div>';
+                    }).join(''):'<div style="text-align:center;color:#999;padding:20px;">暂无作业</div>'}
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">最近出勤记录</h3></div>
+            <div class="table-wrapper">
+                ${recentAtt.length>0?`<table class="data-table">
+                    <thead><tr><th>日期</th><th>班级</th><th>课程</th><th>节数</th><th>出勤</th></tr></thead>
+                    <tbody>
+                        ${recentAtt.map(r=>`<tr>
+                            <td>${escapeHtml(r.date||'')}</td>
+                            <td>${escapeHtml(r.class_name||r.className||'')}</td>
+                            <td>${escapeHtml(r.course||'')}</td>
+                            <td>${r.sessions||1}</td>
+                            <td>${r.is_absent?'<span class="badge badge-danger">缺勤'+(r.is_made_up?'·已补':'')+'</span>':'<span class="badge badge-success">出勤</span>'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`:'<div style="text-align:center;color:#999;padding:20px;">暂无记录</div>'}
+            </div>
+        </div>
+    `;
+}
+
+async function loadStudentAttendance(){
+    const page=document.getElementById('page-attendance');
+    if(!page)return;
+    page.innerHTML='<div class="card" style="text-align:center;padding:40px;color:#999;">加载中...</div>';
+    let list=[];
+    try{const r=await apiService.getStudentAttendance();if(r&&r.code===200&&r.data)list=r.data;}catch(e){}
+    const absentCount=list.filter(a=>a.is_absent&&!a.is_made_up).length;
+    const madeUpCount=list.filter(a=>a.is_absent&&a.is_made_up).length;
+    const totalSessions=list.reduce((sum,r)=>sum+(r.sessions||1),0);
+    page.innerHTML=`
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value">${totalSessions}</div><div class="stat-label">总上课节数</div></div>
+            <div class="stat-card warning"><div class="stat-value">${absentCount}</div><div class="stat-label">待补课</div></div>
+            <div class="stat-card success"><div class="stat-value">${madeUpCount}</div><div class="stat-label">已补课</div></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">我的考勤记录</h3></div>
+            <div class="table-wrapper">
+                ${list.length>0?`<table class="data-table">
+                    <thead><tr><th>日期</th><th>班级</th><th>课程</th><th>节数</th><th>出勤状态</th><th>备注</th></tr></thead>
+                    <tbody>
+                        ${list.map(r=>`<tr>
+                            <td>${escapeHtml(r.date||'')}</td>
+                            <td>${escapeHtml(r.class_name||r.className||'')}</td>
+                            <td>${escapeHtml(r.course||'')}</td>
+                            <td>${r.sessions||1}</td>
+                            <td>${r.is_absent?(r.is_made_up?'<span class="badge badge-success">已补课</span>':'<span class="badge badge-danger">缺勤</span>'):'<span class="badge badge-success">出勤</span>'}</td>
+                            <td>${escapeHtml(r.remark||'')}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>`:'<div style="text-align:center;color:#999;padding:40px;">暂无考勤记录</div>'}
+            </div>
+        </div>
+    `;
+}
+
 async function loadParentHomeworkSummary() {
     const container = document.getElementById('parentHomeworkSummary');
     if (!container) return;
@@ -12861,9 +13045,11 @@ async function confirmBindStudent(btn){
         const res=await apiService.bindStudent(studentName,parentPhone);
         if(res.code===200){
             try{showToast('绑定成功！');}catch(e){}
+            const genAccount=(res&&res.studentAccount)?res.studentAccount:null;
             btn.closest('.modal-overlay').remove();
             await DataSync.syncFromServer();
             loadParentDashboard();
+            if(genAccount){ try{ showBindStudentAccount(genAccount, studentName); }catch(e){} }
         }else{
             const msg = (res && (res.msg || res.error)) || '绑定失败';
             try{showToast(msg,'error');}catch(e){}
@@ -12876,6 +13062,53 @@ async function confirmBindStudent(btn){
         btn.disabled=false;
         btn.textContent='绑定';
     }
+}
+
+// 绑定成功后展示自动生成的学生账号（提示家长转告孩子）
+function showBindStudentAccount(account, studentName){
+    if(!account||!account.username)return;
+    const createdText=(account.accountCreated===true||account.accountCreated===1)?'本次已自动创建学生登录账号':'已关联学生的既有登录账号';
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h3 class="modal-title">✅ 绑定成功，孩子账号已生成</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:12px;color:#444;line-height:1.7;">已为「<b>${escapeHtml(studentName||'')}</b>」${createdText}，请转告孩子，孩子可用以下账号登录，进入上课模式、查看作业/成绩/缺勤并使用 AI 学习助手：</div>
+            <div style="background:#f5f7fa;border-radius:10px;padding:16px;margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span style="color:#666;">登录账号</span>
+                    <span style="font-weight:700;font-size:15px;font-family:monospace;">${escapeHtml(account.username)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span style="color:#666;">初始密码</span>
+                    <span style="font-weight:700;font-size:15px;font-family:monospace;">${escapeHtml(String(account.password||''))}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="color:#666;">账号角色</span>
+                    <span><span class="badge badge-info">学生</span></span>
+                </div>
+            </div>
+            <div style="color:#fa8c16;font-size:13px;line-height:1.7;">💡 温馨提示：请提醒孩子登录后尽快在「个人中心」修改初始密码（默认 123456）。</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="copyStudentAccount('${escapeAttr(account.username)}','${escapeAttr(String(account.password||''))}')">复制账号密码</button>
+            <button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">我知道了</button>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+}
+function copyStudentAccount(username,password){
+    try{
+        const txt='学生登录账号：'+username+'，初始密码：'+password;
+        if(navigator.clipboard&&navigator.clipboard.writeText){
+            navigator.clipboard.writeText(txt).then(function(){showToast('账号密码已复制');},function(){showToast('复制失败，请手动记录','error');});
+        }else{
+            showToast('复制失败，请手动记录','error');
+        }
+    }catch(e){}
 }
 
 </script>
@@ -13173,6 +13406,15 @@ function renderSidebarMenu(role){
         {page:'parent-leave',label:'请假申请',svg:'<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13.4V7h2v5.6l4.2 2.4-.8 1.2z"/>'},
         {page:'parent-profile',label:'个人中心',svg:'<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>'}
     ];
+    const studentItems=[
+        {page:'dashboard',label:'仪表盘',svg:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>'},
+        {page:'classroom',label:'上课模式',svg:'<path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zm-4 2h4v16h-4V5zm-4 0h4v16h-4V5zm-4 0h4v16H6V5z"/>'},
+        {page:'parent-ai',label:'AI学习助手',svg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'},
+        {page:'homework',label:'我的作业',svg:'<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>'},
+        {page:'parent-grades',label:'我的成绩',svg:'<path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 4l-4 4 1.41 1.41L11 9.83V16h2V9.83l1.59 1.58L16 10l-4-4z"/>'},
+        {page:'attendance',label:'缺勤记录',svg:'<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>'},
+        {page:'parent-profile',label:'个人中心',svg:'<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>'}
+    ];
     const adminItems=[
         {page:'dashboard',label:'仪表盘',svg:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>'},
         {page:'users',label:'用户管理',svg:'<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>'},
@@ -13186,7 +13428,7 @@ function renderSidebarMenu(role){
         {page:'export',label:'导出打印',svg:'<path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>'},
         {page:'settings',label:'系统设置',svg:'<path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>'}
     ];
-    const items = currentRole === 'parent' ? parentItems : (currentRole === 'admin' ? adminItems : teacherItems);
+    const items = currentRole === 'parent' ? parentItems : (currentRole === 'admin' ? adminItems : (currentRole === 'student' ? studentItems : teacherItems));
     const nav = clearSidebarDom();
     if (!nav) return;
     const html = items.map((item,index)=>`<div class="nav-item ${index===0?'active':''}" data-page="${item.page}"><svg viewBox="0 0 24 24" fill="currentColor">${item.svg}</svg><span>${item.label}</span></div>`).join('');
@@ -13324,6 +13566,9 @@ function initAppAfterLogin(){
     document.querySelectorAll('.teacher-only-actions').forEach(el=>el.style.display=apiService.isParent()?'none':'');
     if(apiService.isParent()){
         navigateTo('notifications');
+    }else if(apiService.isStudent()){
+        // 学生登录后直接进入学生端仪表盘
+        try{ navigateTo('dashboard'); }catch(e){}
     }else{
         // 教师端：确保 appData 已初始化（如未初始化则异步加载）
         if(!appData||!appData.config){
@@ -13385,7 +13630,9 @@ function initAppAfterLogin(){
         if(data.type==='new_message'){
             showToast('收到新消息：'+(data.title||''),'success');
         }
-        if(apiService.isParent()){
+        if(apiService.isStudent()){
+            loadStudentDashboard();
+        }else if(apiService.isParent()){
             loadParentDashboard();
         }else{
             var notifPage=document.getElementById('page-notifications');

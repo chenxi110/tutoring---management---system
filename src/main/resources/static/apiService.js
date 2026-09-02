@@ -1,4 +1,4 @@
-﻿class ApiService {
+class ApiService {
     constructor() {
         this.baseURL = localStorage.getItem('skt_api_base') || '/api';
         this.token = localStorage.getItem('skt_token') || '';
@@ -49,6 +49,7 @@
     isTeacher() { return this.user && this.user.role === 'teacher'; }
     isParent() { return this.user && this.user.role === 'parent'; }
     isAdmin() { return this.user && this.user.role === 'admin'; }
+    isStudent() { return this.user && this.user.role === 'student'; }
 
     async request(method, path, body) {
         var url = (path && path.indexOf('/api/') === 0) ? path : this.baseURL + path;
@@ -131,6 +132,20 @@
     async getProfile() { return this.request('GET', '/auth/profile'); }
 
     async getParentChildren() { return this.request('GET', '/parent/children'); }
+
+    // ===== 学生端（student 角色）=====
+    async getStudentInfo() { return this.request('GET', '/student/info'); }
+    async getStudentGrades2() { return this.request('GET', '/student/grades'); }
+    async getStudentHomework2() { return this.request('GET', '/student/homework'); }
+    async getStudentAttendance() { return this.request('GET', '/student/attendance'); }
+    async getStudentBehaviorStats() { return this.request('GET', '/student/behavior-stats'); }
+    async getStudentBindableAccounts() { return this.request('GET', '/student/bindable-accounts'); }
+    async bindStudentAccount(studentId, userId) { return this.request('POST', '/student/bind', { studentId: studentId, userId: userId }); }
+    async unbindStudentAccount(studentId) { return this.request('POST', '/student/unbind', { studentId: studentId }); }
+    // 管理员为存量绑定学生补建学生账号（仅 admin）
+    async backfillStudentAccounts() { return this.request('POST', '/student/backfill', {}); }
+    // 管理员删除用户（仅 admin）
+    async deleteUser(userId) { return this.request('POST', '/user/delete', { userId: userId }); }
     // ===== 家长端 AI 学习助手 =====
     async parentAiChildren() { return this.request('GET', '/parent-ai/children'); }
     async parentAiOverview(studentId) { return this.request('GET', '/parent-ai/overview?studentId=' + studentId); }
@@ -232,7 +247,7 @@
 
     async getHomework(classId) {
         var query = classId ? '?classId=' + classId : '';
-        var endpoint = this.isParent() ? '/homework/my' : '/homework';
+        var endpoint = (this.isParent() || this.isStudent()) ? '/homework/my' : '/homework';
         return this.request('GET', endpoint + query);
     }
     async createHomework(data) { return this.request('POST', '/homework', data); }
@@ -248,7 +263,7 @@
         if (filters.examName) params.set('examName', filters.examName);
         if (filters.semesterId) params.set('semesterId', filters.semesterId);
         var query = params.toString() ? '?' + params : '';
-        var endpoint = this.isParent() ? '/grades/my' : '/grades';
+        var endpoint = (this.isParent() || this.isStudent()) ? '/grades/my' : '/grades';
         return this.request('GET', endpoint + query);
     }
     async getMyGrades() { return this.request('GET', '/grades/my'); }

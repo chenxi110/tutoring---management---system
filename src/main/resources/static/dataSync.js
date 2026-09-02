@@ -11,6 +11,8 @@ var DataSync = {
                 await this._syncTeacherData();
             } else if (apiService.isParent()) {
                 await this._syncParentData();
+            } else if (apiService.isStudent()) {
+                await this._syncStudentData();
             }
             this._lastSync = Date.now();
             this._dirty = false;
@@ -23,6 +25,42 @@ var DataSync = {
         } finally {
             this._syncing = false;
         }
+    },
+
+    async _syncStudentData() {
+        // 学生端：通过 /parent/children 获取本人记录（后端已按 students.user_id 隔离返回本人），
+        // 与家长端 parentData 结构保持一致，供家长版页面（课表/作业/成绩/AI）复用。
+        window.parentData = { children: [], schedules: {}, records: {}, messages: [] };
+        try {
+            var childrenRes = await apiService.getParentChildren();
+            if (childrenRes.code === 200 && childrenRes.data) {
+                window.parentData.children = childrenRes.data;
+            }
+        } catch (e) { console.warn('[DataSync] 学生信息同步失败:', e.message); }
+        try {
+            var schedRes = await apiService.getChildSchedules();
+            if (schedRes.code === 200 && schedRes.data) {
+                window.parentData.children.forEach(function(child) {
+                    window.parentData.schedules[child.id] = schedRes.data.filter(function(s) {
+                        return s.student_name === child.name;
+                    });
+                });
+            }
+        } catch (e) { console.warn('[DataSync] 学生课表同步失败:', e.message); }
+        try {
+            var attRes = await apiService.getStudentAttendance();
+            if (attRes.code === 200 && attRes.data) {
+                window.parentData.children.forEach(function(child) {
+                    window.parentData.records[child.id] = attRes.data || [];
+                });
+            }
+        } catch (e) { console.warn('[DataSync] 学生出勤同步失败:', e.message); }
+        try {
+            var msgRes = await apiService.getMessages();
+            if (msgRes.code === 200) {
+                window.parentData.messages = msgRes.data || [];
+            }
+        } catch (e) {}
     },
 
     async _syncTeacherData() {
