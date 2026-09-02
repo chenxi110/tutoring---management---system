@@ -21,6 +21,46 @@ public class MessageService {
 
     private final ConcurrentHashMap<Long, List<SseEmitter>> sseClients = new ConcurrentHashMap<>();
 
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        try {
+            jdbc.execute("CREATE TABLE IF NOT EXISTS message_read_receipts (" +
+                "id BIGINT NOT NULL AUTO_INCREMENT," +
+                "message_id BIGINT NOT NULL," +
+                "receiver_id BIGINT NOT NULL," +
+                "receiver_name VARCHAR(50)," +
+                "is_read TINYINT DEFAULT 0," +
+                "read_at DATETIME," +
+                "PRIMARY KEY (id)," +
+                "UNIQUE KEY uk_msg_receiver (message_id, receiver_id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        } catch (Exception e) {
+            log.error("创建已读回执表失败", e);
+        }
+    }
+
+    private void addReceipt(Long messageId, Long userId, String userName) {
+        try {
+            jdbc.update("INSERT IGNORE INTO message_read_receipts (message_id, receiver_id, receiver_name) VALUES (?,?,?)",
+                messageId, userId, userName);
+        } catch (Exception e) {
+            log.debug("写入已读回执失败 msgId={} userId={}", messageId, userId, e);
+        }
+    }
+
+    public List<Map<String, Object>> getReceipts(Long messageId) {
+        try {
+            return jdbc.queryForList(
+                "SELECT r.receiver_id AS user_id, r.receiver_name AS user_name, " +
+                "CASE WHEN r.is_read=1 THEN 'read' ELSE 'unread' END AS read_status, r.read_at, " +
+                "(SELECT display_name FROM users u WHERE u.id = r.receiver_id) AS display_name " +
+                "FROM message_read_receipts r WHERE r.message_id=? ORDER BY r.is_read ASC, r.id ASC", messageId);
+        } catch (Exception e) {
+            log.error("获取已读回执失败 msgId={}", messageId, e);
+            return Collections.emptyList();
+        }
+    }
+
     public List<Map<String, Object>> listMessages(Long userId, String role) {
         String sql;
         List<Map<String, Object>> list;
@@ -103,14 +143,17 @@ public class MessageService {
 
         if ("notice".equals(safeMsgType) && classId != null) {
             List<Map<String, Object>> parents = jdbc.queryForList(
-                "SELECT DISTINCT s.parent_user_id FROM students s WHERE s.class_id = ? AND s.parent_user_id IS NOT NULL AND (s.is_deleted IS NULL OR s.is_deleted = 0) AND (s.status IS NULL OR s.status = 'active')",
+                "SELECT DISTINCT s.parent_user_id, u.display_name FROM students s LEFT JOIN users u ON u.id = s.parent_user_id WHERE s.class_id = ? AND s.parent_user_id IS NOT NULL AND (s.is_deleted IS NULL OR s.is_deleted = 0) AND (s.status IS NULL OR s.status = 'active')",
                 classId
             );
             for (Map<String, Object> p : parents) {
                 Long parentId = ((Number) p.get("parent_user_id")).longValue();
+                String pName = p.get("display_name") != null ? String.valueOf(p.get("display_name")) : null;
+                addReceipt(newId, parentId, pName);
                 pushToUser(parentId, safeTitle, content.substring(0, Math.min(100, content.length())), safeSenderName, newId);
             }
         } else if (receiverId != null) {
+            addReceipt(newId, receiverId, null);
             pushToUser(receiverId, safeTitle, content.substring(0, Math.min(100, content.length())), safeSenderName, newId);
         }
 
@@ -126,6 +169,12 @@ public class MessageService {
             "UPDATE messages SET status='read', read_at=NOW() WHERE id=? AND (receiver_id=? OR receiver_id IS NULL OR sender_id=?)",
             msgId, userId, userId
         );
+        // 同步更新已读回执
+        try {
+            jdbc.update("UPDATE message_read_receipts SET is_read=1, read_at=NOW() WHERE message_id=? AND receiver_id=?", msgId, userId);
+        } catch (Exception e) {
+            log.debug("更新已读回执失败 msgId={} userId={}", msgId, userId, e);
+        }
         result.put("code", rows > 0 ? 200 : 400);
         result.put("message", rows > 0 ? "已读" : "无权限");
         return result;

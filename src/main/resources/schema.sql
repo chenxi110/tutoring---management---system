@@ -363,3 +363,16 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS message_read_receipts (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    message_id BIGINT NOT NULL COMMENT '消息ID',
+    receiver_id BIGINT NOT NULL COMMENT '接收者ID',
+    receiver_name VARCHAR(50) DEFAULT NULL COMMENT '接收者姓名',
+    is_read TINYINT DEFAULT '0' COMMENT '是否已读',
+    read_at DATETIME DEFAULT NULL COMMENT '阅读时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_msg_receiver (message_id, receiver_id),
+    KEY idx_receiver_id (receiver_id),
+    KEY idx_is_read (is_read)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息已读回执表';

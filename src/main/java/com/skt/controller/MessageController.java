@@ -95,6 +95,19 @@ public class MessageController {
         return result;
     }
 
+    @GetMapping("/messages/{id}/receipts")
+    public Map<String, Object> receipts(@PathVariable Long id, HttpServletRequest req) {
+        Map<String, Object> r = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            r.put("code", 403);
+            r.put("msg", "无权限");
+            return r;
+        }
+        r.put("code", 200);
+        r.put("data", messageService.getReceipts(id));
+        return r;
+    }
+
     @PostMapping("/messages/{id}/reply")
     public Map<String, Object> reply(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
         Long senderId = (Long) req.getAttribute("userId");

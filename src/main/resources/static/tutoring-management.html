@@ -17,6 +17,7 @@
             --shadow: 0 2px 8px rgba(0,0,0,0.1); --radius: 8px;
         }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+        #mobileMenuBtn { display: none; }
         .sidebar { position: fixed; left: 0; top: 0; width: var(--sidebar-width); height: 100vh; background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%); color: #fff; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; overflow-x: hidden; }
         .sidebar-header { padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .sidebar-header h1 { font-size: 18px; font-weight: 600; }
@@ -591,7 +592,31 @@ body {
 .ai-stat-label{font-size:12px;color:#888;margin-top:4px;}
 .ai-tag{display:inline-block;background:#e6f7ff;color:#1890ff;border-radius:4px;padding:1px 8px;font-size:12px;margin-left:4px;}
 /* ===== 家长端 AI 学习助手样式 end ===== */
-</style>
+
+        @media (max-width: 480px) {
+            .sidebar { width: 220px; transform: translateX(-100%); transition: transform .3s ease; box-shadow: none; z-index: 100; }
+            .sidebar.mobile-open { transform: translateX(0); box-shadow: 2px 0 16px rgba(0,0,0,.25); }
+            .sidebar-header h1 { display: block; font-size: 18px; }
+            .nav-item { justify-content: flex-start; padding: 14px 20px; min-height: 48px; }
+            .nav-item span { display: inline; }
+            .main { margin-left: 0; }
+            .header { padding: 0 10px; height: auto; min-height: 56px; gap: 6px; }
+            #mobileMenuBtn { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: none; background: transparent; font-size: 22px; color: #333; cursor: pointer; border-radius: 8px; flex-shrink: 0; }
+            .header-left { gap: 2px; }
+            .header-title { font-size: 16px; }
+            .header-date { font-size: 11px; }
+            .content { padding: 10px; }
+            .card { padding: 14px; }
+            .stat-card { min-height: 80px; }
+            .stat-value { font-size: 20px; }
+            th, td { padding: 8px 5px; font-size: 12px; }
+            .btn { padding: 8px 12px; font-size: 13px; min-height: 40px; }
+            .btn-sm { min-height: 32px; padding: 4px 8px; }
+            .modal { width: 94%; max-width: 94%; }
+            .empty-state { padding: 16px; font-size: 13px; }
+            .user-menu { width: 200px; right: 8px; }
+        }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
@@ -677,6 +702,7 @@ body {
     </aside>
     <main class="main">
         <header class="header">
+            <button id="mobileMenuBtn" onclick="toggleMobileMenu()" aria-label="打开菜单" title="菜单">☰</button>
             <div class="header-left">
                 <h2 class="header-title" id="pageTitle">仪表盘</h2>
                 <span class="header-date" id="currentDate"></span>
@@ -2574,8 +2600,18 @@ function safeSetLocalStorage(key,value){
     }
 }
 
+function toggleMobileMenu(){
+    const sb=document.querySelector('.sidebar');
+    if(!sb)return;
+    sb.classList.toggle('mobile-open');
+}
+
 function navigateTo(page){
     try{
+        if(window.innerWidth<=480){
+            const sb=document.querySelector('.sidebar');
+            if(sb)sb.classList.remove('mobile-open');
+        }
         // 家长访问教师专属页面拦截
         if(apiService.isParent()){
             const teacherOnlyPages=['records','students','classes','semesters','settings','finance','grades','export','ai','statistics','operation-logs'];
@@ -10714,6 +10750,35 @@ async function sendNotification(){
     }
 }
 
+async function showReadReceipts(messageId){
+    try{
+        const res=await apiService.getMessageReceipts(messageId);
+        const list=(res&&res.code===200)?(res.data||[]):[];
+        const modal=document.createElement('div');
+        modal.className='modal-overlay active';
+        let bodyHtml;
+        if(!list.length){
+            bodyHtml='<div style="text-align:center;color:#999;padding:20px;">该消息暂无已读回执数据</div>';
+        }else{
+            const readCount=list.filter(function(r){return r.read_status==='read';}).length;
+            bodyHtml='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">'
+                +'<div style="flex:1;min-width:110px;background:rgba(82,196,26,0.1);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:600;color:#52C41A;">'+readCount+'/'+list.length+'</div><div style="font-size:12px;color:#666;">已读</div></div>'
+                +'<div style="flex:1;min-width:110px;background:rgba(250,173,20,0.1);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:600;color:#FAAD14;">'+(list.length-readCount)+'</div><div style="font-size:12px;color:#666;">未读</div></div>'
+                +'</div>'
+                +'<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f5f7fa;"><th style="padding:8px 10px;text-align:left;border-bottom:1px solid #e8e8e8;">家长</th><th style="padding:8px 10px;text-align:left;border-bottom:1px solid #e8e8e8;">状态</th><th style="padding:8px 10px;text-align:left;border-bottom:1px solid #e8e8e8;">已读时间</th></tr></thead><tbody>'
+                +list.map(function(r){
+                    const name=escapeHtml(r.display_name||r.user_name||('用户'+r.user_id));
+                    const read=r.read_status==='read';
+                    return '<tr><td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">'+name+'</td><td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">'+(read?'<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f;">已读</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;background:#fffbe6;color:#d48806;border:1px solid #ffe58f;">未读</span>')+'</td><td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">'+(read?escapeHtml(String(r.read_at||'').replace('T',' ')):'-')+'</td></tr>';
+                }).join('')+'</tbody></table>';
+        }
+        modal.innerHTML='<div class="modal" style="max-width:560px;"><div class="modal-header"><h3 class="modal-title">消息已读回执</h3><button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()">&times;</button></div><div class="modal-body">'+bodyHtml+'</div><div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button></div></div>';
+        document.body.appendChild(modal);
+    }catch(e){
+        showToast('获取已读回执失败','error');
+    }
+}
+
 async function loadNotifications(){
     const container=document.getElementById('notificationList');
     if(!container)return;
@@ -10752,6 +10817,7 @@ async function loadNotifications(){
                     '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
                         '<span style="font-size:12px;color:#999;">'+new Date(m.created_at).toLocaleString()+'</span>' +
                         (isUnread&&!apiService.isParent()?'<button class="btn btn-sm btn-success" onclick="event.stopPropagation();markNotificationRead('+m.id+',this.closest(\'[id^=msg-item]\'))" style="font-size:12px;padding:4px 10px;">✓ 已读</button>':'') +
+                        (!apiService.isParent()&&m.sender_role==='teacher'?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();showReadReceipts('+m.id+')" style="font-size:12px;padding:4px 10px;">👁 已读回执</button>':'') +
                     '</div>' +
                 '</div>' +
                 '<div style="font-size:14px;color:#333;line-height:1.6;">'+escapeHtml(m.content)+'</div>' +

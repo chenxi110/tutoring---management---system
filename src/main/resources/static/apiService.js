@@ -450,6 +450,11 @@
         });
     }
 
+    // 消息已读回执（教师查看某条消息接收人已读/未读状态）
+    async getMessageReceipts(messageId) {
+        return await this.request('GET', '/messages/' + messageId + '/receipts');
+    }
+
     // 请假申请列表（家长）
     async getLeaveRequests() {
         return await this.request('GET', '/leave-requests');
