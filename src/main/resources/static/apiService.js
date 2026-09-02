@@ -132,6 +132,10 @@ class ApiService {
     async getProfile() { return this.request('GET', '/auth/profile'); }
 
     async getParentChildren() { return this.request('GET', '/parent/children'); }
+    // 家长查看自己孩子的学生账号（仅 parent）
+    async getParentChildrenAccounts() { return this.request('GET', '/parent/children/accounts'); }
+    // 家长修改自己孩子的学生账号密码（仅 parent；越权拦截）
+    async changeChildStudentPassword(studentId, newPassword) { return this.request('POST', '/parent/changeStudentPassword', { studentId: studentId, newPassword: newPassword }); }
 
     // ===== 学生端（student 角色）=====
     async getStudentInfo() { return this.request('GET', '/student/info'); }

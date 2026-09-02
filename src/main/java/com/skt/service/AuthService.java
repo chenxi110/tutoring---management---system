@@ -201,6 +201,75 @@ public class AuthService {
         return jdbc.queryForList(sql, userId);
     }
 
+    /** 家长查看自己孩子的学生账号（仅 parent；按 parent_user_id 隔离） */
+    public Map<String, Object> getParentChildrenAccounts(Long parentId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (parentId == null) return errorMap("未登录，无法操作");
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT s.id AS student_id, s.name, s.parent_phone, s.phone, u.username, u.id AS user_id, u.status " +
+                "FROM students s LEFT JOIN users u ON u.id = s.user_id " +
+                "WHERE s.parent_user_id=? AND (s.is_deleted IS NULL OR s.is_deleted=0) ORDER BY s.name", parentId);
+            List<Map<String, Object>> data = new ArrayList<>();
+            for (Map<String, Object> r : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("studentId", r.get("student_id"));
+                item.put("name", r.get("name"));
+                item.put("phone", r.get("phone"));
+                item.put("parentPhone", r.get("parent_phone"));
+                item.put("accountExists", r.get("username") != null);
+                item.put("username", r.get("username"));
+                item.put("userId", r.get("user_id"));
+                data.add(item);
+            }
+            result.put("code", 200);
+            result.put("data", data);
+            return result;
+        } catch (Exception ex) {
+            log.error("获取孩子账号失败: parentId={}, error={}", parentId, ex.getMessage(), ex);
+            return errorMap("获取孩子账号失败：" + ex.getMessage());
+        }
+    }
+
+    /** 家长修改自己孩子的学生账号密码（仅 parent；校验 parent_user_id 关联，越权拦截） */
+    public Map<String, Object> changeChildStudentPassword(Long parentId, Long studentId, String newPassword) {
+        try {
+            if (parentId == null) return errorMap("未登录，无法操作");
+            if (studentId == null) return errorMap("缺少学生ID");
+            if (newPassword == null || newPassword.trim().length() < 6) {
+                return errorMap("新密码至少6位");
+            }
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, name, user_id FROM students WHERE id=? AND parent_user_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                studentId, parentId);
+            if (rows.isEmpty()) {
+                Map<String, Object> r = new HashMap<>();
+                r.put("code", 403);
+                r.put("error", "无权限：只能修改自己孩子的密码");
+                r.put("msg", "无权限：只能修改自己孩子的密码");
+                return r;
+            }
+            Object userIdObj = rows.get(0).get("user_id");
+            if (userIdObj == null) {
+                return errorMap("该孩子暂无学生登录账号，请先重新绑定生成账号");
+            }
+            Long userId = ((Number) userIdObj).longValue();
+            String hash = encoder.encode(newPassword.trim());
+            jdbc.update("UPDATE users SET password_hash=? WHERE id=? AND role='student'", hash, userId);
+            operationLogService.log(parentId, "operator_" + parentId, "parent", "家长修改孩子密码",
+                "家长修改孩子学生账号密码 studentId=" + studentId, null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("msg", "密码修改成功");
+            result.put("data", Map.of("studentId", studentId, "name", rows.get(0).get("name")));
+            log.info("家长修改孩子密码成功: parentId={}, studentId={}", parentId, studentId);
+            return result;
+        } catch (Exception ex) {
+            log.error("家长修改孩子密码失败: parentId={}, studentId={}, error={}", parentId, studentId, ex.getMessage(), ex);
+            return errorMap("修改密码失败：" + ex.getMessage());
+        }
+    }
+
     public Map<String, Object> bindParent(Long parentId, String studentName, String parentPhone) {
         try {
             if (parentId == null) {
@@ -314,13 +383,14 @@ public class AuthService {
     // ==================== 学生账号自动创建 / 补建 / 删除 ====================
 
     /** 为该学生确保存在一个 student 角色登录账号，并写入 students.user_id。
-     *  账号命名：stu_<学生ID>（清晰可辨且唯一）；初始密码 123456。
+     *  账号命名：孩子姓名 + 孩子绑定的手机号（如 张三13800138000）；孩子 phone 为空则回退 parent_phone，
+     *  再为空则用 姓名_学生ID 兜底；重名/重号自动加序号后缀保证唯一。初始密码 123456。
      *  返回 {username, password, accountCreated, userId}；若已存在则返回既有账号且 accountCreated=false。 */
     public Map<String, Object> ensureStudentAccountForStudent(Long studentId, String studentName) {
         if (studentId == null) return null;
         try {
             List<Map<String, Object>> st = jdbc.queryForList(
-                "SELECT user_id, phone FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
+                "SELECT id, user_id, phone, parent_phone FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
             if (st.isEmpty()) return null;
             Object existingUserId = st.get(0).get("user_id");
             if (existingUserId != null) {
@@ -335,12 +405,12 @@ public class AuthService {
                     return r;
                 }
             }
-            String base = "stu_" + studentId;
+            String base = buildStudentUsername(studentName, st.get(0));
             String username = base;
             Long uid = null;
             List<Map<String, Object>> existing = jdbc.queryForList("SELECT id FROM users WHERE username=?", base);
             if (!existing.isEmpty()) {
-                // 优先复用未被任何学生绑定的 student 角色遗留账号（解绑后遗留）
+                // 优先复用未被任何学生绑定的 student 角色遗留账号（解绑后遗留，且同名）
                 List<Map<String, Object>> reusable = jdbc.queryForList(
                     "SELECT id FROM users WHERE username=? AND role='student' AND " +
                     "id NOT IN (SELECT user_id FROM students WHERE user_id IS NOT NULL AND (is_deleted IS NULL OR is_deleted=0))",
@@ -374,6 +444,21 @@ public class AuthService {
             log.error("自动创建学生账号失败: studentId={}, error={}", studentId, e.getMessage(), e);
             return null;
         }
+    }
+
+    /** 生成学生账号名：孩子姓名 + 孩子绑定的手机号；phone 空则回退 parent_phone；再空则 姓名_学生ID 兜底 */
+    private String buildStudentUsername(String studentName, Map<String, Object> row) {
+        String name = (studentName == null ? "" : String.valueOf(studentName)).trim();
+        String phone = row.get("phone") == null ? "" : String.valueOf(row.get("phone")).trim();
+        if (phone.isEmpty() && row.get("parent_phone") != null) {
+            phone = String.valueOf(row.get("parent_phone")).trim();
+        }
+        phone = phone.replaceAll("\\D", "");
+        if (!phone.isEmpty()) {
+            return name + phone;
+        }
+        Object sid = row.get("id");
+        return name + "_" + (sid == null ? "x" : sid);
     }
 
     /** 为「已绑定家长但尚无学生账号」的存量学生补建 student 账号（仅管理员） */
@@ -628,11 +713,11 @@ public class AuthService {
                 return errorMap("角色不能为空");
             }
             String normalizedRole = role.trim();
-            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole)) {
+            if (!"teacher".equals(normalizedRole) && !"parent".equals(normalizedRole) && !"student".equals(normalizedRole)) {
                 return errorMap("角色参数非法");
             }
-            if ("parent".equals(normalizedRole) && (displayName == null || displayName.trim().isEmpty())) {
-                return errorMap("家长角色必须填写显示名称");
+            if (("parent".equals(normalizedRole) || "student".equals(normalizedRole)) && (displayName == null || displayName.trim().isEmpty())) {
+                return errorMap((normalizedRole.equals("parent") ? "家长" : "学生") + "角色必须填写显示名称");
             }
             String normalizedUsername = username.trim();
             String normalizedPhone = normalizePhone(phone);

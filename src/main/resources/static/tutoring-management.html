@@ -12255,7 +12255,8 @@ async function loadParentDashboard(){
                             <td>${escapeHtml(c.class_course||'-')}</td>
                             <td><span class="badge badge-success">在读</span></td>
                             <td><button class="btn btn-sm btn-secondary" onclick="navigateTo('schedule')">查看课表</button>
-                                <button class="btn btn-sm btn-primary" onclick="contactTeacher('${escapeAttr(c.name)}')">联系老师</button></td>
+                                <button class="btn btn-sm btn-primary" onclick="contactTeacher('${escapeAttr(c.name)}')">联系老师</button>
+                                <button class="btn btn-sm btn-warning" onclick="showChildAccountModal(${c.id},'${escapeAttr(c.name)}')">查看账号/改密</button></td>
                         </tr>`).join('')}
                     </tbody>
                 </table>
@@ -13109,6 +13110,78 @@ function copyStudentAccount(username,password){
             showToast('复制失败，请手动记录','error');
         }
     }catch(e){}
+}
+
+// 家长查看孩子学生账号 + 修改孩子密码（仅家长自己的孩子，后端越权拦截）
+async function showChildAccountModal(studentId, studentName){
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:460px;">
+        <div class="modal-header">
+            <h3 class="modal-title">孩子账号管理</h3>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+        </div>
+        <div class="modal-body" id="childAccountBody">
+            <div style="text-align:center;color:#999;padding:24px;">加载中...</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+    const body=modal.querySelector('#childAccountBody');
+    try{
+        const res=await apiService.getParentChildrenAccounts();
+        const list=(res&&res.code===200&&res.data)?res.data:[];
+        const item=list.find(function(x){return String(x.studentId)===String(studentId);});
+        if(!item){
+            body.innerHTML='<div style="text-align:center;color:#999;padding:24px;">未找到该孩子的绑定信息</div>';
+            return;
+        }
+        if(!item.accountExists){
+            body.innerHTML='<div style="text-align:center;color:#999;padding:24px;">孩子「'+escapeHtml(item.name||'')+'」暂无学生登录账号，请先在「绑定孩子」流程中重新绑定以自动生成账号。</div>';
+            return;
+        }
+        body.innerHTML=`
+            <div style="background:#f5f7fa;border-radius:10px;padding:14px;margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="color:#666;">孩子</span><span style="font-weight:600;">${escapeHtml(item.name||'')}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="color:#666;">学生账号</span>
+                    <span style="font-weight:700;font-family:monospace;">${escapeHtml(item.username||'')}</span>
+                </div>
+            </div>
+            <div style="font-size:13px;color:#999;margin-bottom:10px;">家长可代为设置孩子的新密码（无需原密码）。</div>
+            <div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">新密码</label><input type="password" id="ccaNew" class="form-control" placeholder="至少6位"></div>
+            <div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">确认新密码</label><input type="password" id="ccaConfirm" class="form-control" placeholder="请再次输入新密码"></div>
+            <button class="btn btn-primary" id="ccaBtn" onclick="submitChildPasswordChange(${studentId},'${escapeAttr(item.name||'')}')">确认修改密码</button>`;
+    }catch(e){
+        body.innerHTML='<div style="text-align:center;color:#f5222d;padding:24px;">加载失败，请重试</div>';
+    }
+}
+async function submitChildPasswordChange(studentId, studentName){
+    const np=document.getElementById('ccaNew').value;
+    const cf=document.getElementById('ccaConfirm').value;
+    if(!np||!cf){showToast('请完整填写新密码','error');return;}
+    if(np.length<6){showToast('新密码至少6位','error');return;}
+    if(np!==cf){showToast('两次输入的新密码不一致','error');return;}
+    const btn=document.getElementById('ccaBtn');
+    if(btn){btn.disabled=true;btn.textContent='提交中...';}
+    try{
+        const res=await apiService.changeChildStudentPassword(studentId, np);
+        if(res&&res.code===200){
+            showToast('孩子密码修改成功','success');
+            const ov=document.getElementById('ccaNew');
+            if(ov&&ov.closest('.modal-overlay'))ov.closest('.modal-overlay').remove();
+        }else{
+            showToast((res&&(res.msg||res.error))||'修改失败','error');
+            if(btn){btn.disabled=false;btn.textContent='确认修改密码';}
+        }
+    }catch(e){
+        showToast('修改失败：'+e.message,'error');
+        if(btn){btn.disabled=false;btn.textContent='确认修改密码';}
+    }
 }
 
 </script>

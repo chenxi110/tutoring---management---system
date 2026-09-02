@@ -70,6 +70,40 @@ public class AuthController {
         return result;
     }
 
+    // 家长查看自己孩子的学生账号（仅 parent）
+    @GetMapping("/parent/children/accounts")
+    public Map<String, Object> parentChildrenAccounts(HttpServletRequest req) {
+        String role = (String) req.getAttribute("role");
+        Long uid = (Long) req.getAttribute("userId");
+        if (!"parent".equals(role)) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("code", 403);
+            r.put("error", "仅家长账号可查看孩子账号");
+            return r;
+        }
+        return authService.getParentChildrenAccounts(uid);
+    }
+
+    // 家长修改自己孩子的学生账号密码（仅 parent；越权拦截）
+    @PostMapping("/parent/changeStudentPassword")
+    public Map<String, Object> changeStudentPassword(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        String role = (String) req.getAttribute("role");
+        Long parentId = (Long) req.getAttribute("userId");
+        if (!"parent".equals(role)) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("code", 403);
+            r.put("error", "仅家长账号可修改孩子密码");
+            return r;
+        }
+        Long studentId = null;
+        if (body != null && body.get("studentId") != null) {
+            try { studentId = Long.valueOf(String.valueOf(body.get("studentId"))); }
+            catch (NumberFormatException e) { studentId = null; }
+        }
+        String newPassword = body == null || body.get("newPassword") == null ? null : String.valueOf(body.get("newPassword"));
+        return authService.changeChildStudentPassword(parentId, studentId, newPassword);
+    }
+
     // 管理员为学生账号补建（仅 admin；为已绑定家长但无账号的存量学生自动创建账号）
     @PostMapping("/student/backfill")
     public Map<String, Object> backfillStudentAccounts(HttpServletRequest req) {
