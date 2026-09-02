@@ -1035,6 +1035,12 @@ body {
                     </div>
                 </div>
             </div>
+            <div class="page" id="page-parent-leave">
+                <div class="card"><div class="card-header"><h3 class="card-title">请假申请</h3></div><div class="card-body" style="padding:16px;" id="parentLeaveBody"><div style="text-align:center;color:#999;padding:20px;">加载中...</div></div></div>
+            </div>
+            <div class="page" id="page-parent-profile">
+                <div class="card"><div class="card-header"><h3 class="card-title">个人中心</h3></div><div class="card-body" style="padding:16px;" id="parentProfileBody"><div style="text-align:center;color:#999;padding:20px;">加载中...</div></div></div>
+            </div>
             <div class="page" id="page-notifications">
                 <div class="card">
                     <div class="card-header">
@@ -2605,6 +2611,8 @@ function navigateTo(page){
             'teacher-message':'家校互通',
             'parent-message':'消息中心',
             'parent-ai':'AI学习助手',
+            'parent-leave':'请假申请',
+            'parent-profile':'个人中心',
             finance:'财务台账',
             export:'导出打印',
             classroom:'上课模式',
@@ -2639,6 +2647,8 @@ function navigateTo(page){
             'teacher-message':()=>{ if(apiService.isParent()){ window.location.href='parent-message.html'; } else { loadTeacherPrivateMessages(); } },
             'parent-message':()=>{ window.location.href='parent-message.html'; },
             'parent-ai':()=>loadParentAI(),
+            'parent-leave':()=>loadParentLeave(),
+            'parent-profile':()=>loadParentProfile(),
             finance:()=>loadFinanceRecords(),
             export:()=>loadExportPage(),
             ai:()=>loadAI(),
@@ -11544,6 +11554,111 @@ function renderParentBindRequired(pageElement, title, description){
 }
 
 // 家长端仪表盘
+// ===== 家长端请假申请 =====
+async function loadParentLeave(){
+    const body=document.getElementById('parentLeaveBody');
+    if(!body)return;
+    if(!window.parentData)await DataSync.syncFromServer();
+    const pd=window.parentData;
+    if(!pd||!pd.children||pd.children.length===0){
+        renderParentBindRequired(body, '未绑定学生', '请先完成学生绑定后，再提交请假申请。');
+        return;
+    }
+    const today=new Date().toISOString().slice(0,10);
+    let opts=pd.children.map(function(c){return '<option value="'+c.id+'" data-name="'+escapeAttr(c.name)+'">'+escapeHtml(c.name)+'</option>';}).join('');
+    body.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">'
+        +'<div><label style="display:block;margin-bottom:6px;font-weight:600;">孩子</label><select id="plChild" class="form-control">'+opts+'</select></div>'
+        +'<div><label style="display:block;margin-bottom:6px;font-weight:600;">请假类型</label><select id="plType" class="form-control"><option value="事假">事假</option><option value="病假">病假</option><option value="其他">其他</option></select></div>'
+        +'<div><label style="display:block;margin-bottom:6px;font-weight:600;">请假日期</label><input type="date" id="plDate" class="form-control" value="'+today+'"></div>'
+        +'</div>'
+        +'<div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">请假原因</label><textarea id="plReason" class="form-control" rows="3" placeholder="请输入请假原因..."></textarea></div>'
+        +'<button class="btn btn-primary" onclick="submitParentLeave()">提交请假申请</button>'
+        +'<div style="margin-top:18px;"><h4 style="margin-bottom:10px;">我的请假记录</h4><div class="table-wrapper" id="plListWrap"><div style="text-align:center;color:#999;padding:16px;">加载中...</div></div></div>';
+    loadParentLeaveList();
+}
+
+async function loadParentLeaveList(){
+    const wrap=document.getElementById('plListWrap');
+    if(!wrap)return;
+    try{
+        const res=await apiService.getLeaveRequests();
+        const list=(res&&res.code===200)?(res.data||[]):[];
+        if(!list.length){
+            wrap.innerHTML='<div style="text-align:center;color:#999;padding:16px;">暂无请假记录</div>';
+            return;
+        }
+        const statusMap={pending:['待审批','badge-warning'],approved:['已通过','badge-success'],rejected:['已拒绝','badge-danger']};
+        wrap.innerHTML='<table class="data-table"><thead><tr><th>孩子</th><th>类型</th><th>请假日期</th><th>原因</th><th>状态</th><th>审批意见</th><th>申请时间</th></tr></thead><tbody>'
+            +list.map(function(r){
+                const st=statusMap[r.status]||['未知',''];
+                return '<tr><td>'+escapeHtml(r.student_name||'')+'</td><td>'+escapeHtml(r.leave_type||'')+'</td><td>'+escapeHtml(r.leave_date||'')+'</td><td>'+escapeHtml(r.reason||'')+'</td>'
+                +'<td><span class="badge '+(st[1]||'')+'">'+st[0]+'</span></td><td>'+escapeHtml(r.approve_comment||'-')+'</td><td>'+escapeHtml(String(r.created_at||'').replace('T',' '))+'</td></tr>';
+            }).join('')+'</tbody></table>';
+    }catch(e){
+        wrap.innerHTML='<div style="text-align:center;color:#f5222d;padding:16px;">请假记录加载失败，请刷新重试</div>';
+    }
+}
+
+async function submitParentLeave(){
+    const childEl=document.getElementById('plChild');
+    if(!childEl){showToast('请选择孩子','error');return;}
+    const sid=childEl.value;
+    const sname=childEl.options[childEl.selectedIndex]?childEl.options[childEl.selectedIndex].getAttribute('data-name'):'';
+    const ltype=document.getElementById('plType').value;
+    const ldate=document.getElementById('plDate').value;
+    const reason=document.getElementById('plReason').value.trim();
+    if(!ldate){showToast('请选择请假日期','error');return;}
+    if(!reason){showToast('请输入请假原因','error');return;}
+    const pd=window.parentData;
+    const child=(pd&&pd.children||[]).find(function(c){return String(c.id)===String(sid);});
+    const body={studentId:Number(sid),studentName:sname||(child&&child.name)||'',classId:child&&child.class_id?Number(child.class_id):null,className:(child&&child.class_name)||'',leaveDate:ldate,leaveType:ltype,reason:reason};
+    try{
+        const res=await apiService.createLeaveRequest(body);
+        if(res&&res.code===200){
+            showToast('请假申请已提交，等待教师审批');
+            loadParentLeaveList();
+        }else{
+            showToast((res&&res.msg)||(res&&res.error)||'提交失败','error');
+        }
+    }catch(e){
+        showToast('提交失败，请稍后重试','error');
+    }
+}
+
+// ===== 家长端个人中心 =====
+async function loadParentProfile(){
+    const body=document.getElementById('parentProfileBody');
+    if(!body)return;
+    body.innerHTML='<div style="max-width:440px;">'
+        +'<h4 style="margin-bottom:12px;">修改密码</h4>'
+        +'<div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">旧密码</label><input type="password" id="ppOld" class="form-control" placeholder="请输入当前密码"></div>'
+        +'<div style="margin-bottom:12px;"><label style="display:block;margin-bottom:6px;font-weight:600;">新密码</label><input type="password" id="ppNew" class="form-control" placeholder="请输入新密码（至少6位）"></div>'
+        +'<div style="margin-bottom:14px;"><label style="display:block;margin-bottom:6px;font-weight:600;">确认新密码</label><input type="password" id="ppConfirm" class="form-control" placeholder="请再次输入新密码"></div>'
+        +'<button class="btn btn-primary" onclick="changeParentPassword()">确认修改</button>'
+        +'<div style="margin-top:16px;font-size:12px;color:#999;">忘记密码？请联系机构管理员重置。</div>'
+        +'</div>';
+}
+
+async function changeParentPassword(){
+    const oldP=document.getElementById('ppOld').value;
+    const newP=document.getElementById('ppNew').value;
+    const conf=document.getElementById('ppConfirm').value;
+    if(!oldP||!newP||!conf){showToast('请完整填写所有密码项','error');return;}
+    if(newP.length<6){showToast('新密码至少6位','error');return;}
+    if(newP!==conf){showToast('两次输入的新密码不一致','error');return;}
+    try{
+        const res=await apiService.updateMyPassword(oldP,newP,conf);
+        if(res&&res.code===200){
+            showToast('密码修改成功，请重新登录');
+            setTimeout(function(){logout();},1200);
+        }else{
+            showToast((res&&res.msg)||(res&&res.error)||'修改失败','error');
+        }
+    }catch(e){
+        showToast('修改失败，请稍后重试','error');
+    }
+}
+
 // ===== 家长端 AI 学习助手 =====
 let _parentAiQuizQuestions = [];
 let _parentAiQuizAnswers = {};
@@ -12038,7 +12153,7 @@ async function loadParentDashboard(){
                             <td>${escapeHtml(c.class_course||'-')}</td>
                             <td><span class="badge badge-success">在读</span></td>
                             <td><button class="btn btn-sm btn-secondary" onclick="navigateTo('schedule')">查看课表</button>
-                                <button class="btn btn-sm btn-primary" onclick="navigateTo('teacher-message')">联系老师</button></td>
+                                <button class="btn btn-sm btn-primary" onclick="contactTeacher('${escapeAttr(c.name)}')">联系老师</button></td>
                         </tr>`).join('')}
                     </tbody>
                 </table>
@@ -12550,6 +12665,22 @@ function contactTeacher(studentName){
         teacherName=children[0].teacher_name||'';
         studentName=studentName||children[0].name;
     }
+    // teacherId 为空时，尝试从接口加载可联系老师列表
+    if(!teacherId){
+        apiService.request('GET','/messages/teachers').then(function(r){
+            const teachers=(r&&r.code===200)?(r.data||[]):[];
+            const sel=document.getElementById('contactTeacherSel');
+            if(sel&&teachers.length){
+                sel.innerHTML='<option value="">请选择老师...</option>'+teachers.map(function(t){
+                    return '<option value="'+t.id+'">'+escapeHtml(t.name||t.username||'老师')+(t.class_name?'（'+escapeHtml(t.class_name)+'）':'')+'</option>';
+                }).join('');
+                const row=document.getElementById('contactTeacherRow');
+                if(row)row.style.display='block';
+            }else if(sel&&!teachers.length){
+                sel.innerHTML='<option value="">该孩子暂未分配老师，请联系管理员</option>';
+            }
+        }).catch(function(){});
+    }
     const modal=document.createElement('div');
     modal.className='modal-overlay active';
     modal.innerHTML=`<div class="modal" style="max-width:500px;">
@@ -12568,6 +12699,10 @@ function contactTeacher(studentName){
                 <textarea id="contactContent" class="form-control" rows="5" placeholder="请输入您想对老师说的问题..."></textarea>
             </div>
             <input type="hidden" id="contactReceiverId" value="${teacherId||''}">
+            <div id="contactTeacherRow" style="margin-bottom:12px;${teacherId?'display:none;':''}">
+                <label style="display:block;margin-bottom:6px;font-weight:600;">接收老师</label>
+                <select id="contactTeacherSel" class="form-control"><option value="">请选择老师...</option></select>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">取消</button>
@@ -12581,7 +12716,8 @@ function contactTeacher(studentName){
 async function sendContactMessage(studentName,btn){
     const title=document.getElementById('contactTitle').value.trim();
     const content=document.getElementById('contactContent').value.trim();
-    const receiverId=document.getElementById('contactReceiverId')?document.getElementById('contactReceiverId').value:null;
+    const receiverId=(document.getElementById('contactReceiverId')?document.getElementById('contactReceiverId').value:null)
+        ||(document.getElementById('contactTeacherSel')?document.getElementById('contactTeacherSel').value:null)||null;
     if(!content){showToast('请输入消息内容','error');return;}
     btn.disabled=true;
     btn.textContent='发送中...';
@@ -12967,7 +13103,9 @@ function renderSidebarMenu(role){
         {page:'classroom',label:'上课模式',svg:'<path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zm-4 2h4v16h-4V5zm-4 0h4v16h-4V5zm-4 0h4v16H6V5z"/>'},
         {page:'notifications',label:'通知公告',svg:'<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>'},
         {page:'parent-message',label:'消息中心',svg:'<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/>'},
-        {page:'parent-ai',label:'AI学习助手',svg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'}
+        {page:'parent-ai',label:'AI学习助手',svg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'},
+        {page:'parent-leave',label:'请假申请',svg:'<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13.4V7h2v5.6l4.2 2.4-.8 1.2z"/>'},
+        {page:'parent-profile',label:'个人中心',svg:'<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>'}
     ];
     const adminItems=[
         {page:'dashboard',label:'仪表盘',svg:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>'},

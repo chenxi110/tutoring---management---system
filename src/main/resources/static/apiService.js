@@ -449,6 +449,16 @@
             confirmPassword: confirmPassword
         });
     }
+
+    // 请假申请列表（家长）
+    async getLeaveRequests() {
+        return await this.request('GET', '/leave-requests');
+    }
+
+    // 提交请假申请（家长）
+    async createLeaveRequest(data) {
+        return await this.request('POST', '/leave-requests', data);
+    }
 }
 
 var apiService = new ApiService();
