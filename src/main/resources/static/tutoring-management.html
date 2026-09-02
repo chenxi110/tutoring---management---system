@@ -783,6 +783,7 @@ body {
             </div>
             <div class="page" id="page-students"><div class="card"><div class="card-header"><h3 class="card-title">学生名单管理</h3></div><div class="student-list-container" id="studentList"></div></div></div>
             <div class="page" id="page-attendance">
+                <div id="attendanceTeacherView">
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">缺勤记录筛选</h3>
@@ -829,6 +830,8 @@ body {
                     </div>
                     <div id="attendanceResult"></div>
                 </div>
+                </div>
+                <div id="parentAttendanceView" style="display:none"></div>
             </div>
             <div class="page" id="page-statistics">
                 <div class="card">
@@ -954,7 +957,7 @@ body {
                 </div>
             </div>
             <div class="page" id="page-schedule">
-                <div class="card">
+                <div class="card" id="scheduleTeacherCard1">
                     <div class="card-header">
                         <h3 class="card-title" id="schedulePageTitle">课表</h3>
                         <div class="quick-actions">
@@ -966,22 +969,23 @@ body {
                     <div id="scheduleWeekView" style="margin-bottom: 8px;"></div>
                     <div style="font-size:13px;color:var(--text-secondary);padding:4px 2px;">提示：点击任一空白格子可直接在该时段添加课程；点击已有课程卡片可编辑。</div>
                 </div>
-                <div class="card">
+                <div class="card" id="scheduleTeacherCard2">
                     <div class="card-header"><h3 class="card-title">所有课程明细</h3></div>
                     <div class="table-wrapper"><table><thead><tr><th>星期</th><th>时间</th><th>班级</th><th>课程</th><th>节数</th><th>学生数</th><th>操作</th></tr></thead><tbody id="scheduleTableBody"></tbody></table></div>
                 </div>
+                <div id="parentScheduleView" style="display:none"></div>
             </div>
             <!-- 作业管理模块 -->
             <div class="page" id="page-homework">
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">作业管理</h3>
-                        <div class="quick-actions">
+                        <div class="quick-actions" id="hwTeacherActions">
                             <button class="btn btn-primary" onclick="openHomeworkModal()">+ 发布作业</button>
                             <button class="btn btn-secondary" onclick="exportHomeworkReport()">导出作业报表</button>
                         </div>
                     </div>
-                    <div class="filter-bar">
+                    <div class="filter-bar" id="hwTeacherFilter">
                         <div class="form-group"><label class="form-label">班级</label><select class="form-control" id="hwFilterClass"><option value="">全部班级</option></select></div>
                         <div class="form-group"><label class="form-label">状态</label><select class="form-control" id="hwFilterStatus"><option value="">全部</option><option value="pending">待批改</option><option value="graded">已批改</option><option value="overdue">已过期</option></select></div>
                         <div class="form-group"><label class="form-label">作业类型</label><select class="form-control" id="hwFilterType"><option value="">全部</option><option value="preview">预习作业</option><option value="review">巩固作业</option><option value="exam">单元考试</option></select></div>
@@ -989,6 +993,7 @@ body {
                     </div>
                     <div id="homeworkList"></div>
                 </div>
+                <div id="parentHomeworkView" style="display:none"></div>
             </div>
             <!-- 成绩管理模块 -->
             <div class="page" id="page-grades">
@@ -2668,15 +2673,15 @@ function navigateTo(page){
             dashboard:()=>{ if(apiService.isParent())return loadParentDashboard(); if(apiService.isStudent())return loadStudentDashboard(); if(apiService.isAdmin())return loadAdminDashboard(); return loadDashboard(); },
             records:()=>loadRecords(),
             students:()=>loadStudents(),
-            attendance:()=>{ if(apiService.isParent())return loadParentAttendance(); if(apiService.isStudent())return loadStudentAttendance(); return initAttendancePage(); },
+            attendance:()=>{ applyAttendanceRoleView(); if(apiService.isParent())return loadParentAttendance(); if(apiService.isStudent())return loadStudentAttendance(); return initAttendancePage(); },
             statistics:()=>{ if(apiService.isParent())return loadParentStatistics(); if(apiService.isStudent())return loadStudentAttendance(); return initStatisticsPage(); },
-            schedule:()=>{ if(apiService.isParent()||apiService.isStudent())return loadParentSchedule(); return loadSchedule(); },
+            schedule:()=>{ applyScheduleRoleView(); if(apiService.isParent()||apiService.isStudent())return loadParentSchedule(); return loadSchedule(); },
             classroom:()=>loadClassroom(),
             semesters:()=>loadSemesters(),
             settings:()=>loadSettings(),
             users:()=>loadUserList(),
             classes:()=>loadClasses(),
-            homework:()=>{ if(apiService.isParent()||apiService.isStudent())return loadParentHomework(); return loadHomeworkList(); },
+            homework:()=>{ applyHomeworkRoleView(); if(apiService.isParent()||apiService.isStudent())return loadParentHomework(); return loadHomeworkList(); },
             grades:()=>{ if(apiService.isParent()||apiService.isStudent())return loadParentGrades(); return loadGrades(); },
             'parent-grades':()=>loadParentGrades(),
             notifications:()=>apiService.isParent()?loadParentMessages():loadNotifications(),
@@ -12422,7 +12427,7 @@ async function loadStudentDashboard(){
 }
 
 async function loadStudentAttendance(){
-    const page=document.getElementById('page-attendance');
+    const page=document.getElementById('parentAttendanceView');
     if(!page)return;
     page.innerHTML='<div class="card" style="text-align:center;padding:40px;color:#999;">加载中...</div>';
     let list=[];
@@ -12493,14 +12498,43 @@ async function loadParentHomeworkSummary() {
     }
 }
 
+// 作业管理页角色显隐：教师/管理员看教师控件，家长/学生看独立容器
+function applyHomeworkRoleView(){
+    const isPS = apiService.isParent() || apiService.isStudent();
+    ['hwTeacherActions','hwTeacherFilter','homeworkList'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) el.style.display = isPS ? 'none' : '';
+    });
+    const pv=document.getElementById('parentHomeworkView');
+    if(pv) pv.style.display = isPS ? '' : 'none';
+}
+// 课表页角色显隐
+function applyScheduleRoleView(){
+    const isPS = apiService.isParent() || apiService.isStudent();
+    ['scheduleTeacherCard1','scheduleTeacherCard2'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) el.style.display = isPS ? 'none' : '';
+    });
+    const pv=document.getElementById('parentScheduleView');
+    if(pv) pv.style.display = isPS ? '' : 'none';
+}
+// 缺勤页角色显隐
+function applyAttendanceRoleView(){
+    const isPS = apiService.isParent() || apiService.isStudent();
+    const tv=document.getElementById('attendanceTeacherView');
+    if(tv) tv.style.display = isPS ? 'none' : '';
+    const pv=document.getElementById('parentAttendanceView');
+    if(pv) pv.style.display = isPS ? '' : 'none';
+}
+
 async function loadParentHomework(showOnlyCount = false) {
     try {
         if (!window.parentData) await DataSync.syncFromServer();
         const children = (window.parentData && window.parentData.children) || [];
         if (!children.length) {
             if (!showOnlyCount) {
-                const page = document.getElementById('page-homework');
-                if (page) renderParentBindRequired(page, '未绑定学生', '绑定后即可查看您的待到期作业。');
+                const view = document.getElementById('parentHomeworkView');
+                if (view) renderParentBindRequired(view, '未绑定学生', '绑定后即可查看您的待到期作业。');
             }
             window.parentHomeworkData = [];
             return [];
@@ -12508,8 +12542,8 @@ async function loadParentHomework(showOnlyCount = false) {
         const res = await apiService.getHomework();
         const list = Array.isArray(res) ? res : (res && Array.isArray(res.data) ? res.data : []);
         if (!showOnlyCount) {
-            const page = document.getElementById('page-homework');
-            if (!page) return list;
+            const view = document.getElementById('parentHomeworkView');
+            if (!view) return list;
             const rows = list.length ? list.map(item => `
                 <tr>
                     <td>${escapeHtml(item.class_name || item.className || '-')}</td>
@@ -12519,7 +12553,7 @@ async function loadParentHomework(showOnlyCount = false) {
                     <td>${item.deadline ? (new Date(item.deadline) < new Date() ? '<span class="badge badge-danger">已过期</span>' : '<span class="badge badge-warning">待完成</span>') : '<span class="badge badge-secondary">未设置</span>'}</td>
                 </tr>
             `).join('') : '<tr><td colspan="5" class="empty-state">暂无作业</td></tr>';
-            page.innerHTML = `
+            view.innerHTML = `
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">我的待到期作业</h3></div>
                     <div class="table-wrapper">
@@ -12535,8 +12569,8 @@ async function loadParentHomework(showOnlyCount = false) {
         return list;
     } catch (e) {
         if (!showOnlyCount) {
-            const page = document.getElementById('page-homework');
-            if (page) renderParentBindRequired(page, '未绑定学生', '绑定后即可查看您的待到期作业。');
+            const view = document.getElementById('parentHomeworkView');
+            if (view) renderParentBindRequired(view, '未绑定学生', '绑定后即可查看您的待到期作业。');
         }
         window.parentHomeworkData = [];
         return [];
@@ -12604,7 +12638,7 @@ async function loadParentGrades() {
 
 // 家长端课表
 async function loadParentSchedule(){
-    const schedulePage=document.getElementById('page-schedule');
+    const schedulePage=document.getElementById('parentScheduleView');
     if(!schedulePage)return;
     if(!window.parentData)await DataSync.syncFromServer();
     const pd=window.parentData;
@@ -12646,7 +12680,7 @@ async function loadParentSchedule(){
 
 // 家长端考勤
 async function loadParentAttendance(){
-    const page=document.getElementById('page-attendance');
+    const page=document.getElementById('parentAttendanceView');
     if(!page)return;
     if(!window.parentData)await DataSync.syncFromServer();
     const pd=window.parentData;
