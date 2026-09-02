@@ -154,4 +154,107 @@ public class ExamController {
         r.put("data", examService.listSubmissions(examId));
         return r;
     }
+
+    // 解析考试编码为数字ID（教师监控用）
+    @GetMapping("/resolve")
+    public Map<String, Object> resolveExam(@RequestParam String examCode, HttpServletRequest req) {
+        Map<String, Object> r = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            r.put("code", 403);
+            r.put("msg", "仅教师/管理员可查看");
+            return r;
+        }
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        Map<String, Object> resolved = examService.resolveExam(examCode);
+        if (resolved != null && "200".equals(String.valueOf(resolved.get("code"))) && "teacher".equals(role)) {
+            try {
+                Long examId = ((Number) resolved.get("id")).longValue();
+                Map<String, Object> exam = examService.getExamById(examId);
+                Long examTeacherId = exam != null && exam.get("teacher_id") != null ? ((Number) exam.get("teacher_id")).longValue() : null;
+                if (examTeacherId != null && !examTeacherId.equals(userId)) {
+                    r.put("code", 403);
+                    r.put("msg", "无权限：只能查看自己班级的考试");
+                    return r;
+                }
+            } catch (Exception e) { }
+        }
+        return resolved != null ? resolved : r;
+    }
+
+    // 获取考试题目列表（教师监控/查看试卷用）
+    @GetMapping("/{examId}/questions")
+    public Map<String, Object> listQuestions(@PathVariable Long examId, HttpServletRequest req) {
+        Map<String, Object> r = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            r.put("code", 403);
+            r.put("msg", "仅教师/管理员可查看题目");
+            return r;
+        }
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if ("teacher".equals(role)) {
+            try {
+                Map<String, Object> exam = examService.getExamById(examId);
+                if (exam == null) {
+                    r.put("code", 404);
+                    r.put("msg", "考试不存在");
+                    return r;
+                }
+                Long examTeacherId = exam.get("teacher_id") != null ? ((Number) exam.get("teacher_id")).longValue() : null;
+                if (examTeacherId != null && !examTeacherId.equals(userId)) {
+                    r.put("code", 403);
+                    r.put("msg", "无权限：只能查看自己班级的考试");
+                    return r;
+                }
+            } catch (Exception e) {
+                r.put("code", 500);
+                r.put("msg", "查询考试信息失败");
+                return r;
+            }
+        }
+        return examService.getExamQuestions(examId);
+    }
+
+    // 获取学生试卷明细（教师查看试卷用）
+    @GetMapping("/submissions/{submissionId}/paper")
+    public Map<String, Object> getStudentPaper(@PathVariable Long submissionId, HttpServletRequest req) {
+        Map<String, Object> r = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            r.put("code", 403);
+            r.put("msg", "仅教师/管理员可查看试卷");
+            return r;
+        }
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if ("teacher".equals(role)) {
+            try {
+                List<Map<String, Object>> subs = new java.util.ArrayList<>();
+                try {
+                    subs = examService.listSubmissionsById(submissionId);
+                } catch (Exception e) { }
+                if (subs.isEmpty()) {
+                    r.put("code", 404);
+                    r.put("msg", "提交记录不存在");
+                    return r;
+                }
+                Map<String, Object> sub = subs.get(0);
+                Long examId = sub.get("exam_id") != null ? ((Number) sub.get("exam_id")).longValue() : null;
+                if (examId != null) {
+                    Map<String, Object> exam = examService.getExamById(examId);
+                    Long examTeacherId = exam != null && exam.get("teacher_id") != null ? ((Number) exam.get("teacher_id")).longValue() : null;
+                    if (examTeacherId != null && !examTeacherId.equals(userId)) {
+                        r.put("code", 403);
+                        r.put("msg", "无权限：只能查看自己班级的试卷");
+                        return r;
+                    }
+                }
+            } catch (Exception e) {
+                r.put("code", 500);
+                r.put("msg", "查询试卷权限失败");
+                return r;
+            }
+        }
+        return examService.getStudentPaper(submissionId);
+    }
 }

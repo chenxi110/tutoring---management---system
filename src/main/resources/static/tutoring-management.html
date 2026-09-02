@@ -4489,6 +4489,18 @@ function submitExam(studentName){
         return {questionId:i,answer,isCorrect,score:earnedScore};
     });
     saveExamResult(studentName,results,totalScore,correctCount,studentExamQuizzes.length);
+    // 同步提交到后端，供教师端考试监控/查看学生试卷使用（跨设备可靠）
+    try{
+        const answersObj={};
+        results.forEach(function(r,i){answersObj[i]=r.answer!==undefined&&r.answer!==null?r.answer:'';});
+        apiService.submitExam({
+            examCode:studentExamConfig.examId,
+            studentId:studentExamConfig.studentId,
+            studentName:studentName,
+            answersJson:JSON.stringify(answersObj),
+            score:totalScore
+        }).catch(function(){});
+    }catch(e){}
     document.getElementById('examMain').style.display='none';
     document.getElementById('examResult').style.display='block';
     document.getElementById('resultScore').textContent=`${totalScore}分`;
@@ -4548,61 +4560,193 @@ function toggleExamAutoRefresh(){
 function renderExamMonitor(){
     const content=document.getElementById('examMonitorContent');
     if(!content)return;
-    // 从 localStorage 重新加载数据以获取最新提交
-    const data=JSON.parse(localStorage.getItem('tutoringAppData')||'{}');
-    if(!data.semesters){content.innerHTML='<div style="text-align:center;color:#999;padding:20px;">暂无数据</div>';return;}
-    // 查找当前有考试的会话
-    let activeSession=null;
-    for(const sem of data.semesters){
-        if(sem.classroomSessions){
-            for(const session of sem.classroomSessions){
-                if(session.examConfig&&(session.quizzes&&session.quizzes.length>0)){
-                    activeSession=session;break;
+    // 查找当前考试 examId（优先当前会话，其次 localStorage 存档会话）
+    let examId=null;
+    let localQuizzes=null;
+    if(currentClassroomSession&&currentClassroomSession.examConfig&&currentClassroomSession.examConfig.examId){
+        examId=currentClassroomSession.examConfig.examId;
+        localQuizzes=currentClassroomSession.quizzes||[];
+    }else{
+        try{
+            const data=JSON.parse(localStorage.getItem('tutoringAppData')||'{}');
+            if(data.semesters){
+                outer:
+                for(const sem of data.semesters){
+                    if(sem&&sem.classroomSessions){
+                        for(const session of sem.classroomSessions){
+                            if(session.examConfig&&session.examConfig.examId&&(session.quizzes&&session.quizzes.length>0)){
+                                examId=session.examConfig.examId;
+                                localQuizzes=session.quizzes||[];
+                                break outer;
+                            }
+                        }
+                    }
                 }
             }
-        }
-        if(activeSession)break;
+        }catch(e){}
     }
-    if(!activeSession){content.innerHTML='<div style="text-align:center;color:#999;padding:20px;">暂无进行中的考试</div>';return;}
-    const submissions=activeSession.examSubmissions||[];
-    const totalQuestions=activeSession.quizzes?activeSession.quizzes.length:0;
-    const maxScore=activeSession.quizzes?activeSession.quizzes.reduce((s,q)=>s+(q.score||0),0):0;
-    // 获取该班级的学生名单
-    const className=activeSession.className||'';
-    const allStudents=activeSession.students||[];
-    const submittedNames=submissions.map(s=>s.studentName);
-    const notSubmitted=allStudents.filter(s=>!submittedNames.includes(s.name));
-    let html=`<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:15px;">
-        <div style="background:#e6f7ff;padding:10px 16px;border-radius:6px;"><strong>${submissions.length}</strong> 已提交</div>
-        <div style="background:#fff7e6;padding:10px 16px;border-radius:6px;"><strong>${notSubmitted.length}</strong> 未提交</div>
-        <div style="background:#f6ffed;padding:10px 16px;border-radius:6px;">满分 <strong>${maxScore}</strong> 分</div>
-        <div style="background:#f5f5f5;padding:10px 16px;border-radius:6px;">共 <strong>${totalQuestions}</strong> 题</div>
-    </div>`;
-    if(submissions.length>0){
-        html+=`<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#fafafa;">
-            <th style="padding:8px;text-align:left;border-bottom:2px solid #e8e8e8;">学生</th>
-            <th style="padding:8px;text-align:center;border-bottom:2px solid #e8e8e8;">得分</th>
-            <th style="padding:8px;text-align:center;border-bottom:2px solid #e8e8e8;">答对题数</th>
-            <th style="padding:8px;text-align:left;border-bottom:2px solid #e8e8e8;">提交时间</th>
-        </tr></thead><tbody>`;
-        submissions.sort((a,b)=>b.totalScore-a.totalScore).forEach(s=>{
-            const pct=maxScore>0?Math.round(s.totalScore/maxScore*100):0;
-            const color=pct>=80?'#52c41a':pct>=60?'#faad14':'#ff4d4f';
-            html+=`<tr>
-                <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(s.studentName)}</td>
-                <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;"><strong style="color:${color};">${s.totalScore}</strong> / ${maxScore}</td>
-                <td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">${s.correctCount}/${s.totalQuestions||totalQuestions}</td>
-                <td style="padding:8px;border-bottom:1px solid #eee;color:#999;">${escapeHtml(s.submitTime||'')}</td>
-            </tr>`;
+    if(!examId){content.innerHTML='<div style="text-align:center;color:#999;padding:20px;">暂无进行中的考试，请先在「试题分发」中启动考试</div>';return;}
+    content.innerHTML='<div style="text-align:center;color:#999;padding:20px;">🤖 AI 正在加载考试数据...</div>';
+    // 解析 examId（课堂考试可能是字符串 examCode，需转数字ID）
+    var resolveP=(apiService.resolveExam?apiService.resolveExam(String(examId)):Promise.resolve({code:200,id:examId}));
+    resolveP.then(function(rr){
+        var numericId=(rr&&rr.code===200&&rr.id!==undefined&&rr.id!==null)?rr.id:examId;
+        return Promise.all([
+            (apiService.getExamQuestions?apiService.getExamQuestions(numericId):Promise.resolve({code:500})),
+            (apiService.getExamSubmissions?apiService.getExamSubmissions(numericId):Promise.resolve({code:500}))
+        ]);
+    }).then(function(results){
+        const qRes=results[0], sRes=results[1];
+        const questions=(qRes&&qRes.code===200&&qRes.data&&qRes.data.length>0)?qRes.data:(localQuizzes||[]);
+        const submissions=(sRes&&sRes.code===200&&sRes.data)?sRes.data:[];
+        const totalQuestions=questions.length;
+        const maxScore=questions.reduce(function(s,q){return s+Number(q.score||0);},0);
+        const typeNames={single:'单选题',multiple:'多选题',truefalse:'判断题',fill:'填空题',essay:'问答题'};
+        // AI 判分解析每题
+        const parsed=submissions.map(function(sub){
+            let answers={};
+            try{answers=sub.answers_json?JSON.parse(sub.answers_json):{};}catch(e){}
+            const detail=questions.map(function(q,i){
+                const qType=q.type||'single';
+                const qScore=Number(q.score||10);
+                const qId=String(q.id!==undefined&&q.id!==null?q.id:i);
+                const correct=q.correctAnswer;
+                const stu=answers[qId]!==undefined?answers[qId]:'';
+                let earned=0,isCorrect=false;
+                if(correct!==undefined&&correct!==null&&stu!==''&&stu!==undefined&&stu!==null){
+                    if(qType==='multiple'){
+                        const cl=Array.isArray(correct)?correct:String(correct).split(',');
+                        const sl=Array.isArray(stu)?stu:String(stu).split(',');
+                        const cs=new Set(cl);
+                        let ok=true;for(const a of sl){if(!cs.has(a)){ok=false;break;}}
+                        let cnt=0;if(ok){for(const a of sl){if(cs.has(a))cnt++;}}
+                        earned=ok?Math.round(cnt*qScore/cl.length*100)/100:0;
+                        isCorrect=earned>=qScore-0.001;
+                    }else{
+                        isCorrect=String(correct).trim().toLowerCase()===String(stu).trim().toLowerCase();
+                        earned=isCorrect?qScore:0;
+                    }
+                }
+                return {q:q,typeName:typeNames[qType]||qType,qType:qType,studentAnswer:stu,earned:earned,isCorrect:isCorrect};
+            });
+            const totalScore=Number((sub.score!==undefined&&sub.score!==null)?sub.score:detail.reduce(function(s,d){return s+d.earned;},0));
+            const correctCount=detail.filter(function(d){return d.isCorrect;}).length;
+            return {sub:sub,detail:detail,totalScore:totalScore,correctCount:correctCount,studentName:sub.student_name||sub.studentName||''};
         });
-        html+='</tbody></table>';
-    }
-    if(notSubmitted.length>0){
-        html+=`<div style="margin-top:15px;padding:10px;background:#fff7e6;border-radius:6px;font-size:13px;">
-            <strong>未提交(${notSubmitted.length}人)：</strong>${notSubmitted.map(s=>escapeHtml(s.name)).join('、')}
-        </div>`;
-    }
-    content.innerHTML=html;
+        // 统计
+        const n=parsed.length;
+        const avg=n>0?Math.round(parsed.reduce(function(s,p){return s+p.totalScore;},0)/n*100)/100:0;
+        const max=n>0?Math.max.apply(null,parsed.map(function(p){return p.totalScore;})):0;
+        const min=n>0?Math.min.apply(null,parsed.map(function(p){return p.totalScore;})):0;
+        const pass=n>0?parsed.filter(function(p){return maxScore>0&&p.totalScore/maxScore>=0.6;}).length:0;
+        const passRate=n>0?Math.round(pass/n*100):0;
+        const seg={优:[0,0],良:[0,0],中:[0,0],差:[0,0]};
+        parsed.forEach(function(p){
+            const r=maxScore>0?p.totalScore/maxScore*100:0;
+            if(r>=85)seg['优'][0]++;else if(r>=70)seg['良'][0]++;else if(r>=60)seg['中'][0]++;else seg['差'][0]++;
+        });
+        // 每题正确率
+        const qStats=questions.map(function(q,i){
+            const arr=parsed.map(function(p){return p.detail[i];}).filter(Boolean);
+            const c=arr.filter(function(d){return d.isCorrect;}).length;
+            return {correct:c,total:arr.length,rate:arr.length>0?Math.round(c/arr.length*100):0};
+        });
+        let html='<div style="margin-bottom:15px;">';
+        html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:13px;">';
+        html+='<div style="background:#e6f7ff;padding:8px 14px;border-radius:6px;"><strong>'+n+'</strong> 已提交</div>';
+        html+='<div style="background:#fff7e6;padding:8px 14px;border-radius:6px;">平均 <strong>'+avg+'</strong></div>';
+        html+='<div style="background:#f6ffed;padding:8px 14px;border-radius:6px;">最高 <strong>'+max+'</strong></div>';
+        html+='<div style="background:#fff1f0;padding:8px 14px;border-radius:6px;">最低 <strong>'+min+'</strong></div>';
+        html+='<div style="background:#f9f0ff;padding:8px 14px;border-radius:6px;">及格率 <strong>'+passRate+'%</strong></div>';
+        html+='</div>';
+        html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:13px;">';
+        html+='<span style="color:#999;line-height:26px;">分数段：</span>';
+        html+=Object.keys(seg).map(function(k){return '<div style="background:#fafafa;padding:6px 12px;border-radius:6px;">'+k+' <strong>'+seg[k][0]+'</strong>人</div>';}).join('');
+        html+='</div>';
+        html+='<div style="background:#fafafa;border-radius:6px;padding:10px;font-size:13px;margin-bottom:10px;">';
+        html+='<div style="font-weight:600;margin-bottom:6px;">📊 每题 AI 判分正确率</div>';
+        if(qStats.length>0){
+            html+=qStats.map(function(s,i){return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'+
+                '<span style="min-width:24px;color:#999;">'+(i+1)+'.</span>'+
+                '<div style="flex:1;background:#eee;border-radius:4px;height:16px;overflow:hidden;"><div style="width:'+s.rate+'%;height:100%;background:'+(s.rate>=80?'#52c41a':s.rate>=50?'#faad14':'#ff4d4f')+';"></div></div>'+
+                '<span style="min-width:80px;text-align:right;">'+s.correct+'/'+s.total+' ('+s.rate+'%)</span>'+
+                '</div>';}).join('');
+        }else{
+            html+='<div style="color:#999;">暂无答题数据</div>';
+        }
+        html+='</div>';
+        html+='<div style="font-size:12px;color:#8c8c8c;margin-bottom:10px;">🤖 客观题已由 AI 自动判分，主观题需教师人工评分</div>';
+        html+='</div>';
+        if(parsed.length>0){
+            html+='<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#fafafa;">';
+            html+='<th style="padding:8px;text-align:left;border-bottom:2px solid #e8e8e8;">学生</th>';
+            html+='<th style="padding:8px;text-align:center;border-bottom:2px solid #e8e8e8;">得分</th>';
+            html+='<th style="padding:8px;text-align:center;border-bottom:2px solid #e8e8e8;">答对</th>';
+            html+='<th style="padding:8px;text-align:center;border-bottom:2px solid #e8e8e8;">正确率</th>';
+            html+='<th style="padding:8px;text-align:left;border-bottom:2px solid #e8e8e8;">提交时间</th>';
+            html+='<th style="padding:8px;text-align:center;border-bottom:2px solid #e8e8e8;">操作</th>';
+            html+='</tr></thead><tbody>';
+            parsed.sort(function(a,b){return b.totalScore-a.totalScore;}).forEach(function(p){
+                const pct=maxScore>0?Math.round(p.totalScore/maxScore*100):0;
+                const color=pct>=80?'#52c41a':pct>=60?'#faad14':'#ff4d4f';
+                html+='<tr>'+
+                    '<td style="padding:8px;border-bottom:1px solid #eee;">'+escapeHtml(p.studentName)+'</td>'+
+                    '<td style="padding:8px;text-align:center;border-bottom:1px solid #eee;"><strong style="color:'+color+';">'+p.totalScore+'</strong> / '+maxScore+'</td>'+
+                    '<td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">'+p.correctCount+'/'+totalQuestions+'</td>'+
+                    '<td style="padding:8px;text-align:center;border-bottom:1px solid #eee;">'+pct+'%</td>'+
+                    '<td style="padding:8px;border-bottom:1px solid #eee;color:#999;">'+escapeHtml(p.sub.submitted_at||p.sub.submitTime||'')+'</td>'+
+                    '<td style="padding:8px;text-align:center;border-bottom:1px solid #eee;"><button class="btn btn-sm btn-primary" onclick="openStudentPaper('+(p.sub.id!==undefined?p.sub.id:'')+')">📄 查看试卷</button></td>'+
+                    '</tr>';
+            });
+            html+='</tbody></table>';
+        }
+        content.innerHTML=html;
+    }).catch(function(){
+        content.innerHTML='<div style="text-align:center;color:#ff4d4f;padding:20px;">加载考试数据失败，请重试</div>';
+    });
+}
+
+function openStudentPaper(submissionId){
+    if(submissionId===undefined||submissionId===null||submissionId===''){showToast('提交ID无效','error');return;}
+    apiService.getStudentPaper(submissionId).then(function(res){
+        if(!res||res.code!==200){showToast((res&&res.msg)||'获取试卷失败','error');return;}
+        const p=res;
+        const typeNames={single:'单选题',multiple:'多选题',truefalse:'判断题',fill:'填空题',essay:'问答题'};
+        let detailHtml='';
+        (p.paper||[]).forEach(function(item,i){
+            const stuAns=Array.isArray(item.studentAnswer)?item.studentAnswer.join(','):(item.studentAnswer===undefined||item.studentAnswer===null?'未作答':item.studentAnswer);
+            const correct=Array.isArray(item.correctAnswer)?item.correctAnswer.join(','):(item.correctAnswer===undefined||item.correctAnswer===null?'':item.correctAnswer);
+            const statusColor=item.isObjective?(item.isCorrect?'#52c41a':'#ff4d4f'):'#1890ff';
+            const statusText=item.isObjective?(item.isCorrect?'✓ 正确':'✗ 错误'):'人工批阅';
+            detailHtml+='<div style="border:1px solid #f0f0f0;border-radius:8px;padding:12px;margin-bottom:10px;">'+
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'+
+                '<span style="font-weight:600;">'+(i+1)+'. '+escapeHtml(typeNames[item.type]||item.type)+'（'+item.score+'分）</span>'+
+                '<span style="font-size:12px;color:'+statusColor+';font-weight:600;">'+statusText+(item.isObjective?' · 得'+item.earned+'分':'')+'</span>'+
+                '</div>'+
+                '<div style="font-size:14px;line-height:1.6;">'+escapeHtml(item.question)+'</div>'+
+                ((item.options&&item.options.length>0)?'<div style="font-size:13px;color:#666;margin-top:6px;padding-left:10px;">'+item.options.map(function(o,j){return ['A','B','C','D','E','F'][j]+'. '+escapeHtml(o);}).join('<br>')+'</div>':'')+
+                '<div style="font-size:13px;margin-top:8px;background:#fafafa;border-radius:4px;padding:8px 10px;">'+
+                '<div>学生答案：<span style="color:'+(item.isObjective?(item.isCorrect?'#52c41a':'#ff4d4f'):'#1890ff')+';">'+escapeHtml(stuAns===''?'未作答':stuAns)+'</span></div>'+
+                '<div>正确答案：<span style="color:#52c41a;">'+escapeHtml(correct)+'</span></div>'+
+                '</div></div>';
+        });
+        const modal=document.createElement('div');
+        modal.className='modal-overlay active';
+        modal.innerHTML='<div class="modal" style="max-width:760px;max-height:85vh;overflow:auto;">'+
+            '<div class="modal-header"><h3 class="modal-title">📄 学生试卷 - '+escapeHtml(p.studentName)+'</h3><button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()">&times;</button></div>'+
+            '<div class="modal-body">'+
+            '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:15px;font-size:13px;">'+
+            '<div style="background:#e6f7ff;padding:8px 14px;border-radius:6px;">AI客观题得分 <strong>'+p.autoScore+'</strong></div>'+
+            '<div style="background:#f6ffed;padding:8px 14px;border-radius:6px;">答对 <strong>'+p.correctCount+'</strong> / '+p.totalQuestions+'</div>'+
+            '<div style="background:#f9f0ff;padding:8px 14px;border-radius:6px;">提交时间 <strong>'+escapeHtml(p.submittedAt||'')+'</strong></div>'+
+            '</div>'+
+            '<div style="font-size:12px;color:#8c8c8c;margin-bottom:10px;">🤖 客观题已由 AI 自动判分；主观题（问答题/未判填空题）需教师人工评分</div>'+
+            detailHtml+
+            '</div>'+
+            '<div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button></div>'+
+            '</div>';
+        document.body.appendChild(modal);
+    }).catch(function(){showToast('获取试卷失败','error');});
 }
 
 /* 学生端作业提交模式 */
@@ -9516,14 +9660,65 @@ function importGeneratedQuestions(){
         time:new Date().toLocaleString(),answered:[],submissions:[]
     }));
     
-    if(currentClassroomSession){
-        currentClassroomSession.quizzes=[...currentClassroomSession.quizzes,...quizzes];
-        saveClassroomSession();
-        showToast(`成功导入 ${quizzes.length} 道题目`);
-        loadQuizList();
-    }else{
-        showToast('请先进入上课模式','error');
+    // 优先导入当前上课会话；否则尝试从本地存储恢复最近课堂会话
+    let target=currentClassroomSession;
+    if(!target||!target.quizzes){
+        target=findImportTargetSession();
+        if(target){currentClassroomSession=target;}
     }
+    if(target){
+        target.quizzes=[...(target.quizzes||[]),...quizzes];
+        if(!target.examConfig)target.examConfig={examId:'exam_'+Date.now(),duration:30,status:'pending'};
+        saveClassroomSessionToStorage();
+        saveGeneratedToClassroomData(target);
+        showToast('成功导入 '+quizzes.length+' 道题目到「'+(target.className||'课堂')+'」');
+        if(typeof loadQuizList==='function')loadQuizList();
+        if(typeof renderQuizList==='function')renderQuizList();
+    }else{
+        showToast('请先进入上课模式选择班级','error');
+    }
+}
+
+function findImportTargetSession(){
+    try{
+        const data=JSON.parse(localStorage.getItem('tutoringAppData')||'{}');
+        if(data.semesters){
+            for(let si=data.semesters.length-1;si>=0;si--){
+                const sem=data.semesters[si];
+                if(sem&&sem.classroomSessions&&sem.classroomSessions.length>0){
+                    const sessions=sem.classroomSessions;
+                    return sessions[sessions.length-1];
+                }
+            }
+        }
+    }catch(e){}
+    return null;
+}
+
+function saveGeneratedToClassroomData(session){
+    try{
+        const data=JSON.parse(localStorage.getItem('tutoringAppData')||'{}');
+        if(!data.semesters)data.semesters=[];
+        let found=false;
+        for(const sem of data.semesters){
+            if(sem&&sem.classroomSessions){
+                for(const s2 of sem.classroomSessions){
+                    if(s2===session||(s2.classId===session.classId&&s2.examConfig&&session.examConfig&&s2.examConfig.examId===session.examConfig.examId)){
+                        s2.quizzes=session.quizzes;
+                        found=true;break;
+                    }
+                }
+            }
+            if(found)break;
+        }
+        if(!found){
+            if(!data.semesters[data.semesters.length-1])data.semesters.push({semester:'',classroomSessions:[]});
+            const sem=data.semesters[data.semesters.length-1];
+            if(!sem.classroomSessions)sem.classroomSessions=[];
+            sem.classroomSessions.push(session);
+        }
+        localStorage.setItem('tutoringAppData',JSON.stringify(data));
+    }catch(e){}
 }
 
 async function loadAIConfig(){

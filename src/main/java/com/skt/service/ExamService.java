@@ -225,14 +225,17 @@ public class ExamService {
                 List<Map<String, Object>> questions = jdbc.queryForList(
                     "SELECT question_json FROM exam_question WHERE exam_id=? ORDER BY sort_order", examId);
                 Map<String, Object> answers = answersJson != null ? objectMapper.readValue(answersJson, new TypeReference<Map<String, Object>>() {}) : new HashMap<>();
+                int qi = 0;
                 for (Map<String, Object> qRow : questions) {
                     Map<String, Object> q = objectMapper.readValue((String) qRow.get("question_json"), new TypeReference<Map<String, Object>>() {});
                     String qType = q.get("type") != null ? q.get("type").toString() : "single";
                     double qScore = q.get("score") != null ? ((Number) q.get("score")).doubleValue() : 10;
                     totalScore += qScore;
-                    String qId = q.get("id") != null ? q.get("id").toString() : "";
+                    String qId = q.get("id") != null ? q.get("id").toString() : String.valueOf(qi);
                     Object correctAnswer = q.get("correctAnswer");
                     Object studentAnswer = answers.get(qId);
+                    if (studentAnswer == null) studentAnswer = answers.get(String.valueOf(qi));
+                    qi++;
                     // 客观题自动判分
                     if ("single".equals(qType) || "truefalse".equals(qType) || "multiple".equals(qType)) {
                         if (correctAnswer != null && studentAnswer != null) {
@@ -331,10 +334,167 @@ public class ExamService {
         return result;
     }
 
+    /**
+     * 根据提交ID获取提交记录
+     */
+    public List<Map<String, Object>> listSubmissionsById(Long submissionId) {
+        return jdbc.queryForList("SELECT * FROM exam_submission WHERE id=?", submissionId);
+    }
+
     // 获取考试提交列表（教师端）
     public List<Map<String, Object>> listSubmissions(Long examId) {
         return jdbc.queryForList(
             "SELECT * FROM exam_submission WHERE exam_id=? ORDER BY submitted_at DESC", examId);
+    }
+
+    /**
+     * 获取考试题目列表（教师监控/查看试卷用）
+     */
+    public Map<String, Object> getExamQuestions(Long examId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Map<String, Object> exam = getExamById(examId);
+            if (exam == null) {
+                result.put("code", 404);
+                result.put("msg", "考试不存在");
+                return result;
+            }
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT question_json FROM exam_question WHERE exam_id=? ORDER BY sort_order ASC", examId);
+            List<Map<String, Object>> questions = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                String qJson = (String) row.get("question_json");
+                try {
+                    questions.add(objectMapper.readValue(qJson, new TypeReference<Map<String, Object>>() {}));
+                } catch (Exception ignored) { }
+            }
+            result.put("code", 200);
+            result.put("data", questions);
+            result.put("title", exam.get("title"));
+            result.put("totalScore", exam.get("config_json") != null ? 0 : 0);
+            return result;
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "获取题目失败：" + e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * 获取学生试卷明细（教师查看试卷用）
+     * 返回提交 + 每题判分结果
+     */
+    public Map<String, Object> getStudentPaper(Long submissionId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            List<Map<String, Object>> subs = jdbc.queryForList("SELECT * FROM exam_submission WHERE id=?", submissionId);
+            if (subs.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "提交记录不存在");
+                return result;
+            }
+            Map<String, Object> sub = subs.get(0);
+            Long examId = sub.get("exam_id") != null ? ((Number) sub.get("exam_id")).longValue() : null;
+            String answersJson = (String) sub.get("answers_json");
+            Map<String, Object> answers = answersJson != null && !answersJson.isEmpty()
+                ? objectMapper.readValue(answersJson, new TypeReference<Map<String, Object>>() {}) : new HashMap<>();
+
+            // 逐题判分
+            List<Map<String, Object>> detail = new ArrayList<>();
+            double autoScore = 0;
+            int correctCount = 0;
+            if (examId != null) {
+                List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT question_json FROM exam_question WHERE exam_id=? ORDER BY sort_order ASC", examId);
+                int qi = 0;
+                for (Map<String, Object> row : rows) {
+                    try {
+                        Map<String, Object> q = objectMapper.readValue((String) row.get("question_json"), new TypeReference<Map<String, Object>>() {});
+                        String qType = q.get("type") != null ? q.get("type").toString() : "single";
+                        double qScore = q.get("score") != null ? ((Number) q.get("score")).doubleValue() : 10;
+                        String qId = q.get("id") != null ? q.get("id").toString() : String.valueOf(qi);
+                        Object correct = q.get("correctAnswer");
+                        Object studentAns = answers.get(qId);
+                        if (studentAns == null) studentAns = answers.get(String.valueOf(qi));
+                        qi++;
+                        double earned = 0;
+                        boolean isCorrect = false;
+                        boolean isObjective = "single".equals(qType) || "truefalse".equals(qType) || "multiple".equals(qType);
+                        if (isObjective && correct != null && studentAns != null) {
+                            if ("multiple".equals(qType)) {
+                                List<?> cl = correct instanceof List ? (List<?>) correct : Arrays.asList(correct.toString().split(","));
+                                List<?> sl = studentAns instanceof List ? (List<?>) studentAns : Arrays.asList(studentAns.toString().split(","));
+                                earned = ExamService.calculateMultipleChoiceScore(cl, sl, qScore);
+                                isCorrect = earned >= qScore - 0.001;
+                            } else {
+                                isCorrect = correct.toString().equals(studentAns.toString());
+                                earned = isCorrect ? qScore : 0;
+                            }
+                        }
+                        autoScore += earned;
+                        if (isCorrect) correctCount++;
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("question", q.get("question"));
+                        item.put("type", qType);
+                        item.put("score", qScore);
+                        item.put("options", q.get("options") != null ? q.get("options") : new ArrayList<>());
+                        item.put("correctAnswer", correct != null ? correct : "");
+                        item.put("studentAnswer", studentAns != null ? studentAns : "");
+                        item.put("earned", earned);
+                        item.put("isCorrect", isCorrect);
+                        item.put("isObjective", isObjective);
+                        detail.add(item);
+                    } catch (Exception ignored) { }
+                }
+            }
+            result.put("code", 200);
+            result.put("studentName", sub.get("student_name"));
+            result.put("submittedAt", sub.get("submitted_at"));
+            result.put("autoScore", autoScore);
+            result.put("correctCount", correctCount);
+            result.put("totalQuestions", detail.size());
+            result.put("paper", detail);
+            return result;
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "获取试卷失败：" + e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * 根据考试编码或ID解析考试（返回数字ID）
+     */
+    public Map<String, Object> resolveExam(String key) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (key == null || key.trim().isEmpty()) {
+                result.put("code", 400);
+                result.put("msg", "缺少考试编码");
+                return result;
+            }
+            Map<String, Object> exam = null;
+            if (key.matches("\\d+")) {
+                exam = getExamById(Long.valueOf(key.trim()));
+            } else {
+                List<Map<String, Object>> list = jdbc.queryForList("SELECT * FROM exam WHERE exam_code=?", key.trim());
+                if (!list.isEmpty()) exam = list.get(0);
+            }
+            if (exam == null) {
+                result.put("code", 404);
+                result.put("msg", "考试不存在");
+                return result;
+            }
+            result.put("code", 200);
+            result.put("id", ((Number) exam.get("id")).longValue());
+            result.put("examCode", exam.get("exam_code"));
+            result.put("title", exam.get("title"));
+            return result;
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "解析考试失败：" + e.getMessage());
+            return result;
+        }
     }
 
     // 根据ID获取考试信息

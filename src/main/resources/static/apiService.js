@@ -263,6 +263,10 @@
         return this.request('GET', '/exam/getStudentExamInfo?' + params.toString());
     }
     async submitExam(data) { return this.request('POST', '/exam/submit', data); }
+    async getExamSubmissions(examId) { return this.request('GET', '/exam/' + examId + '/submissions'); }
+    async getExamQuestions(examId) { return this.request('GET', '/exam/' + examId + '/questions'); }
+    async resolveExam(examCode) { return this.request('GET', '/exam/resolve?examCode=' + encodeURIComponent(examCode)); }
+    async getStudentPaper(submissionId) { return this.request('GET', '/exam/submissions/' + submissionId + '/paper'); }
 
     // 课堂文件互传
     async uploadCourseFile(file, classId) {
