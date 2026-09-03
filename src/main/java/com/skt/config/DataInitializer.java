@@ -48,6 +48,19 @@ public class DataInitializer implements CommandLineRunner {
             } catch (Exception e) {
                 log.debug("parent_file 表创建跳过: {}", e.getMessage());
             }
+            // 作业提交文件字段（家长/学生提交任意格式文件）
+            try {
+                jdbc.execute("ALTER TABLE homework_submissions ADD COLUMN file_name VARCHAR(255) NULL COMMENT '提交文件名'");
+            } catch (Exception e) { log.debug("homework_submissions.file_name 已存在: {}", e.getMessage()); }
+            try {
+                jdbc.execute("ALTER TABLE homework_submissions ADD COLUMN file_path VARCHAR(500) NULL COMMENT '提交文件存储路径'");
+            } catch (Exception e) { log.debug("homework_submissions.file_path 已存在: {}", e.getMessage()); }
+            try {
+                jdbc.execute("ALTER TABLE homework_submissions ADD COLUMN submit_role VARCHAR(20) NULL DEFAULT 'parent' COMMENT '提交角色 parent=家长 student=学生 teacher=教师'");
+            } catch (Exception e) { log.debug("homework_submissions.submit_role 已存在: {}", e.getMessage()); }
+            try {
+                jdbc.execute("ALTER TABLE homework_submissions ADD COLUMN submit_user_id BIGINT NULL COMMENT '提交人用户ID'");
+            } catch (Exception e) { log.debug("homework_submissions.submit_user_id 已存在: {}", e.getMessage()); }
             // 兼容旧表结构：确保 users.display_name 允许 NULL
             try {
                 jdbc.execute("ALTER TABLE users MODIFY display_name VARCHAR(50) NULL DEFAULT ''");

@@ -10186,6 +10186,29 @@ function saveHomework(){
     appData.homework=appData.homework||[];
     appData.homework.push(hw);
     saveData();
+    // 同步到后端：家长端/学生端可见并收到通知
+    try{
+        if(window.apiService && apiService.createHomework){
+            apiService.createHomework({
+                className:hw.class,
+                title:hw.title,
+                content:hw.content,
+                deadline:hw.deadline
+            }).then(function(r){
+                if(r && (r.code===200 || r.id)){
+                    if(r.id){
+                        const idx=appData.homework.findIndex(function(x){return x.id===hw.id;});
+                        if(idx>=0){ appData.homework[idx].backendId=r.id; saveData(); }
+                    }
+                    showToast('发布成功，已通知该班级家长和学生','success');
+                } else if(r && r.msg){
+                    showToast(r.msg,'warning');
+                }
+            }).catch(function(e){
+                showToast('后端同步失败：'+(e&&e.message?e.message:'网络错误')+'（已保存在本地）','warning');
+            });
+        }
+    }catch(e){}
     document.querySelector('.modal-overlay.active').remove();
     loadHomeworkList();
     showToast('作业发布成功');
@@ -10248,6 +10271,11 @@ function loadHomeworkList(){
 function viewHomeworkSubmissions(hwId){
     const hw=appData.homework.find(h=>h.id===hwId);
     if(!hw){showToast('作业不存在','error');return;}
+    // 已同步到后端的作业：从后端拉取真实提交记录（家长/学生提交的文件）
+    if(hw.backendId){
+        viewHomeworkSubmissionsBackend(hw, hw.backendId);
+        return;
+    }
     
     const modal=document.createElement('div');
     modal.className='modal-overlay active';
@@ -10365,6 +10393,87 @@ function deleteHomework(hwId){
         showToast('作业已删除');
     });
 }
+function viewHomeworkSubmissionsBackend(hw, backendId){
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:760px;">
+        <div class="modal-header"><h3 class="modal-title">作业提交记录 - ${escapeHtml(hw.title)}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-body">
+            <div id="backendSubmissionsList" style="min-height:120px;"><div class="empty-state">加载中...</div></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">关闭</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+    apiService.getHomeworkSubmissions(backendId).then(function(r){
+        const list = r && Array.isArray(r.data) ? r.data : (Array.isArray(r) ? r : []);
+        const c=document.getElementById('backendSubmissionsList');
+        if(!c)return;
+        if(!list.length){ c.innerHTML='<div class="empty-state">暂无学生提交</div>'; return; }
+        c.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>学生</th><th>提交方式</th><th>提交内容/文件</th><th>提交时间</th><th>下载</th></tr></thead><tbody>
+            ${list.map(s=>`<tr>
+                <td>${escapeHtml(s.student_name || '-')}</td>
+                <td>${s.submit_role==='student'?'学生':(s.submit_role==='teacher'?'教师代登':'家长')}</td>
+                <td>${s.file_name ? '<span style="color:#1a73e8;">'+escapeHtml(s.file_name)+'</span>' : (s.content?escapeHtml(s.content):'-')}</td>
+                <td>${escapeHtml(s.submitted_at || '-')}</td>
+                <td>${s.file_name ? '<button class="btn btn-sm btn-info" onclick="downloadHomeworkSubmission(' + s.id + ')">下载</button>' : '-'}</td>
+            </tr>`).join('')}
+        </tbody></table></div>`;
+    }).catch(function(){ const c=document.getElementById('backendSubmissionsList'); if(c)c.innerHTML='<div class="empty-state">加载提交记录失败</div>'; });
+}
+
+function downloadHomeworkSubmission(sid){
+    const url = apiService.getHomeworkSubmissionFileUrl(sid);
+    window.open(url, '_blank');
+}
+
+function openHomeworkSubmitModal(hwId, btn){
+    const isStu = apiService.isStudent();
+    const isPar = apiService.isParent();
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:520px;">
+        <div class="modal-header"><h3 class="modal-title">提交作业</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-body">
+            <div style="font-size:13px;color:#666;margin-bottom:12px;">${isStu?'学生':'家长'}提交任意格式文件（Word/Excel/PPT/PDF/图片等，≤50MB，禁止可执行文件）</div>
+            <div class="form-group"><label class="form-label">选择文件 *</label><input type="file" class="form-control" id="hwSubmitFile" style="padding:6px;"></div>
+            <div class="form-group"><label class="form-label">备注（选填）</label><textarea class="form-control" id="hwSubmitContent" rows="3" placeholder="可填写说明文字"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">取消</button><button class="btn btn-primary" id="hwSubmitBtn" onclick="doSubmitHomeworkFile(${hwId})">上传提交</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+function doSubmitHomeworkFile(hwId){
+    const fileInput=document.getElementById('hwSubmitFile');
+    if(!fileInput || !fileInput.files || !fileInput.files.length){ showToast('请先选择文件','error'); return; }
+    const file=fileInput.files[0];
+    // 前端校验
+    const ext=(file.name.split('.').pop()||'').toLowerCase();
+    const danger=['exe','bat','cmd','sh','msi','com','scr','vbs','js','jar','war','ps1','reg','dll','so','apk','ipa','html','htm','svg'];
+    if(danger.indexOf(ext)>=0){ showToast('不允许提交可执行/危险文件类型：'+ext,'error'); return; }
+    if(file.size>50*1024*1024){ showToast('文件大小不能超过50MB','error'); return; }
+    const btn=document.getElementById('hwSubmitBtn');
+    if(btn){ btn.disabled=true; btn.textContent='上传中...'; }
+    const formData=new FormData();
+    formData.append('file',file);
+    const content=document.getElementById('hwSubmitContent');
+    if(content && content.value) formData.append('content',content.value);
+    apiService.submitHomeworkFile(hwId, formData).then(function(r){
+        if(r && (r.code===200 || r.id)){
+            showToast(r.msg || '作业提交成功','success');
+            const overlay=btn ? btn.closest('.modal-overlay') : null;
+            if(overlay) overlay.remove();
+            loadParentHomework();
+        } else {
+            showToast((r && r.msg) || '提交失败','error');
+            if(btn){ btn.disabled=false; btn.textContent='上传提交'; }
+        }
+    }).catch(function(e){
+        showToast('提交失败：'+(e&&e.message?e.message:'网络错误'),'error');
+        if(btn){ btn.disabled=false; btn.textContent='上传提交'; }
+    });
+}
+
 function getHomeworkLink(hwId){
     const hw=appData.homework.find(h=>h.id===hwId);
     if(!hw){showToast('作业不存在','error');return;}
@@ -12987,14 +13096,15 @@ async function loadParentHomework(showOnlyCount = false) {
                     <td>${escapeHtml(item.content || '-')}</td>
                     <td>${escapeHtml(item.deadline || '-')}</td>
                     <td>${item.deadline ? (new Date(item.deadline) < new Date() ? '<span class="badge badge-danger">已过期</span>' : '<span class="badge badge-warning">待完成</span>') : '<span class="badge badge-secondary">未设置</span>'}</td>
+                    <td>${item.submitted ? '<span class="badge badge-success">已提交</span>' : '<button class="btn btn-sm btn-primary" onclick="openHomeworkSubmitModal(' + (item.id||0) + ', this)">提交作业</button>'}</td>
                 </tr>
-            `).join('') : '<tr><td colspan="5" class="empty-state">暂无作业</td></tr>';
+            `).join('') : '<tr><td colspan="6" class="empty-state">暂无作业</td></tr>';
             view.innerHTML = `
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">我的待到期作业</h3></div>
                     <div class="table-wrapper">
                         <table>
-                            <thead><tr><th>班级</th><th>作业标题</th><th>内容</th><th>截至日期</th><th>状态</th></tr></thead>
+                            <thead><tr><th>班级</th><th>作业标题</th><th>内容</th><th>截至日期</th><th>状态</th><th>提交</th></tr></thead>
                             <tbody>${rows}</tbody>
                         </table>
                     </div>

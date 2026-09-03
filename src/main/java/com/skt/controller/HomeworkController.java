@@ -5,10 +5,19 @@ import com.skt.service.AuthService;
 import com.skt.service.HomeworkService;
 import com.skt.util.ExcelExportUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -21,6 +30,17 @@ public class HomeworkController {
     private HomeworkService homeworkService;
     @Autowired
     private AuthService authService;
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Value("${file.uploadBasePath:./upload/courseFile/}")
+    private String uploadBasePath;
+
+    /** 危险后缀黑名单（允许除可执行文件外的任意安全格式） */
+    private static final Set<String> DANGEROUS_EXTENSIONS = Set.of(
+        "exe", "bat", "cmd", "sh", "msi", "com", "scr", "vbs", "js", "jar", "war",
+        "ps1", "reg", "dll", "so", "apk", "ipa", "html", "htm", "svg"
+    );
 
     @GetMapping("/homework")
     public Map<String, Object> list(@RequestParam(required = false) Long classId, HttpServletRequest req) {
@@ -97,10 +117,26 @@ public class HomeworkController {
         }
         Long createdBy = (Long) req.getAttribute("userId");
         Long classId = body.get("classId") != null ? ((Number) body.get("classId")).longValue() : null;
+        String className = (String) body.get("className");
+        // 前端可能只传班级名，按名称解析班级ID
+        if (classId == null && className != null && !className.isEmpty()) {
+            // 按当前教师限定班级，避免重名班级解析到其他教师班级
+            List<Map<String, Object>> clsRows = jdbc.queryForList("SELECT id FROM classes WHERE name=? AND (teacher_id=? OR ?=0) LIMIT 1", className, createdBy, createdBy);
+            if (!clsRows.isEmpty()) {
+                classId = ((Number) clsRows.get(0).get("id")).longValue();
+            }
+        }
         String title = (String) body.get("title");
         String content = (String) body.get("content");
         String deadline = (String) body.get("deadline");
-        Long id = homeworkService.create(classId, title, content, deadline, createdBy);
+        String teacherName = (String) req.getAttribute("displayName");
+        if (classId == null) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("code", 400);
+            err.put("msg", "班级不存在，无法发布作业到家长/学生端，请确认班级已创建");
+            return err;
+        }
+        Long id = homeworkService.create(classId, title, content, deadline, createdBy, teacherName);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 200);
         result.put("id", id);
@@ -134,4 +170,205 @@ public class HomeworkController {
         result.put("code", 200);
         return result;
     }
+    // ==================== 家长/学生提交作业文件 ====================
+
+    /** 家长/学生提交作业（支持任意安全格式文件） */
+    @PostMapping("/homework/{id}/submitFile")
+    public Map<String, Object> submitFile(@PathVariable Long id,
+                                          @RequestParam("file") MultipartFile file,
+                                          @RequestParam(value = "content", required = false) String content,
+                                          @RequestParam(value = "studentId", required = false) Long studentId,
+                                          HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        Long userId = RoleAccess.getUserId(req);
+        String role = (String) req.getAttribute("role");
+        if (userId == null) {
+            result.put("code", 401);
+            result.put("msg", "未登录");
+            return result;
+        }
+        List<Map<String, Object>> hwRows = jdbc.queryForList("SELECT * FROM homework WHERE id=?", id);
+        if (hwRows.isEmpty()) {
+            result.put("code", 404);
+            result.put("msg", "作业不存在");
+            return result;
+        }
+        Map<String, Object> hw = hwRows.get(0);
+        Long classId = hw.get("class_id") != null ? ((Number) hw.get("class_id")).longValue() : null;
+        if (classId == null) {
+            result.put("code", 400);
+            result.put("msg", "作业未关联班级");
+            return result;
+        }
+        Long sid = studentId;
+        String submitRole = role;
+        if ("teacher".equalsIgnoreCase(role)) {
+            if (sid == null) {
+                result.put("code", 400);
+                result.put("msg", "请选择提交学生");
+                return result;
+            }
+        } else if ("parent".equalsIgnoreCase(role)) {
+            List<Map<String, Object>> kids = jdbc.queryForList(
+                "SELECT id FROM students WHERE (parent_user_id=? OR parent_id=?) AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                userId, userId, classId);
+            if (kids.isEmpty()) {
+                result.put("code", 403);
+                result.put("msg", "您的孩子不在该作业班级，无法提交");
+                return result;
+            }
+            sid = ((Number) kids.get(0).get("id")).longValue();
+            submitRole = "parent";
+        } else if ("student".equalsIgnoreCase(role)) {
+            List<Map<String, Object>> self = jdbc.queryForList(
+                "SELECT id FROM students WHERE user_id=? AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                userId, classId);
+            if (self.isEmpty()) {
+                result.put("code", 403);
+                result.put("msg", "您不在该作业班级，无法提交");
+                return result;
+            }
+            sid = ((Number) self.get(0).get("id")).longValue();
+            submitRole = "student";
+        } else {
+            result.put("code", 403);
+            result.put("msg", "无权限提交作业");
+            return result;
+        }
+        String validation = validateFile(file);
+        if (validation != null) {
+            result.put("code", 400);
+            result.put("msg", validation);
+            return result;
+        }
+        String studentName = "";
+        try {
+            List<Map<String, Object>> stuRows = jdbc.queryForList("SELECT name FROM students WHERE id=?", sid);
+            if (!stuRows.isEmpty() && stuRows.get(0).get("name") != null) {
+                studentName = String.valueOf(stuRows.get(0).get("name"));
+            }
+        } catch (Exception ignore) { }
+        try {
+            String savePath = storeFile(file);
+            Long subId = homeworkService.submitFile(id, sid, studentName, content,
+                file.getOriginalFilename(), savePath, submitRole, userId);
+            result.put("code", 200);
+            result.put("id", subId);
+            result.put("msg", "作业提交成功");
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "文件保存失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    /** 教师查看某作业的全部提交记录 */
+    @GetMapping("/homework/{id}/submissions")
+    public Map<String, Object> listSubmissions(@PathVariable Long id, HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师账号可查看提交记录");
+        }
+        List<Map<String, Object>> list = homeworkService.listSubmissions(id);
+        result.put("code", 200);
+        result.put("data", list);
+        return result;
+    }
+
+    /** 下载作业提交文件（教师/提交者本人/其家长） */
+    @GetMapping("/homework/submissions/{sid}/file")
+    public ResponseEntity<Resource> downloadSubmissionFile(@PathVariable Long sid, HttpServletRequest req) {
+        Long userId = RoleAccess.getUserId(req);
+        String role = (String) req.getAttribute("role");
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT hs.*, h.class_id, c.teacher_id FROM homework_submissions hs " +
+            "LEFT JOIN homework h ON h.id=hs.homework_id LEFT JOIN classes c ON c.id=h.class_id WHERE hs.id=?",
+            sid);
+        if (rows.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> sub = rows.get(0);
+        if (sub.get("file_path") == null || String.valueOf(sub.get("file_path")).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        boolean allowed = false;
+        if (userId != null && ("teacher".equalsIgnoreCase(role) || "admin".equalsIgnoreCase(role))) {
+            Object tid = sub.get("teacher_id");
+            allowed = tid == null || ((Number) tid).longValue() == userId || "admin".equalsIgnoreCase(role);
+        } else if (userId != null && "parent".equalsIgnoreCase(role)) {
+            Object stuId = sub.get("student_id");
+            if (stuId != null) {
+                List<Map<String, Object>> kids = jdbc.queryForList(
+                    "SELECT id FROM students WHERE (parent_user_id=? OR parent_id=?) AND id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                    userId, userId, ((Number) stuId).longValue());
+                allowed = !kids.isEmpty();
+            }
+        } else if (userId != null && "student".equalsIgnoreCase(role)) {
+            Object stuId = sub.get("student_id");
+            if (stuId != null) {
+                List<Map<String, Object>> self = jdbc.queryForList(
+                    "SELECT id FROM students WHERE user_id=? AND id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                    userId, ((Number) stuId).longValue());
+                allowed = !self.isEmpty();
+            }
+        }
+        if (!allowed) {
+            return ResponseEntity.status(403).build();
+        }
+        try {
+            File f = new File(String.valueOf(sub.get("file_path"))).getAbsoluteFile();
+            if (!f.exists()) {
+                return ResponseEntity.notFound().build();
+            }
+            Resource resource = new FileSystemResource(f);
+            String fileName = sub.get("file_name") != null ? String.valueOf(sub.get("file_name")) : "submission";
+            String encodedName = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(f.length())
+                .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    private String validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return "文件不能为空";
+        }
+        if (file.getSize() > 50L * 1024 * 1024) {
+            return "文件大小不能超过50MB";
+        }
+        String originalName = file.getOriginalFilename();
+        if (originalName == null || originalName.isEmpty()) {
+            return "文件名不能为空";
+        }
+        String ext = originalName.contains(".") ? originalName.substring(originalName.lastIndexOf(".") + 1).toLowerCase() : "";
+        if (ext.isEmpty()) {
+            return "文件缺少后缀名";
+        }
+        if (DANGEROUS_EXTENSIONS.contains(ext)) {
+            return "不允许提交可执行/危险文件类型：" + ext;
+        }
+        return null;
+    }
+
+    private String storeFile(MultipartFile file) throws java.io.IOException {
+        java.io.File baseDir = new java.io.File(uploadBasePath).getAbsoluteFile().getParentFile();
+        if (baseDir == null) {
+            baseDir = new java.io.File("./upload").getAbsoluteFile();
+        }
+        java.io.File hwDir = new java.io.File(baseDir, "homework");
+        if (!hwDir.exists()) {
+            hwDir.mkdirs();
+        }
+        String originalName = file.getOriginalFilename();
+        String ext = originalName.contains(".") ? originalName.substring(originalName.lastIndexOf(".") + 1).toLowerCase() : "bin";
+        String storedName = "hw_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 9999) + "." + ext;
+        java.io.File dest = new java.io.File(hwDir, storedName).getAbsoluteFile();
+        file.transferTo(dest);
+        return dest.getPath();
+    }
+
 }

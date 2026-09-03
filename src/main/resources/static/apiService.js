@@ -51,6 +51,14 @@ class ApiService {
     isAdmin() { return this.user && this.user.role === 'admin'; }
     isStudent() { return this.user && this.user.role === 'student'; }
 
+    async requestUpload(method, url, formData) {
+        const token = this.getToken();
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(this.baseURL + url, { method, headers, body: formData });
+        try { return await res.json(); } catch (e) { return { code: res.status, msg: '请求失败' }; }
+    }
+
     async request(method, path, body) {
         var url = (path && path.indexOf('/api/') === 0) ? path : this.baseURL + path;
         var options = {
@@ -258,6 +266,9 @@ class ApiService {
     async createHomework(data) { return this.request('POST', '/homework', data); }
     async submitHomework(id, data) { return this.request('POST', '/homework/' + id + '/submit', data); }
     async gradeSubmission(id, data) { return this.request('PUT', '/homework/submissions/' + id + '/grade', data); }
+  async submitHomeworkFile(id, formData) { return this.requestUpload('POST', '/homework/' + id + '/submitFile', formData); }
+  async getHomeworkSubmissions(id) { return this.request('GET', '/homework/' + id + '/submissions'); }
+  getHomeworkSubmissionFileUrl(submissionId) { return '/api/homework/submissions/' + submissionId + '/file?token=' + encodeURIComponent(this.getToken()); }
 
     // 成绩管理
     async getGrades(filters) {
