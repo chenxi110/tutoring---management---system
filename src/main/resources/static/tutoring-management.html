@@ -880,6 +880,20 @@ body {
                 <div class="card" id="userManagementCard">
                     <div class="card-header"><h3 class="card-title">👥 用户管理</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" onclick="openAddUserModal()">+ 新增用户</button><button class="btn btn-sm btn-success" onclick="backfillStudentAccounts()">补建学生账号</button><button class="btn btn-sm btn-secondary" onclick="loadUserList()">刷新</button></div></div>
                     <div style="font-size:13px;color:var(--text-secondary);padding:8px 16px;">管理员可管理全部教师/家长/学生账号：新增、编辑、禁用/启用、重置密码（123456）、自定义修改密码、删除。「补建学生账号」为已绑定家长但尚无账号的存量学生自动创建 student 登录账号。</div>
+                    <div style="padding:6px 16px 12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid var(--border);">
+                        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13px;">
+                            <span style="color:var(--text-secondary);">角色筛选：</span>
+                            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="userRoleAdmin" checked onchange="applyUserFilter()"> 管理员</label>
+                            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="userRoleTeacher" checked onchange="applyUserFilter()"> 教师</label>
+                            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="userRoleParent" checked onchange="applyUserFilter()"> 家长</label>
+                            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="userRoleStudent" checked onchange="applyUserFilter()"> 学生</label>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap;">
+                            <input type="text" id="userSearchInput" class="form-control" style="width:240px;" placeholder="搜索账号 / 姓名 / 手机号" onkeydown="if(event.key==='Enter')applyUserFilter()">
+                            <button class="btn btn-sm btn-primary" onclick="applyUserFilter()">搜索</button>
+                            <button class="btn btn-sm btn-secondary" onclick="resetUserFilter()">重置</button>
+                        </div>
+                    </div>
                     <div class="table-wrapper"><table><thead><tr><th>ID</th><th>账号</th><th>姓名</th><th>角色</th><th>手机号</th><th>状态</th><th>操作</th></tr></thead><tbody id="userListTableBody"></tbody></table></div>
                 </div>
             </div>
@@ -7679,6 +7693,60 @@ function deleteCourseType(name){
 function saveCoursePrices(){document.querySelectorAll('#coursePriceSettings input').forEach(input=>{const course=input.id.replace('price_','').replace(/_/g,' ');appData.config.coursePrices[course]=parseFloat(input.value)||0;});saveData();showToast('保存成功');loadSettings();}
 
 // ===== 用户管理与密码功能 =====
+let _allUsersCache=[];
+function _userRoleIds(){ return ['admin','teacher','parent','student']; }
+function _userRoleCheckboxId(r){ return 'userRole'+r.charAt(0).toUpperCase()+r.slice(1); }
+function filterUsers(users){
+    const sel=[];
+    _userRoleIds().forEach(r=>{ const el=document.getElementById(_userRoleCheckboxId(r)); if(el&&el.checked) sel.push(r); });
+    const kwEl=document.getElementById('userSearchInput');
+    const kw=(kwEl?kwEl.value.trim():'').toLowerCase();
+    return users.filter(u=>{
+        if(sel.length && sel.indexOf(u.role)<0) return false;
+        if(!kw) return true;
+        const name=String(u.display_name||u.displayName||u.username||'');
+        return String(u.username||'').toLowerCase().indexOf(kw)>=0
+            || name.toLowerCase().indexOf(kw)>=0
+            || String(u.phone||'').indexOf(kw)>=0;
+    });
+}
+function applyUserFilter(){ renderUserTable(filterUsers(_allUsersCache||[])); }
+function resetUserFilter(){
+    _userRoleIds().forEach(r=>{ const el=document.getElementById(_userRoleCheckboxId(r)); if(el) el.checked=true; });
+    const kwEl=document.getElementById('userSearchInput'); if(kwEl) kwEl.value='';
+    applyUserFilter();
+}
+function renderUserTable(users){
+    const tb=document.getElementById('userListTableBody');
+    if(!tb)return;
+    if(users.length===0){
+        tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:#999;">暂无匹配的用户</td></tr>';
+        return;
+    }
+    tb.innerHTML=users.map(u=>{
+        const roleName=u.role==='admin'?'管理员':(u.role==='teacher'?'教师':(u.role==='student'?'学生':'家长'));
+        const roleBadge=u.role==='admin'?'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">管理员</span>':(u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':(u.role==='student'?'<span style="background:#e0f2f1;color:#00695c;padding:2px 8px;border-radius:4px;font-size:12px;">学生</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>'));
+        const stBadge=u.status===0?'<span style="background:#ffebee;color:#c62828;padding:2px 8px;border-radius:4px;font-size:12px;">已禁用</span>':'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">正常</span>';
+        let opBtns='';
+        if(u.role==='admin'){
+            opBtns='<span style="color:#999;font-size:12px;">系统账号</span>';
+        }else{
+            opBtns+='<button class="btn btn-sm btn-secondary" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-dname="'+escapeAttr(u.display_name||u.displayName||'')+'" data-phone="'+escapeAttr(u.phone||'')+'" data-role="'+u.role+'" onclick="openEditUserModal(this)">编辑</button> ';
+            opBtns+='<button class="btn btn-sm '+(u.status===0?'btn-success':'btn-danger')+'" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-st="'+(u.status===0?0:1)+'" onclick="confirmToggleUser(this)">'+(u.status===0?'启用':'禁用')+'</button> ';
+            opBtns+='<button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="showAdminSetPwdModal(this)">修改密码</button> <button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="resetUserPassword(this)">重置密码</button> ';
+            opBtns+='<button class="btn btn-sm btn-danger" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="deleteUserAccount(this)">删除</button>';
+        }
+        return `<tr>
+            <td>${u.id}</td>
+            <td>${escapeHtml(u.username||'')}</td>
+            <td>${escapeHtml(u.display_name||u.displayName||'')}</td>
+            <td>${roleBadge}</td>
+            <td>${escapeHtml(u.phone||'')}</td>
+            <td>${stBadge}</td>
+            <td>${opBtns}</td>
+        </tr>`;
+    }).join('');
+}
 async function loadUserList(){
     const tb=document.getElementById('userListTableBody');
     if(!tb)return;
@@ -7691,34 +7759,8 @@ async function loadUserList(){
     try{
         const data=await apiService.getUsers();
         if(data.code===200 && data.data){
-            const users=data.data;
-            if(users.length===0){
-                tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:#999;">暂无用户</td></tr>';
-                return;
-            }
-            tb.innerHTML=users.map(u=>{
-                const roleName=u.role==='admin'?'管理员':(u.role==='teacher'?'教师':(u.role==='student'?'学生':'家长'));
-                const roleBadge=u.role==='admin'?'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">管理员</span>':(u.role==='teacher'?'<span style="background:#e3f2fd;color:#1976d2;padding:2px 8px;border-radius:4px;font-size:12px;">教师</span>':(u.role==='student'?'<span style="background:#e0f2f1;color:#00695c;padding:2px 8px;border-radius:4px;font-size:12px;">学生</span>':'<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:12px;">家长</span>'));
-                const stBadge=u.status===0?'<span style="background:#ffebee;color:#c62828;padding:2px 8px;border-radius:4px;font-size:12px;">已禁用</span>':'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">正常</span>';
-                let opBtns='';
-                if(u.role==='admin'){
-                    opBtns='<span style="color:#999;font-size:12px;">系统账号</span>';
-                }else{
-                    opBtns+='<button class="btn btn-sm btn-secondary" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-dname="'+escapeAttr(u.display_name||u.displayName||'')+'" data-phone="'+escapeAttr(u.phone||'')+'" data-role="'+u.role+'" onclick="openEditUserModal(this)">编辑</button> ';
-                    opBtns+='<button class="btn btn-sm '+(u.status===0?'btn-success':'btn-danger')+'" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" data-st="'+(u.status===0?0:1)+'" onclick="confirmToggleUser(this)">'+(u.status===0?'启用':'禁用')+'</button> ';
-                    opBtns+='<button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="showAdminSetPwdModal(this)">修改密码</button> <button class="btn btn-sm btn-warning" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="resetUserPassword(this)">重置密码</button> ';
-                    opBtns+='<button class="btn btn-sm btn-danger" data-uid="'+u.id+'" data-uname="'+escapeAttr(u.username||'')+'" onclick="deleteUserAccount(this)">删除</button>';
-                }
-                return `<tr>
-                    <td>${u.id}</td>
-                    <td>${escapeHtml(u.username||'')}</td>
-                    <td>${escapeHtml(u.display_name||u.displayName||'')}</td>
-                    <td>${roleBadge}</td>
-                    <td>${escapeHtml(u.phone||'')}</td>
-                    <td>${stBadge}</td>
-                    <td>${opBtns}</td>
-                </tr>`;
-            }).join('');
+            _allUsersCache=data.data||[];
+            renderUserTable(filterUsers(_allUsersCache));
         }else{
             tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:#f44336;">加载失败：'+(data.error||data.msg||'未知错误')+'</td></tr>';
         }
