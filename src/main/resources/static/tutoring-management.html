@@ -833,7 +833,7 @@ body {
                 </div>
                 <div id="parentAttendanceView" style="display:none"></div>
             </div>
-            <div class="page" id="page-student-messages" style="display:none;">
+            <div class="page" id="page-student-messages">
                 <div class="card" style="display:flex;flex-direction:row;min-height:520px;overflow:hidden;padding:0;">
                     <div style="width:240px;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;">
                         <div style="padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);">👨‍🏫 我的老师</div>
@@ -2694,6 +2694,7 @@ function navigateTo(page){
             classes:'班级管理',
             ai:'AI助手',
             'operation-logs':'操作审计日志',
+            'student-messages':'联系老师',
             'leave-requests':'请假审批管理'
         };
         const titleEl=document.getElementById('pageTitle');
