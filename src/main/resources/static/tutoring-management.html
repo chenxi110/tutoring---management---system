@@ -833,6 +833,22 @@ body {
                 </div>
                 <div id="parentAttendanceView" style="display:none"></div>
             </div>
+            <div class="page" id="page-student-messages" style="display:none;">
+                <div class="card" style="display:flex;flex-direction:row;min-height:520px;overflow:hidden;padding:0;">
+                    <div style="width:240px;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;">
+                        <div style="padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);">👨‍🏫 我的老师</div>
+                        <div id="studentTeacherList" style="flex:1;overflow-y:auto;"></div>
+                    </div>
+                    <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+                        <div id="studentChatHeader" style="padding:12px 16px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);color:var(--text);">请选择左侧老师开始沟通</div>
+                        <div id="studentChatBody" style="flex:1;overflow-y:auto;padding:16px;background:#fafafa;min-height:360px;"></div>
+                        <div style="padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;">
+                            <textarea id="studentChatInput" class="form-control" rows="2" style="flex:1;resize:none;" placeholder="输入消息，按 Ctrl+Enter 发送"></textarea>
+                            <button class="btn btn-primary" style="align-self:flex-end;white-space:nowrap;" onclick="sendStudentMsg()">发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="page" id="page-statistics">
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">月度统计</h3></div>
@@ -2627,6 +2643,7 @@ function toggleMobileMenu(){
 
 function navigateTo(page){
     try{
+        if(window._studentMsgTimer){clearInterval(window._studentMsgTimer); window._studentMsgTimer=null;}
         if(window.innerWidth<=480){
             const sb=document.querySelector('.sidebar');
             if(sb)sb.classList.remove('mobile-open');
@@ -2688,6 +2705,7 @@ function navigateTo(page){
             records:()=>loadRecords(),
             students:()=>loadStudents(),
             attendance:()=>{ applyAttendanceRoleView(); if(apiService.isParent())return loadParentAttendance(); if(apiService.isStudent())return loadStudentAttendance(); return initAttendancePage(); },
+            'student-messages':()=>{ if(apiService.isStudent())return loadStudentMessagesPage(); return loadTeacherPrivateMessages(); },
             statistics:()=>{ if(apiService.isParent())return loadParentStatistics(); if(apiService.isStudent())return loadStudentAttendance(); return initStatisticsPage(); },
             schedule:()=>{ applyScheduleRoleView(); if(apiService.isParent()||apiService.isStudent())return loadParentSchedule(); return loadSchedule(); },
             classroom:()=>loadClassroom(),
@@ -11092,13 +11110,13 @@ async function loadTeacherPrivateMessages(){
     try{
         const res=await apiService.getMessages();
         const all=(res&&res.data)||[];
-        const list=all.filter(function(m){return m.msg_type==='consult'&&m.sender_role==='parent';});
+        const list=all.filter(function(m){return m.msg_type==='consult'&&(m.sender_role==='parent'||m.sender_role==='student');});
         const totalEl=document.getElementById('tmTotal');
         const unreadEl=document.getElementById('tmUnread');
         if(totalEl)totalEl.textContent=list.length;
         const unread=list.filter(function(m){return m.status==='unread';}).length;
         if(unreadEl)unreadEl.textContent=unread;
-        if(!list.length){box.innerHTML='<div class="empty-state">暂无家长私信</div>';return;}
+        if(!list.length){box.innerHTML='<div class="empty-state">暂无私信</div>';return;}
         box.innerHTML=list.map(function(m){
             const isUnread=m.status==='unread';
             const replies=(m.replyList||[]).map(function(r){
@@ -12584,6 +12602,128 @@ async function loadStudentAttendance(){
     `;
 }
 
+let _studentMsgTeachers=[];
+let _studentMsgCurrentTeacherId=null;
+
+async function loadStudentMessagesPage(){
+    if(window._studentMsgTimer)clearInterval(window._studentMsgTimer);
+    window._studentMsgTimer=setInterval(()=>{ if(_studentMsgCurrentTeacherId!==null){ refreshStudentChat(); } },15000);
+    await refreshStudentTeacherList();
+}
+
+async function refreshStudentTeacherList(){
+    try{
+        const res=await apiService.getTeachers();
+        const list=(res&&res.code===200&&res.data)?res.data:[];
+        _studentMsgTeachers=list;
+        const box=document.getElementById('studentTeacherList');
+        if(!box)return;
+        if(list.length===0){
+            box.innerHTML='<div style="padding:24px;text-align:center;color:#999;font-size:13px;">暂无关联教师<br/>请让家长或管理员完善班级授课教师</div>';
+            document.getElementById('studentChatHeader').innerHTML='💬 请选择左侧老师开始沟通';
+            document.getElementById('studentChatBody').innerHTML='';
+            return;
+        }
+        box.innerHTML=list.map(t=>`
+            <div onclick="selectStudentTeacher(${t.id})" id="stuTeacherItem${t.id}" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;${_studentMsgCurrentTeacherId===t.id?'background:#e8f4ff;border-left:3px solid #4a90d9;':'background:transparent;border-left:3px solid transparent;'}">
+                <div style="width:34px;height:34px;border-radius:50%;background:#4a90d9;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">${escapeHtml((t.name||'师').charAt(0))}</div>
+                <div style="min-width:0;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.name||'教师')}</div>
+                    <div style="font-size:12px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.class_name||'')}</div>
+                </div>
+            </div>`).join('');
+        if(_studentMsgCurrentTeacherId===null && list.length>0){
+            selectStudentTeacher(list[0].id);
+        }else if(_studentMsgCurrentTeacherId!==null){
+            const exists=list.some(x=>x.id===_studentMsgCurrentTeacherId);
+            if(exists){ selectStudentTeacher(_studentMsgCurrentTeacherId); } else { _studentMsgCurrentTeacherId=null; selectStudentTeacher(list[0].id); }
+        }
+    }catch(e){ console.error('加载老师列表失败', e); }
+}
+
+async function selectStudentTeacher(teacherId){
+    _studentMsgCurrentTeacherId=teacherId;
+    document.querySelectorAll('#studentTeacherList > div').forEach(el=>{
+        el.style.background='transparent'; el.style.borderLeft='3px solid transparent';
+    });
+    const item=document.getElementById('stuTeacherItem'+teacherId);
+    if(item){ item.style.background='#e8f4ff'; item.style.borderLeft='3px solid #4a90d9'; }
+    const t=_studentMsgTeachers.find(x=>x.id===teacherId)||{name:'教师',class_name:''};
+    const header=document.getElementById('studentChatHeader');
+    if(header) header.innerHTML='💬 与 '+escapeHtml(t.name||'教师')+' 沟通'+(t.class_name?' · '+escapeHtml(t.class_name):'');
+    await loadStudentChat(teacherId);
+}
+
+async function loadStudentChat(teacherId){
+    const me=apiService.user;
+    const myId=me?me.id:null;
+    const body=document.getElementById('studentChatBody');
+    if(!body||myId==null)return;
+    body.innerHTML='<div style="text-align:center;color:#999;padding:30px;">加载中...</div>';
+    try{
+        const res=await apiService.getMessages();
+        const msgs=(res&&res.code===200&&res.data)?res.data:[];
+        const chat=msgs.filter(m=>{
+            return (Number(m.sender_id)===Number(myId) && Number(m.receiver_id)===Number(teacherId))
+                || (Number(m.sender_id)===Number(teacherId) && Number(m.receiver_id)===Number(myId));
+        }).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+        chat.filter(m=>Number(m.receiver_id)===Number(myId) && m.status==='unread').forEach(m=>{ apiService.markMessageRead(m.id); });
+        if(chat.length===0){
+            body.innerHTML='<div style="text-align:center;color:#999;padding:40px;">暂无消息，发送第一条消息开始沟通吧</div>';
+            return;
+        }
+        const bubbles=[];
+        chat.forEach(m=>{
+            bubbles.push({mine:Number(m.sender_id)===Number(myId), text:String(m.content||''), time:String(m.created_at||'').replace('T',' ').substring(5,16)});
+            (m.replyList||[]).forEach(rp=>{
+                bubbles.push({mine:Number(rp.sender_id)===Number(myId), text:String(rp.content||''), time:String(rp.created_at||'').replace('T',' ').substring(5,16)});
+            });
+        });
+        body.innerHTML=bubbles.map(b=>{
+            return `<div style="display:flex;${b.mine?'justify-content:flex-end;':'justify-content:flex-start;'}margin-bottom:12px;">
+                <div style="max-width:70%;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.6;${b.mine?'background:#4a90d9;color:#fff;border-top-right-radius:2px;':'background:#fff;color:var(--text);border:1px solid var(--border);border-top-left-radius:2px;'}">
+                    <div>${escapeHtml(b.text)}</div>
+                    <div style="font-size:11px;${b.mine?'color:rgba(255,255,255,0.75);text-align:right;':'color:#aaa;'}margin-top:4px;">${b.time}</div>
+                </div>
+            </div>`;
+        }).join('');
+        body.scrollTop=body.scrollHeight;
+    }catch(e){ console.error('加载聊天失败', e); body.innerHTML='<div style="text-align:center;color:#f44336;padding:30px;">加载失败</div>'; }
+}
+
+async function refreshStudentChat(){
+    if(_studentMsgCurrentTeacherId!==null) await loadStudentChat(_studentMsgCurrentTeacherId);
+    await refreshStudentTeacherList();
+}
+
+async function sendStudentMsg(){
+    const teacherId=_studentMsgCurrentTeacherId;
+    if(teacherId==null){ if(window.showToast)showToast('请先选择一位老师','warning'); return; }
+    const input=document.getElementById('studentChatInput');
+    const content=(input?input.value:'').trim();
+    if(!content){ if(window.showToast)showToast('请输入消息内容','warning'); return; }
+    try{
+        const res=await apiService.sendMessage({content:content, receiverId:teacherId, msgType:'consult', title:'学生咨询'});
+        if(res&&res.code===200){
+            if(input) input.value='';
+            await loadStudentChat(teacherId);
+        }else{
+            if(window.showToast)showToast((res&&(res.error||res.msg))||'发送失败','error');
+        }
+    }catch(e){ if(window.showToast)showToast('发送失败，请重试','error'); }
+}
+
+document.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+        const input=document.getElementById('studentChatInput');
+        const pg=document.getElementById('page-student-messages');
+        if(input&&pg&&pg.classList.contains('active')){
+            e.preventDefault(); sendStudentMsg();
+        }
+    }
+});
+
+
 async function loadParentHomeworkSummary() {
     const container = document.getElementById('parentHomeworkSummary');
     if (!container) return;
@@ -13642,6 +13782,7 @@ function renderSidebarMenu(role){
         {page:'homework',label:'我的作业',svg:'<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>'},
         {page:'parent-grades',label:'我的成绩',svg:'<path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 4l-4 4 1.41 1.41L11 9.83V16h2V9.83l1.59 1.58L16 10l-4-4z"/>'},
         {page:'attendance',label:'缺勤记录',svg:'<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>'},
+        {page:'student-messages',label:'联系老师',svg:'<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>'},
         {page:'parent-profile',label:'个人中心',svg:'<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>'}
     ];
     const adminItems=[

@@ -239,6 +239,7 @@ class ApiService {
     async deleteSchedule(id) { return this.request('DELETE', '/schedules/' + id); }
 
     async getMessages() { return this.request('GET', '/messages'); }
+    async getTeachers() { return this.request('GET', '/messages/teachers'); }
     async sendMessage(data) { return this.request('POST', '/messages', data); }
     async markMessageRead(id) { return this.request('PUT', '/messages/' + id + '/read'); }
     async getUnreadCount() { return this.request('GET', '/messages/unread/count'); }

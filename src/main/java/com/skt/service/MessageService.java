@@ -103,6 +103,19 @@ public class MessageService {
                     "WHERE (s.parent_id = ? OR s.parent_user_id = ?) AND (s.is_deleted IS NULL OR s.is_deleted = 0) " +
                     "AND u.role = 'teacher' AND u.id IS NOT NULL",
                     userId, userId);
+            } else if ("student".equalsIgnoreCase(role)) {
+                // 学生：通过绑定学生账号(user_id) -> 所属班级(class_id 主班级 + student_class 关联班级) -> 授课教师
+                teachers = jdbc.queryForList(
+                    "SELECT DISTINCT u.id, u.username, u.display_name AS name, c.name AS class_name " +
+                    "FROM users u JOIN classes c ON c.teacher_id = u.id AND u.role = 'teacher' " +
+                    "WHERE c.id IN (" +
+                    "  SELECT s.class_id FROM students s WHERE s.user_id = ? AND s.class_id IS NOT NULL " +
+                    "    AND (s.is_deleted IS NULL OR s.is_deleted = 0) " +
+                    "  UNION " +
+                    "  SELECT sc.class_id FROM student_class sc JOIN students s2 ON sc.student_id = s2.id " +
+                    "    WHERE s2.user_id = ? AND (s2.is_deleted IS NULL OR s2.is_deleted = 0)" +
+                    ")"
+                    , userId, userId);
             }
             result.put("code", 200);
             result.put("data", teachers == null ? Collections.emptyList() : teachers);
