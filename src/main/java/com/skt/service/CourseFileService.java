@@ -344,14 +344,9 @@ public class CourseFileService {
         if (ext.isEmpty()) {
             return "文件缺少后缀名";
         }
-        // 危险后缀双重拦截
+        // 危险后缀拦截（全格式支持，仅过滤可执行/危险文件类型）
         if (DANGEROUS_EXTENSIONS.contains(ext)) {
             return "不允许上传可执行/危险文件类型：" + ext;
-        }
-        // 白名单校验
-        Set<String> allowed = new HashSet<>(Arrays.asList(allowSuffix.split(",")));
-        if (!allowed.contains(ext)) {
-            return "不支持的文件格式：" + ext + "，支持的格式：" + allowSuffix;
         }
         return null;
     }

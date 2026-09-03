@@ -3034,7 +3034,7 @@ function renderCourseFiles(){
                         <span>📂 教师下发文件 (${teacherFiles.length})</span>
                         ${!isParent?'<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'teacherFileInput\').click()">📤 上传文件</button>':''}
                     </div>
-                    <input type="file" id="teacherFileInput" style="display:none;" onchange="uploadTeacherFile(this)" accept=".xlsx,.xls,.docx,.doc,.pptx,.png,.jpg,.jpeg">
+                    <input type="file" id="teacherFileInput" style="display:none;" onchange="uploadTeacherFile(this)">
                     <div id="teacherFileList">${renderFileList(teacherFiles,'teacher')}</div>
                 </div>
             </div>
@@ -3044,7 +3044,7 @@ function renderCourseFiles(){
                         <span>📝 ${isParent?'我提交的作业':'学生作业提交'} (${studentFiles.length})</span>
                         ${isParent?'<button class="btn btn-sm btn-success" onclick="document.getElementById(\'studentFileInput\').click()">📤 提交作业</button>':''}
                     </div>
-                    <input type="file" id="studentFileInput" style="display:none;" onchange="uploadStudentFile(this)" accept=".xlsx,.xls,.docx,.doc,.pptx,.png,.jpg,.jpeg">
+                    <input type="file" id="studentFileInput" style="display:none;" onchange="uploadStudentFile(this)">
                     <div id="studentFileList">${renderFileList(studentFiles,'student')}</div>
                 </div>
             </div>
