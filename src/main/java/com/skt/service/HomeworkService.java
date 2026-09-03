@@ -386,6 +386,51 @@ public class HomeworkService {
         return id;
     }
 
+
+    public Map<String, Object> deleteHomework(Long id, Long teacherId, String role) {
+        Map<String, Object> result = new HashMap<>();
+        List<Map<String, Object>> hw = jdbc.queryForList(
+            "SELECT h.*, c.teacher_id FROM homework h LEFT JOIN classes c ON c.id=h.class_id WHERE h.id=?", id);
+        if (hw.isEmpty()) {
+            result.put("code", 404);
+            result.put("msg", "作业不存在");
+            return result;
+        }
+        Map<String, Object> h = hw.get(0);
+        if ("teacher".equals(role)) {
+            Object tid = h.get("teacher_id");
+            if (tid == null || ((Number) tid).longValue() != teacherId.longValue()) {
+                result.put("code", 403);
+                result.put("msg", "无权限删除该作业");
+                return result;
+            }
+        }
+        String title = h.get("title") != null ? String.valueOf(h.get("title")) : "";
+        try {
+            Object fp = h.get("file_path");
+            if (fp != null) {
+                java.io.File f = new java.io.File(String.valueOf(fp));
+                if (f.exists()) f.delete();
+            }
+        } catch (Exception ignored) {}
+        List<Map<String, Object>> subs = jdbc.queryForList("SELECT * FROM homework_submissions WHERE homework_id=?", id);
+        for (Map<String, Object> sub : subs) {
+            try {
+                Object sp2 = sub.get("file_path");
+                if (sp2 != null) {
+                    java.io.File f = new java.io.File(String.valueOf(sp2));
+                    if (f.exists()) f.delete();
+                }
+            } catch (Exception ignored) {}
+        }
+        jdbc.update("DELETE FROM grades WHERE exam_name=?", "作业:" + title);
+        jdbc.update("DELETE FROM homework_submissions WHERE homework_id=?", id);
+        jdbc.update("DELETE FROM homework WHERE id=?", id);
+        result.put("code", 200);
+        result.put("msg", "作业已删除");
+        return result;
+    }
+
     /** 查询某作业的全部提交记录（教师查看） */
     public List<Map<String, Object>> listSubmissions(Long homeworkId) {
         return jdbc.queryForList(

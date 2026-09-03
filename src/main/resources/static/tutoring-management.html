@@ -5779,6 +5779,18 @@ function loadDashboard(){
     });
     const pe=document.getElementById('statPendingHomework');if(pe)pe.textContent=pendingHw.length;
     const ue=document.getElementById('statUpcomingHomework');if(ue)ue.textContent=upcomingHw.length;
+    // 异步从后端刷新待批改作业数（学生提交后实时可见）
+    try{
+        apiService.getHomework().then(res=>{
+            const bl=(res&&res.code===200&&Array.isArray(res.data))?res.data:[];
+            if(bl.length===0)return;
+            Promise.all(bl.map(h=>apiService.getHomeworkSubmissions(h.id).then(r=>(r&&r.code===200&&Array.isArray(r.data))?r.data:[]).catch(()=>[]))).then(arr=>{
+                const pending=bl.filter((h,i)=>arr[i].some(s=>s.score==null||s.score===undefined)).length;
+                const pe2=document.getElementById('statPendingHomework');
+                if(pe2)pe2.textContent=pending;
+            });
+        }).catch(()=>{});
+    }catch(e){}
     const rr=(appData.records||[]).slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
     const rh=rr.length>0?`<table><thead><tr><th>日期</th><th>班级</th><th>课程</th><th>节数</th><th>类型</th><th>缺勤</th></tr></thead><tbody>${rr.map(r=>{
         const detail=getRecordAbsentDetail(r);
@@ -10306,43 +10318,72 @@ function saveHomework(){
     showToast('作业发布成功');
 }
 
-function loadHomeworkList(){
+async function loadHomeworkList(){
     const hwFilterClass=document.getElementById('hwFilterClass');
     if(!hwFilterClass)return; // 页面元素不存在时安全退出
     const cls=hwFilterClass.value;
-    const status=document.getElementById('hwFilterStatus').value;
-    const type=document.getElementById('hwFilterType').value;
+    const status=document.getElementById('hwFilterStatus')?document.getElementById('hwFilterStatus').value:'';
+    const type=document.getElementById('hwFilterType')?document.getElementById('hwFilterType').value:'';
     initHomeworkClassSelect();
     document.getElementById('hwFilterClass').value=cls;
-    
-    let list=appData.homework||[];
-    if(cls)list=list.filter(h=>h.class===cls);
-    if(status)list=list.filter(h=>{
-        if(status==='overdue')return h.deadline&&new Date(h.deadline)<new Date()&&h.status==='pending';
+    let list=[];
+    try{
+        const res=await apiService.getHomework();
+        list=(res&&res.code===200&&Array.isArray(res.data))?res.data:[];
+        list=list.map(h=>({
+            id:String(h.id),
+            backendId:h.id,
+            class:h.class_name||'',
+            title:h.title||'',
+            content:h.content||'',
+            deadline:h.deadline||'',
+            createTime:h.created_at||'',
+            file_name:h.file_name,
+            file_size:h.file_size,
+            fullScore:100,
+            submissions:[]
+        }));
+        await Promise.all(list.map(async h=>{
+            try{
+                const r=await apiService.getHomeworkSubmissions(h.backendId);
+                if(r&&r.code===200&&Array.isArray(r.data))h.submissions=r.data;
+            }catch(e){h.submissions=[];}
+        }));
+        list.forEach(h=>{
+            const hasPending=h.submissions.some(s=>s.score==null||s.score===undefined);
+            const hasGraded=h.submissions.some(s=>s.score!=null&&s.score!==undefined);
+            const expired=h.deadline&&new Date(h.deadline)<new Date();
+            h.status=(expired&&hasPending)?'overdue':((hasPending||!hasGraded)?'pending':'graded');
+            h.type='review';
+        });
+        appData.homework=list;
+    }catch(e){
+        list=appData.homework||[];
+    }
+    let filtered=list;
+    if(cls)filtered=filtered.filter(h=>h.class===cls);
+    if(status)filtered=filtered.filter(h=>{
+        if(status==='overdue')return h.status==='overdue';
         return h.status===status;
     });
-    if(type)list=list.filter(h=>h.type===type);
-    
-    list.sort((a,b)=>new Date(b.createTime)-new Date(a.createTime));
-    
+    if(type&&type!=='review')filtered=filtered.filter(h=>h.type===type);
+    filtered.sort((a,b)=>new Date(b.createTime||0)-new Date(a.createTime||0));
     const container=document.getElementById('homeworkList');
-    if(list.length===0){
+    if(filtered.length===0){
         container.innerHTML='<div class="empty-state">暂无作业</div>';
         return;
     }
-    
-    container.innerHTML=list.map(h=>{
+    container.innerHTML=filtered.map(h=>{
         const typeLabels={preview:'预习作业',review:'巩固作业',exam:'单元考试'};
         const statusLabels={pending:'待批改',graded:'已批改',overdue:'已过期'};
-        const isOverdue=h.deadline&&new Date(h.deadline)<new Date()&&h.status==='pending';
-        const displayStatus=isOverdue?'overdue':h.status;
+        const displayStatus=h.status;
         return `<div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px;margin-bottom:12px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
                 <div>
                     <div style="font-weight:600;font-size:16px;">${escapeHtml(h.title)}</div>
-                    <div style="font-size:13px;color:#666;margin-top:4px;">${typeLabels[h.type]} · ${escapeHtml(h.class)}</div>
+                    <div style="font-size:13px;color:#666;margin-top:4px;">${typeLabels[h.type]||h.type} · ${escapeHtml(h.class)}</div>
                 </div>
-                <span class="tag ${displayStatus==='overdue'?'tag-danger':displayStatus==='pending'?'tag-warning':'tag-success'}">${statusLabels[displayStatus]}</span>
+                <span class="tag ${displayStatus==='overdue'?'tag-danger':displayStatus==='pending'?'tag-warning':'tag-success'}">${statusLabels[displayStatus]||displayStatus}</span>
             </div>
             <div style="color:#666;font-size:14px;margin-bottom:10px;">${escapeHtml(h.content||'无内容')}</div>
             <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:10px;">
@@ -10350,7 +10391,7 @@ function loadHomeworkList(){
                 <div>满分：${h.fullScore}分</div>
                 <div>已提交：${h.submissions?h.submissions.length:0}人</div>
             </div>
-            ${h.file_name?`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#666;margin-bottom:10px;">📎 ${escapeHtml(h.file_name)}${h.backendId?`<button class="btn btn-sm btn-secondary" onclick="downloadHomeworkFile(${h.backendId})">下载附件</button>`:'<span style="color:#999;font-size:12px;">（附件待服务器同步）</span>'}</div>`:''}
+            ${h.file_name?`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#666;margin-bottom:10px;">📎 ${escapeHtml(h.file_name)}<button class="btn btn-sm btn-secondary" onclick="downloadHomeworkFile(${h.backendId})">下载附件</button></div>`:''}
             <div class="action-btns">
                 <button class="btn btn-sm btn-primary" onclick="viewHomeworkSubmissions('${h.id}')">查看提交</button>
                 <button class="btn btn-sm btn-info" onclick="getHomeworkLink('${h.id}')">学生提交链接</button>
@@ -10439,6 +10480,7 @@ function saveGrade(hwId,studentName){
 function editHomework(hwId){
     const hw=appData.homework.find(h=>h.id===hwId);
     if(!hw){showToast('作业不存在','error');return;}
+    if(hw.backendId){showToast('该作业已同步服务器，暂不支持在线编辑，可删除后重新发布','warning');return;}
     
     const modal=document.createElement('div');
     modal.className='modal-overlay active';
@@ -10479,11 +10521,25 @@ function saveEditHomework(hwId){
 }
 
 function deleteHomework(hwId){
+    const hw=(appData.homework||[]).find(h=>h.id===hwId);
+    if(!hw){showToast('作业不存在','error');return;}
     openConfirmModal('确定删除此作业？',()=>{
-        appData.homework=appData.homework.filter(h=>h.id!==hwId);
-        saveData();
-        loadHomeworkList();
-        showToast('作业已删除');
+        if(hw.backendId){
+            apiService.deleteHomework(hw.backendId).then(r=>{
+                if(r&&r.code===200){
+                    appData.homework=(appData.homework||[]).filter(x=>x.id!==hwId);
+                    showToast('作业已删除');
+                    loadHomeworkList();
+                }else{
+                    showToast((r&&r.msg)||'删除失败','error');
+                }
+            }).catch(()=>showToast('删除失败，请稍后重试','error'));
+        }else{
+            appData.homework=(appData.homework||[]).filter(x=>x.id!==hwId);
+            saveData();
+            loadHomeworkList();
+            showToast('作业已删除');
+        }
     });
 }
 function viewHomeworkSubmissionsBackend(hw, backendId){

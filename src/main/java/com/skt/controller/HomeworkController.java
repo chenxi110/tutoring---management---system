@@ -214,6 +214,20 @@ public class HomeworkController {
     }
 
     /** 作业附件下载（鉴权：教师/管理员可下载全部；家长/学生仅限本班级） */
+
+    @DeleteMapping("/homework/{id}")
+    public Map<String, Object> delete(@PathVariable Long id, HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (!"teacher".equals(role) && !"admin".equals(role)) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("code", 403);
+            err.put("msg", "仅教师可删除作业");
+            return err;
+        }
+        return homeworkService.deleteHomework(id, userId, role);
+    }
+
     @GetMapping("/homework/file/{id}")
     public ResponseEntity<Resource> downloadHomeworkFile(@PathVariable Long id, HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");
