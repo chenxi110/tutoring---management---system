@@ -2819,7 +2819,7 @@ function loadParentFiles(){
                     '<div style="font-weight:600;font-size:14px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escapeHtml(f.file_name||'')+'</div>'+
                     '<div style="font-size:12px;color:#999;margin-top:4px;">'+escapeHtml(f.teacher_name||'教师')+' · '+(f.upload_time||'')+' · '+size+'</div>'+
                 '</div>'+
-                '<button class="btn btn-sm btn-primary" onclick="window.open(apiService.getParentFileDownloadUrl('+f.id+'),\'_blank\')">下载</button>'+
+                '<button class="btn btn-sm btn-primary" onclick="downloadFileByUrl(apiService.getParentFileDownloadUrl('+f.id+'),\'文件下载失败\')">下载</button>'+
             '</div>';
         });
         box.innerHTML=html;
@@ -3098,9 +3098,28 @@ async function uploadStudentFile(input){
     }
     input.value='';
 }
+async function downloadFileByUrl(url, tip){
+    try{
+        const res = await fetch(url, { headers: apiService.token ? { 'Authorization': 'Bearer ' + apiService.token } : {} });
+        if(!res.ok){ showToast((tip||'下载失败')+'：HTTP '+res.status,'error'); return; }
+        const blob = await res.blob();
+        let fileName = 'download';
+        const cd = res.headers.get('Content-Disposition') || '';
+        let m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+        if(m){ try{ fileName = decodeURIComponent(m[1]); }catch(e){} }
+        else { m = cd.match(/filename="?([^";]+)"?/i); if(m) fileName = m[1]; }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+    }catch(e){ showToast((tip||'下载失败')+'：'+(e.message||''),'error'); }
+}
+
 function downloadCourseFile(fileId){
     const url=apiService.getCourseFileDownloadUrl(fileId);
-    window.open(url,'_blank');
+    downloadFileByUrl(url,'文件下载失败');
 }
 function endClassroomSession(){
     if(!currentClassroomSession){return;}
@@ -10423,7 +10442,7 @@ function viewHomeworkSubmissionsBackend(hw, backendId){
 
 function downloadHomeworkSubmission(sid){
     const url = apiService.getHomeworkSubmissionFileUrl(sid);
-    window.open(url, '_blank');
+    downloadFileByUrl(url, '文件下载失败');
 }
 
 function openHomeworkSubmitModal(hwId, btn){
