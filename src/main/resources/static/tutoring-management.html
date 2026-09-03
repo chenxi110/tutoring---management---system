@@ -47,6 +47,12 @@
         .stat-card.danger { background: linear-gradient(135deg, var(--danger) 0%, #ff7875 100%); }
         .stat-value { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
         .stat-label { font-size: 14px; opacity: 0.9; }
+        /* 家长/学生端紧凑统计卡（4卡片一行） */
+        .stats-grid.compact { gap: 12px; margin-bottom: 16px; }
+        .stats-grid.compact .stat-card { padding: 14px 16px; min-height: 96px; }
+        .stats-grid.compact .stat-value { font-size: 22px; margin-bottom: 2px; }
+        .stats-grid.compact .stat-label { font-size: 12px; }
+        .stats-grid.compact .stat-card::after { right: 10px; bottom: 6px; font-size: 10px; }
         .quick-actions { display: flex; gap: 12px; flex-wrap: wrap; }
         .btn { padding: 10px 20px; border: none; border-radius: var(--radius); cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; transition: all 0.3s; }
         .btn-primary { background: var(--primary); color: #fff; }
@@ -12375,12 +12381,32 @@ async function loadParentDashboard(){
     const recentMsgs=(pd.messages||[]).slice(0,3);
 
     const WEEKDAY_NAMES_DASH=['周一','周二','周三','周四','周五','周六','周日'];
+    // 下节课课表（家长看孩子课表）
+    let nextCls=null;
+    try{const r=await apiService.getNextClass(); if(r&&r.code===200&&r.data)nextCls=r.data;}catch(e){}
+    let parentNextStatCard='<div style="text-align:center;color:#bbb;padding:6px 4px;">暂无排课</div>';
+    if(nextCls&&(nextCls.class_name||nextCls.className)){
+        const wdNames2=['周日','周一','周二','周三','周四','周五','周六'];
+        const cn=nextCls.class_name||nextCls.className||'';
+        const wd=nextCls.weekday!==undefined?wdNames2[Number(nextCls.weekday)]||('周'+(Number(nextCls.weekday)+1)):'';
+        const timeStr=String(nextCls.start_time||nextCls.startTime||'');
+        const ahead=(nextCls.minutesAhead!==undefined&&Number(nextCls.minutesAhead)>0&&Number(nextCls.minutesAhead)<1440)?(' · 还有'+Math.floor(Number(nextCls.minutesAhead)/60)+'小时'+((Number(nextCls.minutesAhead)%60)?(Number(nextCls.minutesAhead)%60)+'分':'')):'';
+        parentNextStatCard='<div style="text-align:center;">'+
+            '<div style="font-size:14px;font-weight:700;color:#1890ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(cn)+'</div>'+
+            '<div style="font-size:12px;color:#555;margin-top:5px;">'+escapeHtml(wd+(timeStr?' '+timeStr:''))+'</div>'+
+            (ahead?'<div style="font-size:11px;color:#fa8c16;margin-top:2px;">'+escapeHtml(ahead)+'</div>':'')+
+            '</div>';
+    }
 
     dashboard.innerHTML=`
-        <div class="stats-grid">
+        <div class="stats-grid compact">
             <div class="stat-card"><div class="stat-value">${pd.children.length}</div><div class="stat-label">我的孩子</div></div>
             <div class="stat-card success"><div class="stat-value">${totalSessions}</div><div class="stat-label">累计上课节数</div></div>
             <div class="stat-card warning"><div class="stat-value">${totalAbsent}</div><div class="stat-label">待补课次数</div></div>
+            <div style="background:linear-gradient(135deg,#ffffff,#eef6ff);border:1px solid #cfe6ff;border-radius:var(--radius);padding:14px 16px;min-height:96px;box-shadow:var(--shadow);box-sizing:border-box;">
+                <div style="font-size:12px;color:#1890ff;font-weight:600;margin-bottom:6px;">下节课课表</div>
+                ${parentNextStatCard}
+            </div>
         </div>
         <div class="card">
             <div class="card-header"><h3 class="card-title">快捷操作</h3></div>
@@ -12479,23 +12505,29 @@ async function loadStudentDashboard(){
     const submitted=homework.filter(h=>h.submitted).length;
     const graded=homework.filter(h=>h.submitted&&h.score!==null&&h.score!==undefined&&h.score!=='').length;
     const WEEKDAY_DASH=['周日','周一','周二','周三','周四','周五','周六'];
-    let nextClassHtml='<div style="text-align:center;color:#999;padding:20px;">暂无排课</div>';
+    let nextStatCardHtml='<div style="text-align:center;color:#bbb;padding:6px 4px;">暂无排课</div>';
     if(nextCls&&nextCls.class_name){
         const wd=nextCls.weekday!==undefined?WEEKDAY_DASH[nextCls.weekday]||('周'+(nextCls.weekday+1)):'';
-        const ahead=(nextCls.minutesAhead!==undefined&&nextCls.minutesAhead>0)?(nextCls.minutesAhead<1440?(' · '+Math.floor(nextCls.minutesAhead/60)+'小时'+((nextCls.minutesAhead%60)?(nextCls.minutesAhead%60)+'分':'')+'后'):''):'';
-        nextClassHtml='<div style="padding:12px;"><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid #e6f0ff;border-radius:8px;background:#f0f7ff;">'+
-            '<div><strong>'+escapeHtml(nextCls.class_name||'')+'</strong> <span style="color:#999;font-size:12px;">('+escapeHtml(course||'')+')</span></div>'+
-            '<div style="color:#1890ff;font-weight:500;">'+escapeHtml(wd+' '+String(nextCls.start_time||''))+'<span style="font-size:12px;">'+ahead+'</span></div>'+
-            '</div></div>';
+        const timeStr=String(nextCls.start_time||'');
+        const ahead=(nextCls.minutesAhead!==undefined&&nextCls.minutesAhead>0&&nextCls.minutesAhead<1440)?(' · 还有'+Math.floor(nextCls.minutesAhead/60)+'小时'+((nextCls.minutesAhead%60)?(nextCls.minutesAhead%60)+'分':'')):'';
+        nextStatCardHtml='<div style="text-align:center;">'+
+            '<div style="font-size:14px;font-weight:700;color:#1890ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(nextCls.class_name||'')+'</div>'+
+            '<div style="font-size:12px;color:#555;margin-top:5px;">'+escapeHtml(wd+(timeStr?' '+timeStr:''))+'</div>'+
+            (ahead?'<div style="font-size:11px;color:#fa8c16;margin-top:2px;">'+escapeHtml(ahead)+'</div>':'')+
+            '</div>';
     }
     const recentGrades=grades.slice(0,5);
     const recentHomework=homework.slice(0,5);
     const recentAtt=attendance.slice(0,6);
     dashboard.innerHTML=`
-        <div class="stats-grid">
+        <div class="stats-grid compact">
             <div class="stat-card"><div class="stat-value">${avg}</div><div class="stat-label">平均成绩</div></div>
             <div class="stat-card success"><div class="stat-value">${pendingHomework}</div><div class="stat-label">待完成作业</div></div>
             <div class="stat-card warning"><div class="stat-value">${totalAbsent}</div><div class="stat-label">待补课次数</div></div>
+            <div style="background:linear-gradient(135deg,#ffffff,#eef6ff);border:1px solid #cfe6ff;border-radius:var(--radius);padding:14px 16px;min-height:96px;box-shadow:var(--shadow);box-sizing:border-box;">
+                <div style="font-size:12px;color:#1890ff;font-weight:600;margin-bottom:6px;">下节课课表</div>
+                ${nextStatCardHtml}
+            </div>
         </div>
         <div class="card">
             <div class="card-header"><h3 class="card-title">我的信息</h3></div>
@@ -12517,10 +12549,6 @@ async function loadStudentDashboard(){
                 <button class="btn btn-secondary" onclick="navigateTo('homework')">我的作业</button>
                 <button class="btn btn-primary" onclick="navigateTo('parent-ai')">AI学习助手</button>
             </div>
-        </div>
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">下一节课</h3></div>
-            ${nextClassHtml}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div class="card">
