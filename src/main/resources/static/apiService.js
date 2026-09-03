@@ -52,7 +52,7 @@ class ApiService {
     isStudent() { return this.user && this.user.role === 'student'; }
 
     async requestUpload(method, url, formData) {
-        const token = this.getToken();
+        const token = this.token;
         const headers = {};
         if (token) headers['Authorization'] = 'Bearer ' + token;
         const res = await fetch(this.baseURL + url, { method, headers, body: formData });
@@ -279,7 +279,7 @@ class ApiService {
     async confirmHomeworkReview(id, data) { return this.request('POST', '/homework/confirm-review/' + id, data); }
   async submitHomeworkFile(id, formData) { return this.requestUpload('POST', '/homework/' + id + '/submitFile', formData); }
   async getHomeworkSubmissions(id) { return this.request('GET', '/homework/' + id + '/submissions'); }
-  getHomeworkSubmissionFileUrl(submissionId) { return '/api/homework/submissions/' + submissionId + '/file?token=' + encodeURIComponent(this.getToken()); }
+  getHomeworkSubmissionFileUrl(submissionId) { return '/api/homework/submissions/' + submissionId + '/file?token=' + encodeURIComponent(this.token); }
 
     // 成绩管理
     async getGrades(filters) {

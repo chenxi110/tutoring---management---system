@@ -31,6 +31,11 @@ public class StudentManageController {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private com.skt.service.StudentService studentService;
+    @Autowired
+    private com.skt.service.ScheduleService scheduleService;
+
     /**
      * 为返回的学生列表附加 displayName：存在同名学生时，展示「姓名（班级名-学号后四位）」以便区分。
      */
@@ -304,6 +309,66 @@ public class StudentManageController {
     }
 
     // 班级学生列表（成绩录入等下拉选择用；经 student_class 关联，含多班级学生）
+    @GetMapping("/students/{id}")
+    public Map<String, Object> getStudentDetail(@PathVariable Long id, HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            String role = (String) req.getAttribute("role");
+            Long userId = (Long) req.getAttribute("userId");
+            List<Map<String, Object>> st = jdbc.queryForList(
+                "SELECT s.*, c.name AS class_name FROM students s LEFT JOIN classes c ON s.class_id=c.id " +
+                "WHERE s.id=? AND (s.is_deleted IS NULL OR s.is_deleted=0)", id);
+            if (st.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "学生不存在");
+                return result;
+            }
+            Map<String, Object> stu = st.get(0);
+            boolean ok = false;
+            if ("admin".equals(role)) {
+                ok = true;
+            } else if ("teacher".equals(role)) {
+                Object cidObj = stu.get("class_id");
+                if (cidObj != null) {
+                    Long cid = ((Number) cidObj).longValue();
+                    Integer n = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM classes WHERE id=? AND teacher_id=?", Integer.class, cid, userId);
+                    ok = n != null && n > 0;
+                }
+            } else if ("parent".equals(role)) {
+                Integer n = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM students WHERE id=? AND (parent_id=? OR parent_user_id=?) AND (is_deleted IS NULL OR is_deleted=0)",
+                    Integer.class, id, userId, userId);
+                ok = n != null && n > 0;
+            } else if ("student".equals(role)) {
+                Integer n = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM students WHERE id=? AND user_id=? AND (is_deleted IS NULL OR is_deleted=0)",
+                    Integer.class, id, userId);
+                ok = n != null && n > 0;
+            }
+            if (!ok) {
+                result.put("code", 403);
+                result.put("msg", "无权限查看该学生详情");
+                return result;
+            }
+            Long sid = ((Number) stu.get("id")).longValue();
+            Object cidObj = stu.get("class_id");
+            Long cid = cidObj == null ? null : ((Number) cidObj).longValue();
+            Map<String, Object> data = new HashMap<>();
+            data.putAll(stu);
+            data.put("records", studentService.getStudentAttendance(sid));
+            data.put("schedule", scheduleService.studentSchedules(sid, cid));
+            result.put("code", 200);
+            result.put("data", data);
+            return result;
+        } catch (Exception e) {
+            log.error("获取学生详情失败 studentId={}", id, e);
+            result.put("code", 500);
+            result.put("msg", "服务器内部错误，请稍后重试或联系管理员");
+            return result;
+        }
+    }
+
     @GetMapping("/classes/{id}/students")
     public Map<String, Object> classStudents(@PathVariable Long id, HttpServletRequest req) {
         Map<String, Object> result = new HashMap<>();
