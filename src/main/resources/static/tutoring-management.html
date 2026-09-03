@@ -10500,18 +10500,59 @@ function viewHomeworkSubmissionsBackend(hw, backendId){
         const c=document.getElementById('backendSubmissionsList');
         if(!c)return;
         if(!list.length){ c.innerHTML='<div class="empty-state">暂无学生提交</div>'; return; }
-        c.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>学生</th><th>提交方式</th><th>提交内容/文件</th><th>提交时间</th><th>下载</th></tr></thead><tbody>
+        c.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>学生</th><th>提交方式</th><th>提交内容/文件</th><th>提交时间</th><th>下载</th><th>AI评分</th><th>批改</th></tr></thead><tbody>
             ${list.map(s=>`<tr>
                 <td>${escapeHtml(s.student_name || '-')}</td>
                 <td>${s.submit_role==='student'?'学生':(s.submit_role==='teacher'?'教师代登':'家长')}</td>
                 <td>${s.file_name ? '<span style="color:#1a73e8;">'+escapeHtml(s.file_name)+'</span>' : (s.content?escapeHtml(s.content):'-')}</td>
                 <td>${escapeHtml(s.submitted_at || '-')}</td>
                 <td>${s.file_name ? '<button class="btn btn-sm btn-info" onclick="downloadHomeworkSubmission(' + s.id + ')">下载</button>' : '-'}</td>
+                <td>${s.ai_score!=null ? '<span style="color:#1a73e8;font-weight:600;">'+s.ai_score+'</span><span style="font-size:11px;color:#999;">'+(s.ai_mode==='llm'?' 大模型':' 规则')+'</span>' : '-'}</td>
+                <td>${(s.score!=null?'<span style="color:#52c41a;font-weight:600;margin-right:6px;">'+s.score+'分</span>':'')+'<button class="btn btn-sm btn-primary" onclick="openBackendGradeModal(' + s.id + ',' + (s.ai_score!=null?s.ai_score:'null') + ',this)">'+(s.score!=null?'重新批改':'批改')+'</button>'}</td>
             </tr>`).join('')}
         </tbody></table></div>`;
     }).catch(function(){ const c=document.getElementById('backendSubmissionsList'); if(c)c.innerHTML='<div class="empty-state">加载提交记录失败</div>'; });
 }
 
+function openBackendGradeModal(submissionId, aiScore, btn){
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:560px;">
+        <div class="modal-header"><h3 class="modal-title">批改作业</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-body">
+            <div id="aiSuggestionBox" style="display:none;" data-score="${aiScore!=null?aiScore:''}" data-comment=""></div>
+            ${aiScore!=null ? `<div style="background:#f0f7ff;border:1px solid #cfe4ff;border-radius:8px;padding:12px;margin-bottom:14px;">
+                <div style="font-weight:600;color:#1a73e8;margin-bottom:6px;">🤖 AI 审阅建议</div>
+                <div style="font-size:13px;color:#333;">建议得分：<strong>${aiScore}</strong> 分</div>
+                <div style="font-size:13px;color:#555;margin-top:4px;" id="aiSuggestionComment"></div>
+                <button class="btn btn-sm btn-info" style="margin-top:8px;" onclick="useAiScore()">采用AI评分</button>
+            </div>` : `<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#8c6d1f;">暂无 AI 审阅结果，可手动批改。</div>`}
+            <div class="form-group"><label class="form-label">得分 *</label><input type="number" class="form-control" id="bgScore" min="0" max="100" placeholder="0-100"></div>
+            <div class="form-group"><label class="form-label">评语</label><textarea class="form-control" id="bgComment" rows="3" placeholder="输入批改评语（覆盖AI建议）"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">取消</button><button class="btn btn-primary" id="bgSaveBtn" onclick="saveBackendGrade(${submissionId})">保存批改</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+    const box=document.getElementById('aiSuggestionBox');
+    const cc=document.getElementById('aiSuggestionComment');
+    if(cc && box){ cc.textContent=box.getAttribute('data-comment')||''; }
+}
+function useAiScore(){
+    const box=document.getElementById('aiSuggestionBox');
+    if(!box) return;
+    const s=document.getElementById('bgScore'); if(s) s.value=box.getAttribute('data-score')||'';
+    const c=document.getElementById('bgComment'); if(c) c.value=box.getAttribute('data-comment')||'';
+}
+function saveBackendGrade(submissionId){
+    const score=parseFloat(document.getElementById('bgScore').value);
+    if(isNaN(score)||score<0||score>100){showToast('请输入0-100的有效得分','error');return;}
+    const comment=document.getElementById('bgComment').value||'';
+    const btn=document.getElementById('bgSaveBtn'); if(btn){btn.disabled=true;btn.textContent='保存中...';}
+    apiService.gradeSubmission(submissionId,{score:score,comment:comment}).then(function(r){
+        if(r && r.code===200){ showToast('批改已保存，成绩已同步','success'); const ov=btn?btn.closest('.modal-overlay'):null; if(ov)ov.remove(); }
+        else { showToast((r&&r.msg)||'保存失败','error'); if(btn){btn.disabled=false;btn.textContent='保存批改';} }
+    }).catch(function(e){ showToast('保存失败：'+(e&&e.message?e.message:'网络错误'),'error'); if(btn){btn.disabled=false;btn.textContent='保存批改';} });
+}
 function downloadHomeworkSubmission(sid){
     const url = apiService.getHomeworkSubmissionFileUrl(sid);
     downloadFileByUrl(url, '文件下载失败');
@@ -13193,7 +13234,7 @@ async function loadParentHomework(showOnlyCount = false) {
                     <td>${escapeHtml(item.content || '-')}</td>
                     <td>${escapeHtml(item.deadline || '-')}</td>
                     <td>${item.deadline ? (new Date(item.deadline) < new Date() ? '<span class="badge badge-danger">已过期</span>' : '<span class="badge badge-warning">待完成</span>') : '<span class="badge badge-secondary">未设置</span>'}</td>
-                    <td>${item.submitted ? '<span class="badge badge-success">已提交</span>' : '<button class="btn btn-sm btn-primary" onclick="openHomeworkSubmitModal(' + (item.id||0) + ', this)">提交作业</button>'}</td>
+                    <td>${item.submitted ? '<span class="badge badge-success">已提交</span>' + (item.submit_ai_score!=null ? ' <span style="font-size:12px;color:#1a73e8;">AI审阅:'+item.submit_ai_score+'分</span>' : '') + (item.submit_score!=null ? ' <span style="font-size:12px;color:#52c41a;">教师:'+item.submit_score+'分</span>' : '') : '<button class="btn btn-sm btn-primary" onclick="openHomeworkSubmitModal(' + (item.id||0) + ', this)">提交作业</button>'}</td>
                     <td>${item.file_name ? '<button class="btn btn-sm btn-secondary" onclick="downloadHomeworkFile(' + item.id + ')">📎 下载附件</button>' : '-'}</td>
                 </tr>
             `).join('') : '<tr><td colspan="7" class="empty-state">暂无作业</td></tr>';

@@ -50,6 +50,53 @@ public class AIService {
             .connectTimeout(Duration.ofSeconds(15))
             .build();
 
+    /**
+     * 单次对话（无历史），供作业AI审阅等内部场景使用。
+     * 成功返回大模型文本回复；未配置/失败返回 null（调用方自行降级）。
+     */
+    public String chatOnce(String systemPrompt, String userPrompt) {
+        if (userPrompt == null || userPrompt.trim().isEmpty()) return null;
+        refreshConfig();
+        if (apiKey == null || apiKey.trim().isEmpty()) return null;
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", model);
+            List<Map<String, String>> messages = new ArrayList<>();
+            Map<String, String> sys = new HashMap<>();
+            sys.put("role", "system");
+            sys.put("content", systemPrompt != null && !systemPrompt.isEmpty() ? systemPrompt : this.systemPrompt);
+            messages.add(sys);
+            Map<String, String> usr = new HashMap<>();
+            usr.put("role", "user");
+            usr.put("content", userPrompt);
+            messages.add(usr);
+            requestBody.put("messages", messages);
+            requestBody.put("stream", false);
+            requestBody.put("max_tokens", 800);
+            requestBody.put("temperature", 0.3);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/chat/completions"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .timeout(Duration.ofSeconds(30))
+                    .POST(HttpRequest.BodyPublishers.ofString(buildJson(requestBody)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.warn("AI审阅调用失败, httpStatus={}", response.statusCode());
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            String content = root.path("choices").path(0).path("message").path("content").asText(null);
+            return (content == null || content.trim().isEmpty()) ? null : content.trim();
+        } catch (Exception e) {
+            log.warn("AI审阅异常: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public Map<String, Object> chat(Long userId, String sessionId, String prompt, List<Map<String, Object>> history) {
         refreshConfig();
         Map<String, Object> result = new HashMap<>();
