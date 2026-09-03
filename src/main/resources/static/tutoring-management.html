@@ -10319,6 +10319,7 @@ function saveHomework(){
 }
 
 async function loadHomeworkList(){
+    document.querySelectorAll('.modal-overlay').forEach(function(m){m.remove();});
     const hwFilterClass=document.getElementById('hwFilterClass');
     if(!hwFilterClass)return; // 页面元素不存在时安全退出
     const cls=hwFilterClass.value;
@@ -10395,7 +10396,6 @@ async function loadHomeworkList(){
             <div class="action-btns">
                 <button class="btn btn-sm btn-primary" onclick="viewHomeworkSubmissions('${h.id}')">查看提交</button>
                 <button class="btn btn-sm btn-info" onclick="getHomeworkLink('${h.id}')">学生提交链接</button>
-                <button class="btn btn-sm btn-secondary" onclick="editHomework('${h.id}')">编辑</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteHomework('${h.id}')">删除</button>
             </div>
         </div>`;
