@@ -149,14 +149,33 @@ public class StudentManageController {
             String parentName = body.get("parentName") != null ? body.get("parentName").toString().trim() : null;
             String parentRelation = body.get("parentRelation") != null ? body.get("parentRelation").toString().trim() : null;
 
-            // 手机号唯一校验
+            // 手机号校验：已存在时复用该学生并加入当前班级（支持一个学生有多个老师/多个班级）
             if (phone != null && !phone.isEmpty()) {
-                List<Long> dupPhone = jdbc.queryForList(
+                List<Map<String, Object>> dup = jdbc.queryForList(
                     "SELECT id FROM students WHERE phone = ? AND (is_deleted IS NULL OR is_deleted = 0) LIMIT 1",
-                    Long.class, phone);
-                if (!dupPhone.isEmpty()) {
-                    result.put("code", 400);
-                    result.put("msg", "该手机号已注册学生账号");
+                    phone);
+                if (!dup.isEmpty()) {
+                    Long existingId = ((Number) dup.get(0).get("id")).longValue();
+                    boolean inClass = false;
+                    if (classId != null) {
+                        List<Long> sc = jdbc.queryForList(
+                            "SELECT id FROM student_class WHERE student_id = ? AND class_id = ? LIMIT 1",
+                            Long.class, existingId, classId);
+                        inClass = !sc.isEmpty();
+                    }
+                    if (inClass) {
+                        result.put("code", 400);
+                        result.put("msg", "该学生已在本班级");
+                        return result;
+                    }
+                    if (classId != null) {
+                        try {
+                            jdbc.update("INSERT IGNORE INTO student_class (student_id, class_id) VALUES (?, ?)", existingId, classId);
+                        } catch (Exception ignore) { }
+                    }
+                    result.put("code", 200);
+                    result.put("id", existingId);
+                    result.put("msg", "该学生已存在，已加入当前班级");
                     return result;
                 }
             }
