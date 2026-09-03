@@ -13399,11 +13399,24 @@ function showBindStudentAccount(account, studentName){
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="copyStudentAccount('${escapeAttr(account.username)}','${escapeAttr(String(account.password||''))}')">复制账号密码</button>
-            <button class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">我知道了</button>
+            <button class="btn btn-primary" onclick="closeBindStudentAccountAndRefresh(this)">我知道了</button>
         </div>
     </div>`;
     document.body.appendChild(modal);
 }
+
+// 关闭绑定成功账号弹窗后：同步数据并重载当前页面，避免停留在"未绑定"旧状态造成误会
+function closeBindStudentAccountAndRefresh(btn){
+    try{ if(btn&&btn.closest) btn.closest('.modal-overlay').remove(); }catch(e){}
+    var cur='dashboard';
+    try{ var a=document.querySelector('.page.active'); if(a) cur=a.id.replace('page-',''); }catch(e){}
+    var done=function(){ try{ navigateTo(cur); }catch(e2){ try{ location.reload(); }catch(e3){} } };
+    try{
+        var p= (typeof DataSync!=='undefined'&&DataSync.syncFromServer)? DataSync.syncFromServer() : Promise.resolve();
+        Promise.resolve(p).then(done).catch(done);
+    }catch(e){ done(); }
+}
+
 function copyStudentAccount(username,password){
     try{
         const txt='学生登录账号：'+username+'，初始密码：'+password;
