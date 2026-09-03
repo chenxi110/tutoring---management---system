@@ -334,6 +334,38 @@ class ApiService {
         return this.baseURL + '/course/file/download/' + fileId + '?token=' + encodeURIComponent(this.token);
     }
 
+    // ==================== 教师下发家长文件 ====================
+
+    /** 教师/管理员下发文件给家长（targetType: all=全部家长 class=班级家长 parent=指定家长） */
+    async uploadParentFile(file, targetType, classId, parentId) {
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('targetType', targetType);
+        if (classId) formData.append('classId', classId);
+        if (parentId) formData.append('parentId', parentId);
+        var url = this.baseURL + '/parent-file/upload';
+        var res = await fetch(url, {
+            method: 'POST',
+            headers: this.token ? { 'Authorization': 'Bearer ' + this.token } : {},
+            body: formData
+        });
+        return await res.json();
+    }
+
+    /** 获取家长文件列表（家长看发给自己的；教师/管理员看全部下发记录） */
+    async getParentFiles() {
+        return this.request('GET', '/parent-file/list');
+    }
+
+    /** 获取某班级家长列表（教师下发时选择对象） */
+    async getClassParents(classId) {
+        return this.request('GET', '/parent-file/parents?classId=' + classId);
+    }
+
+    getParentFileDownloadUrl(fileId) {
+        return this.baseURL + '/parent-file/download/' + fileId + '?token=' + encodeURIComponent(this.token);
+    }
+
     connectSSE() {
         if (!this.token) return;
         this.closeSSE();

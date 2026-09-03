@@ -30,6 +30,24 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         try {
+            // 确保 parent_file 表存在（教师下发家长文件）
+            try {
+                jdbc.execute("CREATE TABLE IF NOT EXISTS parent_file (" +
+                    "id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键id'," +
+                    "teacher_id BIGINT NOT NULL COMMENT '下发教师ID'," +
+                    "file_name VARCHAR(255) NOT NULL COMMENT '原始文件名'," +
+                    "save_path VARCHAR(500) NOT NULL COMMENT '存储相对路径'," +
+                    "file_suffix VARCHAR(50) NOT NULL COMMENT '文件后缀'," +
+                    "file_size BIGINT NOT NULL COMMENT '字节大小'," +
+                    "target_type VARCHAR(20) NOT NULL DEFAULT 'all' COMMENT 'all=全部家长 class=班级家长 parent=指定家长'," +
+                    "class_id BIGINT NULL COMMENT '目标班级ID'," +
+                    "parent_user_id BIGINT NULL COMMENT '目标家长用户ID'," +
+                    "upload_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (id)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师下发家长文件表'");
+            } catch (Exception e) {
+                log.debug("parent_file 表创建跳过: {}", e.getMessage());
+            }
             // 兼容旧表结构：确保 users.display_name 允许 NULL
             try {
                 jdbc.execute("ALTER TABLE users MODIFY display_name VARCHAR(50) NULL DEFAULT ''");

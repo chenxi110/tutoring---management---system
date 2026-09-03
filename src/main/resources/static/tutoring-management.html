@@ -1123,7 +1123,7 @@ body {
             <!-- 家校互通·家长私信（教师端） -->
             <div class="page" id="page-teacher-message">
                 <div class="card">
-                    <div class="card-header"><h3 class="card-title">💬 家校互通 · 家长私信</h3><button class="btn btn-sm btn-secondary" onclick="loadTeacherPrivateMessages()">刷新</button></div>
+                    <div class="card-header"><h3 class="card-title">💬 家校互通 · 家长私信</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" onclick="openParentFileSendModal()">下发文件</button><button class="btn btn-sm btn-secondary" onclick="loadTeacherPrivateMessages()">刷新</button></div></div>
                     <div style="display:flex;gap:12px;padding:12px 16px 0;">
                         <div style="background:#f0f7ff;border-radius:10px;padding:8px 16px;font-size:13px;color:#666;"><b id="tmTotal" style="color:#1890ff;font-size:18px;margin-right:4px;">0</b>条家长私信</div>
                         <div style="background:#fff1f0;border-radius:10px;padding:8px 16px;font-size:13px;color:#666;"><b id="tmUnread" style="color:#ff4d4f;font-size:18px;margin-right:4px;">0</b>条未读</div>
@@ -1196,6 +1196,15 @@ body {
                             <div style="color:#666;font-size:13px;margin-bottom:15px;">导出完整数据备份文件</div>
                             <button class="btn btn-primary" onclick="backupAllData()">导出JSON</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+            <div class="page" id="page-parent-files">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">📄 老师下发文件</h3></div>
+                    <div class="card-body">
+                        <div style="margin-bottom:14px;color:#6B7280;font-size:13px;line-height:1.8;">教师下发的课件、资料、通知文件等，点击下载即可保存到本地查看（支持 Word / Excel / PPT / PDF / 图片 / 音视频 / 压缩包等格式）</div>
+                        <div id="parentFileList"><div style="text-align:center;color:#999;padding:40px 0;">加载中...</div></div>
                     </div>
                 </div>
             </div>
@@ -1615,6 +1624,31 @@ body {
             </div>
         </div>
     </main>
+    <div class="modal-overlay" id="parentFileSendModal" onclick="if(event.target===this)closeParentFileSendModal()"><div class="modal" style="max-width:560px;">
+        <div class="modal-header"><h3 class="modal-title">下发文件给家长</h3><button class="modal-close" onclick="closeParentFileSendModal()">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group"><label class="form-label">下发对象 *</label>
+                <select class="form-control" id="pfTargetType" onchange="pfOnTargetChange()">
+                    <option value="all">全部家长</option>
+                    <option value="class">指定班级的全部家长</option>
+                    <option value="parent">指定家长</option>
+                </select></div>
+            <div class="form-group" id="pfClassGroup" style="display:none;"><label class="form-label">选择班级 *</label>
+                <select class="form-control" id="pfClass" onchange="pfOnClassChange()"><option value="">请选择班级</option></select></div>
+            <div class="form-group" id="pfParentGroup" style="display:none;"><label class="form-label">选择家长 *</label>
+                <select class="form-control" id="pfParent"><option value="">请选择家长</option></select></div>
+            <div class="form-group"><label class="form-label">选择文件 *</label><input type="file" class="form-control" id="pfFile"></div>
+            <div style="color:#999;font-size:12px;margin:-6px 0 12px;">支持常见格式（Word/Excel/PPT/PDF/图片/音视频/压缩包等，禁止 exe/bat 等可执行文件），单文件不超过50MB</div>
+            <div style="background:#f6f8fa;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">最近下发记录</div>
+                <div id="pfRecentList" style="max-height:160px;overflow-y:auto;font-size:12px;color:#666;">加载中...</div>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeParentFileSendModal()">取消</button>
+                <button class="btn btn-primary" id="pfSubmitBtn" onclick="submitParentFileSend()">上传下发</button>
+            </div>
+        </div>
+    </div></div>
     <div class="modal-overlay" id="recordModal"><div class="modal">
         <div class="modal-header"><h3 class="modal-title" id="recordModalTitle">添加上课记录</h3><button class="modal-close" onclick="closeRecordModal()">&times;</button></div>
         <div class="modal-body">
@@ -2694,6 +2728,7 @@ function navigateTo(page){
             finance:'财务台账',
             export:'导出打印',
             classroom:'上课模式',
+            'parent-files':'老师下发文件',
             semesters:'学期管理',
             users:'用户管理',
             settings:'设置',
@@ -2715,7 +2750,8 @@ function navigateTo(page){
             'student-messages':()=>{ if(apiService.isStudent())return loadStudentMessagesPage(); return loadTeacherPrivateMessages(); },
             statistics:()=>{ if(apiService.isParent())return loadParentStatistics(); if(apiService.isStudent())return loadStudentAttendance(); return initStatisticsPage(); },
             schedule:()=>{ applyScheduleRoleView(); if(apiService.isParent()||apiService.isStudent())return loadParentSchedule(); return loadSchedule(); },
-            classroom:()=>loadClassroom(),
+            classroom:()=>{ if(apiService.isParent())return loadParentFiles(); return loadClassroom(); },
+            'parent-files':()=>loadParentFiles(),
             semesters:()=>loadSemesters(),
             settings:()=>loadSettings(),
             users:()=>loadUserList(),
@@ -2760,6 +2796,38 @@ function navigateTo(page){
 /* 上课模式 / 课堂互动 */
 let currentClassroomSession=null;
 let pickerTimer=null;
+// ==================== 家长端：老师下发文件 ====================
+function loadParentFiles(){
+    const box=document.getElementById('parentFileList');
+    if(!box)return;
+    box.innerHTML='<div style="text-align:center;color:#999;padding:40px 0;">加载中...</div>';
+    apiService.getParentFiles().then(function(res){
+        if(!res||res.code!==200){
+            box.innerHTML='<div style="text-align:center;color:#999;padding:40px 0;">暂无数据</div>';
+            return;
+        }
+        const list=(res.data||[]);
+        if(!list.length){
+            box.innerHTML='<div style="text-align:center;color:#999;padding:40px 0;">暂无数据</div>';
+            return;
+        }
+        let html='';
+        list.forEach(function(f){
+            const size=f.file_size>=1048576?(f.file_size/1048576).toFixed(1)+' MB':(f.file_size/1024).toFixed(0)+' KB';
+            html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;">'+
+                '<div style="min-width:0;flex:1;">'+
+                    '<div style="font-weight:600;font-size:14px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escapeHtml(f.file_name||'')+'</div>'+
+                    '<div style="font-size:12px;color:#999;margin-top:4px;">'+escapeHtml(f.teacher_name||'教师')+' · '+(f.upload_time||'')+' · '+size+'</div>'+
+                '</div>'+
+                '<button class="btn btn-sm btn-primary" onclick="window.open(apiService.getParentFileDownloadUrl('+f.id+'),\'_blank\')">下载</button>'+
+            '</div>';
+        });
+        box.innerHTML=html;
+    }).catch(function(){
+        box.innerHTML='<div style="text-align:center;color:#999;padding:40px 0;">加载失败，请刷新重试</div>';
+    });
+}
+
 async function loadClassroom(){
     const sel=document.getElementById('crClassSelect');
     const t=new Date();
@@ -2994,27 +3062,7 @@ async function uploadTeacherFile(input){
         if(res.code===200){
             showToast('课件上传成功');
             loadCourseFiles();
-            // 给该班级所有家长发送文件通知
-            try{
-                const classRes=await apiService.getStudents(currentClassroomSession.classId);
-                const students=(classRes&&classRes.code===200)?(classRes.data||[]):[];
-                const notifiedParents=new Set();
-                for(const s of students){
-                    const parentId=s.parent_user_id||s.parent_id;
-                    if(parentId&&!notifiedParents.has(parentId)){
-                        notifiedParents.add(parentId);
-                        await apiService.sendMessage({
-                            title:'课堂课件通知',
-                            content:`教师下发课堂课件「${file.name}」，请前往上课模式查看下载`,
-                            receiverId:parentId,
-                            studentName:s.name||'',
-                            classId:currentClassroomSession.classId,
-                            msgType:'notice'
-                        }).catch(()=>{});
-                    }
-                }
-                if(notifiedParents.size>0)showToast(`已通知${notifiedParents.size}位家长`);
-            }catch(e){}
+            // 教师下发课件不再推送消息通知（学生/家长在对应页面按需加载）
         }else{
             showToast(res.error||'上传失败','error');
         }
@@ -11110,6 +11158,97 @@ async function markNotificationRead(id,el){
 
 /* ========== 教师端家校互通 · 家长私信中心（主界面内） ========== */
 let tmPollTimer=null;
+// ==================== 教师端：家校互通下发文件 ====================
+function openParentFileSendModal(){
+    const modal=document.getElementById('parentFileSendModal');
+    if(!modal)return;
+    modal.classList.add('active');
+    const tt=document.getElementById('pfTargetType'); if(tt)tt.value='all';
+    const cg=document.getElementById('pfClassGroup'); if(cg)cg.style.display='none';
+    const pg=document.getElementById('pfParentGroup'); if(pg)pg.style.display='none';
+    const cl=document.getElementById('pfClass'); if(cl)cl.innerHTML='<option value="">请选择班级</option>';
+    const pl=document.getElementById('pfParent'); if(pl)pl.innerHTML='<option value="">请选择家长</option>';
+    const fi=document.getElementById('pfFile'); if(fi)fi.value='';
+    if(cl){
+        cl.innerHTML='<option value="">加载中...</option>';
+        apiService.getClasses().then(function(res){
+            const arr=(res&&res.code===200)?(res.data||[]):[];
+            let opt='<option value="">请选择班级</option>';
+            arr.forEach(function(c){ opt+='<option value="'+c.id+'">'+escapeHtml(c.name||('班级'+c.id))+'</option>'; });
+            cl.innerHTML=opt;
+        }).catch(function(){ cl.innerHTML='<option value="">请选择班级</option>'; });
+    }
+    loadParentFileRecent();
+}
+function closeParentFileSendModal(){
+    const modal=document.getElementById('parentFileSendModal');
+    if(modal)modal.classList.remove('active');
+}
+function pfOnTargetChange(){
+    const tt=document.getElementById('pfTargetType'); const v=tt?tt.value:'all';
+    const cg=document.getElementById('pfClassGroup'); const pg=document.getElementById('pfParentGroup');
+    if(cg)cg.style.display=(v==='class')?'block':'none';
+    if(pg)pg.style.display=(v==='parent')?'block':'none';
+}
+function pfOnClassChange(){
+    const cl=document.getElementById('pfClass'); const pl=document.getElementById('pfParent');
+    if(!cl||!pl)return;
+    const cid=cl.value;
+    pl.innerHTML='<option value="">加载中...</option>';
+    if(!cid){ pl.innerHTML='<option value="">请选择家长</option>'; return; }
+    apiService.getClassParents(cid).then(function(res){
+        const arr=(res&&res.code===200)?(res.data||[]):[];
+        let opt='<option value="">请选择家长</option>';
+        arr.forEach(function(u){ opt+='<option value="'+u.user_id+'">'+escapeHtml(u.name||u.username||('家长'+u.user_id))+'</option>'; });
+        pl.innerHTML=opt;
+    }).catch(function(){ pl.innerHTML='<option value="">请选择家长</option>'; });
+}
+function loadParentFileRecent(){
+    const box=document.getElementById('pfRecentList');
+    if(!box)return;
+    box.innerHTML='加载中...';
+    apiService.getParentFiles().then(function(res){
+        const arr=(res&&res.code===200)?(res.data||[]):[];
+        if(!arr.length){ box.innerHTML='<span style="color:#bbb;">暂无下发记录</span>'; return; }
+        const recent=arr.slice(0,5);
+        let html='';
+        recent.forEach(function(f){
+            let target='全部家长';
+            if(f.target_type==='class')target='班级('+(f.class_name||f.class_id||'')+')';
+            else if(f.target_type==='parent')target='指定家长';
+            html+='<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dashed #eee;">'+
+                  '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escapeHtml(f.file_name||'')+'</span>'+
+                  '<span style="color:#999;flex-shrink:0;">'+target+'</span></div>';
+        });
+        box.innerHTML=html;
+    }).catch(function(){ box.innerHTML='<span style="color:#bbb;">暂无下发记录</span>'; });
+}
+async function submitParentFileSend(){
+    const tt=document.getElementById('pfTargetType'); const type=tt?tt.value:'all';
+    const cl=document.getElementById('pfClass'); const cid=cl?cl.value:'';
+    const pl=document.getElementById('pfParent'); const pid=pl?pl.value:'';
+    const fi=document.getElementById('pfFile'); const file=fi?fi.files[0]:null;
+    if(!file){ showToast('请选择要下发的文件','error'); return; }
+    if(file.size>50*1024*1024){ showToast('文件不能超过50MB','error'); return; }
+    if(type==='class'&&!cid){ showToast('请选择目标班级','error'); return; }
+    if(type==='parent'&&!pid){ showToast('请选择目标家长','error'); return; }
+    const btn=document.getElementById('pfSubmitBtn');
+    if(btn){ btn.disabled=true; btn.textContent='上传中...'; }
+    try{
+        const res=await apiService.uploadParentFile(file,type,cid||null,pid||null);
+        if(res&&res.code===200){
+            showToast('文件下发成功');
+            closeParentFileSendModal();
+            loadParentFileRecent();
+        }else{
+            showToast((res&&res.msg)||'下发失败','error');
+        }
+    }catch(e){
+        showToast('下发失败：'+e.message,'error');
+    }
+    if(btn){ btn.disabled=false; btn.textContent='上传下发'; }
+}
+
 async function loadTeacherPrivateMessages(){
     const box=document.getElementById('teacherMsgList');
     if(!box)return;
@@ -13816,7 +13955,7 @@ function renderSidebarMenu(role){
         {page:'homework',label:'我的作业',svg:'<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>'},
         {page:'parent-grades',label:'我的成绩',svg:'<path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 4l-4 4 1.41 1.41L11 9.83V16h2V9.83l1.59 1.58L16 10l-4-4z"/>'},
         {page:'attendance',label:'缺勤记录',svg:'<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>'},
-        {page:'classroom',label:'上课模式',svg:'<path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zm-4 2h4v16h-4V5zm-4 0h4v16h-4V5zm-4 0h4v16H6V5z"/>'},
+        {page:'parent-files',label:'老师下发文件',svg:'<path d="M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zm-4 2h4v16h-4V5zm-4 0h4v16h-4V5zm-4 0h4v16H6V5z"/>'},
         {page:'notifications',label:'通知公告',svg:'<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>'},
         {page:'parent-message',label:'消息中心',svg:'<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 9H6V9h12v2zm0-4H6V5h12v2z"/>'},
         {page:'parent-ai',label:'AI学习助手',svg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'},

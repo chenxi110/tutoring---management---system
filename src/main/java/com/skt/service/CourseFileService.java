@@ -67,13 +67,7 @@ public class CourseFileService {
             );
             Long fileId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
-            // 联动消息通知：给该班级全部学生家长推送通知
-            String noticeTitle = "课堂课件通知";
-            String noticeContent = "教师下发课堂课件，请前往上课模式查看下载";
-            messageService.sendMessage(
-                teacherId, teacherName != null ? teacherName : "教师", "teacher",
-                noticeTitle, noticeContent, null, classId, null, "notice"
-            );
+            // 教师下发课件不推送消息通知（家长/学生端在课堂页面按需加载）
 
             result.put("code", 200);
             result.put("id", fileId);
