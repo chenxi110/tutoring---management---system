@@ -2736,6 +2736,7 @@ function navigateTo(page){
             ai:'AI助手',
             'operation-logs':'操作审计日志',
             'student-messages':'联系老师',
+            'student-wrong':'我的错题本',
             'leave-requests':'请假审批管理'
         };
         const titleEl=document.getElementById('pageTitle');
@@ -2748,6 +2749,7 @@ function navigateTo(page){
             students:()=>loadStudents(),
             attendance:()=>{ applyAttendanceRoleView(); if(apiService.isParent())return loadParentAttendance(); if(apiService.isStudent())return loadStudentAttendance(); return initAttendancePage(); },
             'student-messages':()=>{ if(apiService.isStudent())return loadStudentMessagesPage(); return loadTeacherPrivateMessages(); },
+            'student-wrong':()=>{ if(apiService.isStudent())return loadStudentWrongQuestions(); showToast('无访问权限','error'); },
             statistics:()=>{ if(apiService.isParent())return loadParentStatistics(); if(apiService.isStudent())return loadStudentAttendance(); return initStatisticsPage(); },
             schedule:()=>{ applyScheduleRoleView(); if(apiService.isParent()||apiService.isStudent())return loadParentSchedule(); return loadSchedule(); },
             classroom:()=>{ if(apiService.isParent())return loadParentFiles(); return loadClassroom(); },
@@ -10485,9 +10487,10 @@ function deleteHomework(hwId){
     });
 }
 function viewHomeworkSubmissionsBackend(hw, backendId){
+    window._backendHwId = backendId;
     const modal=document.createElement('div');
     modal.className='modal-overlay active';
-    modal.innerHTML=`<div class="modal" style="max-width:760px;">
+    modal.innerHTML=`<div class="modal" style="max-width:800px;">
         <div class="modal-header"><h3 class="modal-title">作业提交记录 - ${escapeHtml(hw.title)}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
         <div class="modal-body">
             <div id="backendSubmissionsList" style="min-height:120px;"><div class="empty-state">加载中...</div></div>
@@ -10495,23 +10498,220 @@ function viewHomeworkSubmissionsBackend(hw, backendId){
         <div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">关闭</button></div>
     </div>`;
     document.body.appendChild(modal);
-    apiService.getHomeworkSubmissions(backendId).then(function(r){
+    reloadBackendSubmissions();
+}
+
+function renderBackendSubRows(list){
+    return '<div class="table-wrapper"><table><thead><tr><th>学生</th><th>提交方式</th><th>提交内容/文件</th><th>提交时间</th><th>下载</th><th>AI批阅/评分</th><th>操作</th></tr></thead><tbody>' +
+        list.map(function(s){
+            const aiCell = s.score!=null
+                ? '<span style="color:#52c41a;font-weight:600;">'+s.score+'分</span>'
+                : (s.ai_score!=null
+                    ? '<span style="color:#1a73e8;font-weight:600;">AI建议 '+s.ai_score+'分</span><span style="font-size:11px;color:#999;">'+(s.ai_mode==='llm'?' 大模型':' 规则')+'</span>'
+                    : '<span style="color:#bbb;">未AI批阅</span>');
+            let ops='';
+            if(s.score==null){
+                if(s.ai_score==null){
+                    ops+='<button class="btn btn-sm btn-primary" onclick="runAiReview('+s.id+',this)">AI批阅</button> ';
+                }else{
+                    ops+='<button class="btn btn-sm btn-info" onclick="openAiReviewModal('+s.id+',{score:'+s.ai_score+',comment:'+JSON.stringify(String(s.ai_comment||''))+',analysis:'+(s.ai_analysis?s.ai_analysis:'[]')+'},this)">复查反馈</button> ';
+                }
+                ops+='<button class="btn btn-sm btn-secondary" onclick="openBackendGradeModal('+s.id+','+(s.ai_score!=null?s.ai_score:'null')+',this)">手动批改</button>';
+            }else{
+                ops+='<button class="btn btn-sm btn-secondary" onclick="openBackendGradeModal('+s.id+','+(s.ai_score!=null?s.ai_score:'null')+',this)">重新批改</button>';
+            }
+            return '<tr>'+
+                '<td>'+escapeHtml(s.student_name||'-')+'</td>'+
+                '<td>'+(s.submit_role==='student'?'学生':(s.submit_role==='teacher'?'教师代登':'家长'))+'</td>'+
+                '<td>'+(s.file_name?'<span style="color:#1a73e8;">'+escapeHtml(s.file_name)+'</span>':(s.content?escapeHtml(s.content):'-'))+'</td>'+
+                '<td>'+escapeHtml(s.submitted_at||'-')+'</td>'+
+                '<td>'+(s.file_name?'<button class="btn btn-sm btn-info" onclick="downloadHomeworkSubmission('+s.id+')">下载</button>':'-')+'</td>'+
+                '<td>'+aiCell+'</td>'+
+                '<td>'+ops+'</td>'+
+            '</tr>';
+        }).join('') +
+    '</tbody></table></div>';
+}
+
+function reloadBackendSubmissions(){
+    const hwId=window._backendHwId;
+    const c=document.getElementById('backendSubmissionsList');
+    if(!hwId||!c)return;
+    c.innerHTML='<div class="empty-state">加载中...</div>';
+    apiService.getHomeworkSubmissions(hwId).then(function(r){
         const list = r && Array.isArray(r.data) ? r.data : (Array.isArray(r) ? r : []);
-        const c=document.getElementById('backendSubmissionsList');
-        if(!c)return;
-        if(!list.length){ c.innerHTML='<div class="empty-state">暂无学生提交</div>'; return; }
-        c.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>学生</th><th>提交方式</th><th>提交内容/文件</th><th>提交时间</th><th>下载</th><th>AI评分</th><th>批改</th></tr></thead><tbody>
-            ${list.map(s=>`<tr>
-                <td>${escapeHtml(s.student_name || '-')}</td>
-                <td>${s.submit_role==='student'?'学生':(s.submit_role==='teacher'?'教师代登':'家长')}</td>
-                <td>${s.file_name ? '<span style="color:#1a73e8;">'+escapeHtml(s.file_name)+'</span>' : (s.content?escapeHtml(s.content):'-')}</td>
-                <td>${escapeHtml(s.submitted_at || '-')}</td>
-                <td>${s.file_name ? '<button class="btn btn-sm btn-info" onclick="downloadHomeworkSubmission(' + s.id + ')">下载</button>' : '-'}</td>
-                <td>${s.ai_score!=null ? '<span style="color:#1a73e8;font-weight:600;">'+s.ai_score+'</span><span style="font-size:11px;color:#999;">'+(s.ai_mode==='llm'?' 大模型':' 规则')+'</span>' : '-'}</td>
-                <td>${(s.score!=null?'<span style="color:#52c41a;font-weight:600;margin-right:6px;">'+s.score+'分</span>':'')+'<button class="btn btn-sm btn-primary" onclick="openBackendGradeModal(' + s.id + ',' + (s.ai_score!=null?s.ai_score:'null') + ',this)">'+(s.score!=null?'重新批改':'批改')+'</button>'}</td>
-            </tr>`).join('')}
-        </tbody></table></div>`;
-    }).catch(function(){ const c=document.getElementById('backendSubmissionsList'); if(c)c.innerHTML='<div class="empty-state">加载提交记录失败</div>'; });
+        c.innerHTML = list.length ? renderBackendSubRows(list) : '<div class="empty-state">暂无学生提交</div>';
+    }).catch(function(){ c.innerHTML='<div class="empty-state">加载提交记录失败</div>'; });
+}
+
+/** 教师触发 AI 批阅 */
+function runAiReview(submissionId, btn){
+    if(btn){ btn.disabled=true; btn.textContent='AI批阅中...'; }
+    apiService.aiReviewHomework(submissionId).then(function(r){
+        if(btn){ btn.disabled=false; btn.textContent='AI批阅'; }
+        if(!r||r.code!==200){ showToast((r&&r.msg)||'AI批阅失败，请重试或手动批改','error'); return; }
+        showToast(r.msg||'AI批阅完成，请复查确认');
+        openAiReviewModal(submissionId, r.data||null, btn);
+    }).catch(function(){
+        if(btn){ btn.disabled=false; btn.textContent='AI批阅'; }
+        showToast('AI批阅失败，请重试或手动批改','error');
+    });
+}
+
+/** 教师复查确认弹窗：展示/编辑 AI 得分、评语、错题解析 */
+function openAiReviewModal(submissionId, data, btn){
+    const d = data||{};
+    const score = d.score!=null ? d.score : '';
+    const comment = d.comment||'';
+    let analysis=[];
+    try{ if(Array.isArray(d.analysis)) analysis=d.analysis; else if(typeof d.analysis==='string'&&d.analysis) analysis=JSON.parse(d.analysis); }catch(e){ analysis=[]; }
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:720px;">
+        <div class="modal-header"><h3 class="modal-title">AI批阅复查确认</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-body">
+            <div style="background:#f0f7ff;border:1px solid #cfe4ff;border-radius:8px;padding:10px 12px;font-size:13px;color:#1a73e8;margin-bottom:12px;">💡 AI已给出批阅建议，请复查无误后确认，系统将把成绩反馈给学生/家长，错题自动加入学生错题本。</div>
+            <div class="form-group"><label class="form-label">得分（0-100）</label><input type="number" class="form-control" id="aiReviewScore" min="0" max="100" value="${score}"></div>
+            <div class="form-group"><label class="form-label">反馈评语（展示给学生/家长）</label><textarea class="form-control" id="aiReviewComment" rows="3">${escapeHtml(comment)}</textarea></div>
+            <div style="font-weight:600;color:#1a73e8;margin:10px 0 8px;">📝 错题解析（${analysis.length}道，确认后自动加入学生错题本）</div>
+            <div id="aiAnalysisList" style="display:flex;flex-direction:column;gap:8px;">
+                ${analysis.length ? analysis.map(function(w,i){ return aiWqRow(w,i); }).join('') : '<div style="color:#999;font-size:13px;padding:8px;">AI未识别到明确错题，可直接确认反馈或手动补充。</div>'}
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">取消</button>
+            <button class="btn btn-primary" onclick="saveAiReviewConfirm(${submissionId})">确认反馈给学生</button>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+function aiWqRow(w,i){
+    return '<div class="ai-wq-row" style="background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px;padding:10px;">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-weight:600;font-size:13px;">错题'+(i+1)+'</span><button class="btn btn-sm btn-danger" onclick="this.closest(&quot;.ai-wq-row&quot;).remove()">删除</button></div>'+
+        '<div class="form-group"><label class="form-label">题目</label><input class="form-control ai-wq-q" value="'+escapeAttr(String(w.question||''))+'"></div>'+
+        '<div class="form-row">'+
+            '<div class="form-group"><label class="form-label">学生答案</label><input class="form-control ai-wq-sa" value="'+escapeAttr(String(w.studentAnswer||''))+'"></div>'+
+            '<div class="form-group"><label class="form-label">正确答案</label><input class="form-control ai-wq-ca" value="'+escapeAttr(String(w.correctAnswer||''))+'"></div>'+
+        '</div>'+
+        '<div class="form-group"><label class="form-label">错因解析</label><textarea class="form-control ai-wq-an" rows="2">'+escapeHtml(String(w.analysis||''))+'</textarea></div>'+
+    '</div>';
+}
+
+function collectAiAnalysis(){
+    const rows=document.querySelectorAll('#aiAnalysisList .ai-wq-row');
+    const arr=[];
+    rows.forEach(function(r){
+        arr.push({
+            question: r.querySelector('.ai-wq-q').value,
+            studentAnswer: r.querySelector('.ai-wq-sa').value,
+            correctAnswer: r.querySelector('.ai-wq-ca').value,
+            analysis: r.querySelector('.ai-wq-an').value
+        });
+    });
+    return arr;
+}
+
+/** 确认反馈：写正式成绩+错题入错题本+通知家长学生 */
+function saveAiReviewConfirm(submissionId){
+    const score=parseFloat(document.getElementById('aiReviewScore').value);
+    if(isNaN(score)||score<0||score>100){ showToast('请输入0-100的得分','error'); return; }
+    const comment=document.getElementById('aiReviewComment').value;
+    const analysis=collectAiAnalysis().filter(function(w){ return (w.question||'').trim()!==''; });
+    apiService.confirmHomeworkReview(submissionId, {score:score, comment:comment, analysis:analysis}).then(function(r){
+        if(!r||r.code!==200){ showToast((r&&r.msg)||'反馈失败，请重试','error'); return; }
+        showToast(r.msg||'已确认反馈');
+        const m=document.querySelector('.modal-overlay.active');
+        if(m) m.remove();
+        reloadBackendSubmissions();
+    }).catch(function(){ showToast('反馈失败，请重试','error'); });
+}
+
+/** 学生端「我的错题本」：作业批改后错题自动整理，本人可见 */
+function loadStudentWrongQuestions(){
+    const page=document.getElementById('page-student-wrong');
+    if(!page)return;
+    const box=document.getElementById('studentWrongContent');
+    if(box) box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">加载中...</div>';
+    apiService.getStudentInfo().then(function(r){
+        if(!r||r.code!==200||!r.data){
+            if(box) box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'未找到学生档案，请联系教师或家长确认绑定')+'</div>';
+            return;
+        }
+        renderStudentWrong(r.data.id);
+    }).catch(function(){
+        if(box) box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">加载失败</div>';
+    });
+}
+function renderStudentWrong(sid){
+    const box=document.getElementById('studentWrongContent');
+    if(!box)return;
+    box.innerHTML='<div style="text-align:center;color:#999;padding:30px;">正在加载错题本...</div>';
+    apiService.parentAiWrongQuestions(sid).then(function(r){
+        if(!r||r.code!==200){
+            box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">'+(r&&r.msg?escapeHtml(r.msg):'加载失败')+'</div>';
+            return;
+        }
+        const list=r.data||[];
+        let html='';
+        html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">';
+        html+='<div class="ai-stat-card" style="flex:1;min-width:120px;"><div class="ai-stat-value">'+list.length+'</div><div class="ai-stat-label">错题总数</div></div>';
+        html+='</div>';
+        if(list.length===0){
+            html+='<div style="text-align:center;color:#999;padding:36px 20px;">暂无错题记录，继续保持！<br><span style="font-size:12px;">作业批改反馈中识别的错题会自动整理到这里</span></div>';
+        }else{
+            html+='<div style="display:flex;flex-direction:column;gap:10px;">';
+            list.forEach(function(w){
+                const srcMap={homework:'作业批改',exam:'考试',classroom:'课堂'};
+                html+='<div style="background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px;">';
+                html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;"><span style="font-weight:600;font-size:14px;">'+escapeHtml(String(w.question_text||'').slice(0,140))+'</span><span class="ai-tag">'+(w.subject||'')+'</span></div>';
+                html+='<div style="font-size:12px;color:#999;">来源：'+(srcMap[w.source]||w.source||'')+' · 错误 '+(w.wrong_count||1)+' 次 · '+(w.last_wrong_at?String(w.last_wrong_at).slice(0,16):'')+'</div>';
+                html+='<div style="margin-top:8px;display:flex;gap:16px;font-size:13px;flex-wrap:wrap;"><span style="color:#f5222d;">✗ 我的答案：'+escapeHtml(String(w.student_answer||'空'))+'</span><span style="color:#52c41a;">✓ 正确答案：'+escapeHtml(String(w.correct_answer||''))+'</span></div>';
+                if(w.analysis){ html+='<div style="margin-top:6px;font-size:12px;color:#8c8c8c;background:#fafafa;border-radius:6px;padding:8px;">📝 '+escapeHtml(String(w.analysis))+'</div>'; }
+                html+='</div>';
+            });
+            html+='</div>';
+        }
+        box.innerHTML=html;
+    }).catch(function(){ box.innerHTML='<div style="text-align:center;color:#f5222d;padding:30px;">加载错题失败</div>'; });
+}
+
+/** 学生/家长端查看批改反馈（成绩+评语+错题解析） */
+function viewHomeworkReviewByJson(btn){
+    try{
+        const item=JSON.parse(decodeURIComponent(btn.getAttribute('data-item')));
+        viewHomeworkReview(item);
+    }catch(e){ showToast('无法打开批改详情','error'); }
+}
+
+function viewHomeworkReview(item){
+    let analysis=[];
+    try{ if(item.submit_ai_analysis) analysis=JSON.parse(item.submit_ai_analysis); }catch(e){ analysis=[]; }
+    const modal=document.createElement('div');
+    modal.className='modal-overlay active';
+    modal.innerHTML=`<div class="modal" style="max-width:660px;">
+        <div class="modal-header"><h3 class="modal-title">作业批改反馈 - ${escapeHtml(item.title||'')}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-body">
+            <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+                <div style="background:#f0f9ff;border:1px solid #cfe4ff;border-radius:10px;padding:10px 18px;">
+                    <div style="font-size:12px;color:#666;">本次得分</div>
+                    <div style="font-size:26px;font-weight:700;color:#1a73e8;">${item.submit_score!=null?item.submit_score:'-'}<span style="font-size:13px;color:#999;"> 分</span></div>
+                </div>
+                <div style="font-size:13px;color:#444;flex:1;min-width:200px;">${escapeHtml(item.submit_comment||'暂无评语')}</div>
+            </div>
+            ${analysis.length ? '<div style="font-weight:600;margin:12px 0 8px;">📝 错题解析（'+analysis.length+'道，已收入你的错题本）</div><div style="display:flex;flex-direction:column;gap:10px;">'+
+                analysis.map(function(w,i){
+                    return '<div style="background:#fffbf3;border:1px solid #f0e2c8;border-radius:10px;padding:12px;">'+
+                        '<div style="font-weight:600;font-size:13px;margin-bottom:4px;">'+(i+1)+'. '+escapeHtml(String(w.question||''))+'</div>'+
+                        '<div style="font-size:13px;color:#f5222d;">✗ 你的答案：'+escapeHtml(String(w.studentAnswer||'空'))+'</div>'+
+                        '<div style="font-size:13px;color:#52c41a;">✓ 正确答案：'+escapeHtml(String(w.correctAnswer||''))+'</div>'+
+                        (w.analysis?'<div style="margin-top:4px;font-size:12px;color:#8c8c8c;">📝 '+escapeHtml(String(w.analysis))+'</div>':'')+
+                    '</div>';
+                }).join('')+'</div>' : ''}
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">关闭</button></div>
+    </div>`;
+    document.body.appendChild(modal);
 }
 
 function openBackendGradeModal(submissionId, aiScore, btn){
@@ -13234,7 +13434,7 @@ async function loadParentHomework(showOnlyCount = false) {
                     <td>${escapeHtml(item.content || '-')}</td>
                     <td>${escapeHtml(item.deadline || '-')}</td>
                     <td>${item.deadline ? (new Date(item.deadline) < new Date() ? '<span class="badge badge-danger">已过期</span>' : '<span class="badge badge-warning">待完成</span>') : '<span class="badge badge-secondary">未设置</span>'}</td>
-                    <td>${item.submitted ? '<span class="badge badge-success">已提交</span>' + (item.submit_ai_score!=null ? ' <span style="font-size:12px;color:#1a73e8;">AI审阅:'+item.submit_ai_score+'分</span>' : '') + (item.submit_score!=null ? ' <span style="font-size:12px;color:#52c41a;">教师:'+item.submit_score+'分</span>' : '') : '<button class="btn btn-sm btn-primary" onclick="openHomeworkSubmitModal(' + (item.id||0) + ', this)">提交作业</button>'}</td>
+                    <td>${item.submitted ? '<span class="badge badge-success">已提交</span>' + (item.submit_score!=null ? ' <span style="font-size:12px;color:#52c41a;">教师:'+item.submit_score+'分</span> <button class="btn btn-sm btn-info" data-item="'+encodeURIComponent(JSON.stringify(item))+'" onclick="viewHomeworkReviewByJson(this)">查看批改</button>' : ' <span style="font-size:12px;color:#999;">待教师批改</span>') : '<button class="btn btn-sm btn-primary" onclick="openHomeworkSubmitModal(' + (item.id||0) + ', this)">提交作业</button>'}</td>
                     <td>${item.file_name ? '<button class="btn btn-sm btn-secondary" onclick="downloadHomeworkFile(' + item.id + ')">📎 下载附件</button>' : '-'}</td>
                 </tr>
             `).join('') : '<tr><td colspan="7" class="empty-state">暂无作业</td></tr>';
@@ -14219,6 +14419,7 @@ function renderSidebarMenu(role){
         {page:'parent-grades',label:'我的成绩',svg:'<path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 4l-4 4 1.41 1.41L11 9.83V16h2V9.83l1.59 1.58L16 10l-4-4z"/>'},
         {page:'attendance',label:'缺勤记录',svg:'<path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/>'},
         {page:'student-messages',label:'联系老师',svg:'<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>'},
+        {page:'student-wrong',label:'我的错题本',svg:'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'},
         {page:'parent-profile',label:'个人中心',svg:'<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>'}
     ];
     const adminItems=[
@@ -14834,5 +15035,10 @@ window.initAppAfterLogin=function(){
     });
 };
 </script>
+        <!-- 学生端我的错题本页面 -->
+        <div class="page" id="page-student-wrong">
+            <div class="page-header"><h3>我的错题本</h3><p>作业批改反馈中识别的错题自动整理到这里，方便复习巩固</p></div>
+            <div class="card"><div class="card-header"><h3 class="card-title">错题列表</h3></div><div id="studentWrongContent" style="padding:6px;"><div style="text-align:center;color:#999;padding:30px;">加载中...</div></div></div>
+        </div>
 </body>
 </html>

@@ -303,6 +303,38 @@ public class HomeworkController {
         result.put("code", 200);
         return result;
     }
+
+    /** 教师触发 AI 批阅（可选启用）：生成得分+评语+错题解析，供教师复查确认 */
+    @PostMapping("/homework/ai-review/{id}")
+    public Map<String, Object> aiReview(@PathVariable Long id, HttpServletRequest req) {
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师账号可启用AI批阅");
+        }
+        return homeworkService.aiReview(id);
+    }
+
+    /** 教师复查确认：写正式成绩+同步成绩表+错题自动入错题本+通知家长/学生 */
+    @PostMapping("/homework/confirm-review/{id}")
+    public Map<String, Object> confirmReview(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
+        if (!RoleAccess.isTeacher(req)) {
+            return RoleAccess.forbidTeacherOnly("仅教师账号可确认反馈");
+        }
+        Double score = body.get("score") != null ? ((Number) body.get("score")).doubleValue() : null;
+        String comment = (String) body.get("comment");
+        List<Map<String, Object>> analysis = new ArrayList<>();
+        Object an = body.get("analysis");
+        if (an instanceof List) {
+            for (Object o : (List<?>) an) {
+                if (o instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> m = (Map<String, Object>) o;
+                    analysis.add(m);
+                }
+            }
+        }
+        Long operatorId = (Long) req.getAttribute("userId");
+        return homeworkService.confirmReview(id, score, comment, analysis, operatorId);
+    }
     // ==================== 家长/学生提交作业文件 ====================
 
     /** 家长/学生提交作业（支持任意安全格式文件） */

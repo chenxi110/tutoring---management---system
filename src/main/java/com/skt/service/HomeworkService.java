@@ -17,6 +17,8 @@ public class HomeworkService {
     private MessageService messageService;
     @Autowired
     private AIService aiService;
+    @Autowired
+    private WrongQuestionService wrongQuestionService;
 
     public List<Map<String, Object>> list(Long classId, Long teacherId, String role) {
         StringBuilder sql = new StringBuilder("SELECT h.*, c.name as class_name FROM homework h LEFT JOIN classes c ON h.class_id=c.id WHERE 1=1");
@@ -35,13 +37,19 @@ public class HomeworkService {
     }
 
     public List<Map<String, Object>> listForParent(Long parentId) {
-        String sql = "SELECT DISTINCT h.*, c.name AS class_name " +
+        String sql = "SELECT DISTINCT h.*, c.name AS class_name, s.id AS student_id, s.name AS student_name, " +
+            "hs.content AS submit_content, hs.score AS submit_score, hs.comment AS submit_comment, " +
+            "hs.ai_score AS submit_ai_score, hs.ai_comment AS submit_ai_comment, hs.ai_mode AS submit_ai_mode, " +
+            "hs.ai_analysis AS submit_ai_analysis, " +
+            "hs.submitted_at, hs.graded_at, " +
+            "CASE WHEN hs.id IS NULL THEN 0 ELSE 1 END AS submitted " +
             "FROM homework h " +
             "LEFT JOIN classes c ON h.class_id = c.id " +
             "INNER JOIN students s ON s.class_id = h.class_id " +
-            "WHERE s.parent_id=? AND (s.is_deleted IS NULL OR s.is_deleted = 0) AND (s.status IS NULL OR s.status='active') " +
+            "LEFT JOIN homework_submissions hs ON hs.homework_id=h.id AND hs.student_id=s.id " +
+            "WHERE (s.parent_id=? OR s.parent_user_id=?) AND (s.is_deleted IS NULL OR s.is_deleted = 0) AND (s.status IS NULL OR s.status='active') " +
             "ORDER BY h.created_at DESC";
-        return jdbc.queryForList(sql, parentId);
+        return jdbc.queryForList(sql, parentId, parentId);
     }
 
     /** 学生端「我的作业」：按 students.user_id 隔离，只返回本人班级作业并带本人提交/批改状态 */
@@ -51,6 +59,7 @@ public class HomeworkService {
             "SELECT DISTINCT h.*, c.name AS class_name, " +
             "hs.content AS submit_content, hs.score AS submit_score, hs.comment AS submit_comment, " +
             "hs.ai_score AS submit_ai_score, hs.ai_comment AS submit_ai_comment, hs.ai_mode AS submit_ai_mode, " +
+            "hs.ai_analysis AS submit_ai_analysis, " +
             "hs.submitted_at, hs.graded_at, " +
             "CASE WHEN hs.id IS NULL THEN 0 ELSE 1 END AS submitted " +
             "FROM homework h " +
@@ -89,52 +98,188 @@ public class HomeworkService {
         return id;
     }
 
-    /** 作业提交后 AI 自动审阅：优先调用大模型，失败/超时降级为规则评分，绝不阻塞提交 */
-    public void runAiReview(Long submissionId, Long homeworkId, String content, String fileName) {
+        /** 教师触发 AI 批阅：大模型生成 得分+评语+错题解析(JSON)，失败自动降级规则评分（不阻塞教师操作） */
+    public Map<String, Object> aiReview(Long submissionId) {
+        Map<String, Object> result = new HashMap<>();
         try {
-            double score;
-            String comment;
-            String mode;
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT hs.*, h.title AS homework_title FROM homework_submissions hs LEFT JOIN homework h ON h.id=hs.homework_id WHERE hs.id=?",
+                submissionId);
+            if (rows.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "提交记录不存在");
+                return result;
+            }
+            Map<String, Object> sub = rows.get(0);
+            String content = (String) sub.get("content");
+            String fileName = (String) sub.get("file_name");
+            String homeworkTitle = sub.get("homework_title") != null ? String.valueOf(sub.get("homework_title")) : "作业";
+
             String aiReply = null;
             try {
                 StringBuilder prompt = new StringBuilder();
-                prompt.append("你是一位认真负责的课外辅导班教师，请对学生提交的作业进行审阅评分。\n");
+                prompt.append("你是一位认真负责的课外辅导班教师，请对学生提交的作业进行批阅。\n");
+                prompt.append("作业标题：").append(homeworkTitle).append("\n");
                 if (fileName != null && !fileName.isEmpty()) {
-                    prompt.append("作业附件文件：").append(fileName).append("\n");
+                    prompt.append("作业附件文件：").append(fileName).append("（你无法读取附件内容，只能看到文件名）\n");
                 }
                 if (content != null && !content.isEmpty()) {
                     prompt.append("学生提交的文字内容：\n").append(content).append("\n");
                 }
-                prompt.append("你无法读取附件内部内容，只能看到文件名；请基于文件名与文字说明审阅。若附件内容不可见，请客观给出80-90的中性分，并在评语中说明建议教师下载附件人工复核。\n");
-                prompt.append("请用中文回复，严格按下面两行格式（得分范围0-100）：\n得分:85\n评语:（一两句具体的鼓励性评价与改进建议）");
-                aiReply = aiService.chatOnce("你是课外辅导班教师，负责批改学生作业，评分客观公正。", prompt.toString());
+                prompt.append("请基于文字内容识别错题并逐题给出解析；若无法查看作业内容，请客观给出80-90的中性分，并在评语中说明建议教师下载附件人工复核。\n");
+                prompt.append("严格只输出一个JSON对象，不要输出任何其他文字，格式：{\"score\":85,\"comment\":\"评语\",\"wrongQuestions\":[{\"question\":\"题目\",\"studentAnswer\":\"学生答案\",\"correctAnswer\":\"正确答案\",\"analysis\":\"错因与解析\"}]}，score范围0-100，若无错题wrongQuestions为空数组。");
+                aiReply = aiService.chatOnce("你是课外辅导班教师，负责批改学生作业，输出严格JSON。", prompt.toString());
             } catch (Exception e) {
                 aiReply = null;
             }
+
+            double score;
+            String comment;
+            List<Map<String, Object>> analysis = new ArrayList<>();
+            String mode;
             if (aiReply != null) {
-                double s = parseAiScore(aiReply);
-                String c = parseAiComment(aiReply);
-                if (s >= 0) {
-                    score = s;
-                    comment = c;
-                    mode = "llm";
-                } else {
-                    Map<String, Object> r = ruleReview(content, fileName);
-                    score = (double) r.get("score");
-                    comment = (String) r.get("comment");
-                    mode = (String) r.get("mode");
+                boolean parsed = false;
+                try {
+                    int sIdx = aiReply.indexOf('{');
+                    int eIdx = aiReply.lastIndexOf('}');
+                    if (sIdx >= 0 && eIdx > sIdx) {
+                        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+                        com.fasterxml.jackson.databind.JsonNode root = om.readTree(aiReply.substring(sIdx, eIdx + 1));
+                        com.fasterxml.jackson.databind.JsonNode sc = root.path("score");
+                        if (sc.isNumber()) {
+                            score = Math.max(0, Math.min(100, sc.asDouble()));
+                            comment = root.path("comment").asText("");
+                            com.fasterxml.jackson.databind.JsonNode wq = root.path("wrongQuestions");
+                            if (wq.isArray()) {
+                                for (com.fasterxml.jackson.databind.JsonNode q : wq) {
+                                    Map<String, Object> m = new HashMap<>();
+                                    m.put("question", q.path("question").asText(""));
+                                    m.put("studentAnswer", q.path("studentAnswer").asText(""));
+                                    m.put("correctAnswer", q.path("correctAnswer").asText(""));
+                                    m.put("analysis", q.path("analysis").asText(""));
+                                    if (!String.valueOf(m.get("question")).trim().isEmpty()) {
+                                        analysis.add(m);
+                                    }
+                                }
+                            }
+                            mode = "llm";
+                            String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+                            jdbc.update("UPDATE homework_submissions SET ai_score=?, ai_comment=?, ai_analysis=?, ai_mode=?, ai_graded_at=? WHERE id=?",
+                                score, comment, analysis.isEmpty() ? null : toJson(analysis), mode, now, submissionId);
+                            result.put("code", 200);
+                            Map<String, Object> data = new HashMap<>();
+                            data.put("score", score);
+                            data.put("comment", comment);
+                            data.put("analysis", analysis);
+                            data.put("mode", mode);
+                            result.put("data", data);
+                            return result;
+                        }
+                    }
+                } catch (Exception e) {
+                    // 解析失败走规则降级
                 }
-            } else {
-                Map<String, Object> r = ruleReview(content, fileName);
-                score = (double) r.get("score");
-                comment = (String) r.get("comment");
-                mode = (String) r.get("mode");
             }
+            // 降级：规则评分（无错题解析）
+            Map<String, Object> rr = ruleReview(content, fileName);
+            score = (double) rr.get("score");
+            comment = (String) rr.get("comment");
+            mode = (String) rr.get("mode");
             String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-            jdbc.update("UPDATE homework_submissions SET ai_score=?, ai_comment=?, ai_graded_at=?, ai_mode=? WHERE id=?",
-                score, comment, now, mode, submissionId);
+            jdbc.update("UPDATE homework_submissions SET ai_score=?, ai_comment=?, ai_analysis=?, ai_mode=?, ai_graded_at=? WHERE id=?",
+                score, comment, null, mode, now, submissionId);
+            result.put("code", 200);
+            Map<String, Object> data = new HashMap<>();
+            data.put("score", score);
+            data.put("comment", comment);
+            data.put("analysis", Collections.emptyList());
+            data.put("mode", mode);
+            result.put("data", data);
+            result.put("msg", "AI大模型暂不可用，已使用规则评分建议，可手动修改");
+            return result;
         } catch (Exception e) {
-            // AI 审阅失败绝不影响作业提交主流程
+            result.put("code", 500);
+            result.put("msg", "AI批阅失败：" + e.getMessage());
+            return result;
+        }
+    }
+
+    /** 教师复查确认：写正式成绩+同步成绩表+错题自动入错题本+通知家长/学生 */
+    public Map<String, Object> confirmReview(Long submissionId, Double score, String comment,
+                                             List<Map<String, Object>> analysis, Long operatorId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT hs.*, h.title AS homework_title FROM homework_submissions hs LEFT JOIN homework h ON h.id=hs.homework_id WHERE hs.id=?",
+                submissionId);
+            if (rows.isEmpty()) {
+                result.put("code", 404);
+                result.put("msg", "提交记录不存在");
+                return result;
+            }
+            Map<String, Object> sub = rows.get(0);
+            // 1) 正式成绩 + 同步grades表（复用批改逻辑）
+            grade(submissionId, score, comment);
+            // 2) 错题自动写入学生错题本（source=homework）
+            Long studentId = sub.get("student_id") != null ? ((Number) sub.get("student_id")).longValue() : null;
+            String studentName = (String) sub.get("student_name");
+            Long classId = sub.get("class_id") != null ? ((Number) sub.get("class_id")).longValue() : null;
+            int added = 0;
+            if (analysis != null && !analysis.isEmpty() && studentId != null) {
+                for (Map<String, Object> q : analysis) {
+                    String qt = q.get("question") != null ? String.valueOf(q.get("question")) : "";
+                    if (qt.trim().isEmpty()) continue;
+                    wrongQuestionService.addWrongQuestion(studentId, studentName, classId, "作业",
+                        null, null, qt,
+                        q.get("studentAnswer") != null ? String.valueOf(q.get("studentAnswer")) : "",
+                        q.get("correctAnswer") != null ? String.valueOf(q.get("correctAnswer")) : "",
+                        q.get("analysis") != null ? String.valueOf(q.get("analysis")) : "",
+                        "homework", submissionId);
+                    added++;
+                }
+            }
+            // 3) 更新最终错题解析
+            jdbc.update("UPDATE homework_submissions SET ai_analysis=? WHERE id=?",
+                (analysis == null || analysis.isEmpty()) ? null : toJson(analysis), submissionId);
+            // 4) 通知家长/学生：成绩与错题情况
+            try {
+                String hwTitle = sub.get("homework_title") != null ? String.valueOf(sub.get("homework_title")) : "作业";
+                String notice = "作业「" + hwTitle + "」已批改完成，得分 " + score + " 分"
+                    + (added > 0 ? "，含 " + added + " 道错题解析，请查看作业详情与错题本" : "") + "。";
+                Object suidObj = sub.get("submit_user_id");
+                Long submitUserId = suidObj != null ? ((Number) suidObj).longValue() : null;
+                if (submitUserId != null && studentId != null) {
+                    messageService.sendMessage(operatorId, "教师", "teacher", "作业批改通知", notice,
+                        studentId, classId, submitUserId, "private");
+                } else if (studentId != null) {
+                    List<Map<String, Object>> kids = jdbc.queryForList(
+                        "SELECT parent_user_id FROM students WHERE id=? AND (is_deleted IS NULL OR is_deleted=0)", studentId);
+                    if (!kids.isEmpty()) {
+                        Object pu = kids.get(0).get("parent_user_id");
+                        if (pu != null) {
+                            messageService.sendMessage(operatorId, "教师", "teacher", "作业批改通知", notice,
+                                studentId, classId, ((Number) pu).longValue(), "private");
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // 通知失败不影响确认
+            }
+            result.put("code", 200);
+            result.put("msg", "已确认反馈，成绩已同步" + (added > 0 ? "，" + added + "道错题已加入学生错题本" : ""));
+            return result;
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("msg", "反馈失败：" + e.getMessage());
+            return result;
+        }
+    }
+
+    private String toJson(Object o) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(o);
+        } catch (Exception e) {
+            return "[]";
         }
     }
 
@@ -204,7 +349,6 @@ public class HomeworkService {
         jdbc.update("INSERT INTO homework_submissions (homework_id, student_id, student_name, content, submitted_at) VALUES (?,?,?,?,?)",
             homeworkId, studentId, studentName != null ? studentName : "", content, now);
         Long subId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        runAiReview(subId, homeworkId, content, null);
         return subId;
     }
 
@@ -238,8 +382,7 @@ public class HomeworkService {
         } catch (Exception e) {
             // 通知失败不影响提交
         }
-        // AI 自动审阅（大模型优先，失败降级规则评分）
-        runAiReview(id, homeworkId, content, fileName);
+        // 不再自动AI批阅：由教师决定是否启用AI批阅
         return id;
     }
 

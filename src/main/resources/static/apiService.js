@@ -275,6 +275,8 @@ class ApiService {
     getHomeworkFileUrl(id) { return this.baseURL + '/homework/file/' + id + '?token=' + encodeURIComponent(this.token); }
     async submitHomework(id, data) { return this.request('POST', '/homework/' + id + '/submit', data); }
     async gradeSubmission(id, data) { return this.request('PUT', '/homework/submissions/' + id + '/grade', data); }
+    async aiReviewHomework(id) { return this.request('POST', '/homework/ai-review/' + id); }
+    async confirmHomeworkReview(id, data) { return this.request('POST', '/homework/confirm-review/' + id, data); }
   async submitHomeworkFile(id, formData) { return this.requestUpload('POST', '/homework/' + id + '/submitFile', formData); }
   async getHomeworkSubmissions(id) { return this.request('GET', '/homework/' + id + '/submissions'); }
   getHomeworkSubmissionFileUrl(submissionId) { return '/api/homework/submissions/' + submissionId + '/file?token=' + encodeURIComponent(this.getToken()); }
