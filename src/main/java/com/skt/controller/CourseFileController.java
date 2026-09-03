@@ -40,7 +40,7 @@ public class CourseFileController {
             @RequestParam("classId") Long classId,
             HttpServletRequest req) {
         if (RoleAccess.isParent(req)) {
-            return RoleAccess.forbidParentWrite("家长无权下发课件");
+            return RoleAccess.forbidParentWrite("家长无权下发文件");
         }
         Long teacherId = RoleAccess.getUserId(req);
         String teacherName = (String) req.getAttribute("displayName");
@@ -49,7 +49,7 @@ public class CourseFileController {
             String username = (String) req.getAttribute("username");
             String role = (String) req.getAttribute("role");
             String ip = req.getRemoteAddr();
-            operationLogService.log(teacherId, username, role, "下发课堂课件",
+            operationLogService.log(teacherId, username, role, "下发课堂文件",
                 "文件:" + file.getOriginalFilename() + ",班级ID:" + classId + ",大小:" + file.getSize() + "字节", ip);
         }
         return result;
@@ -107,8 +107,11 @@ public class CourseFileController {
             return ResponseEntity.status(401).build();
         }
         Map<String, Object> fileRecord = courseFileService.getFileForDownload(fileId, userId, role);
-        // 鉴权失败：返回403
+        // 文件不存在：404；越权：403
         if (fileRecord.get("code") != null) {
+            if (404 == ((Number) fileRecord.get("code")).intValue()) {
+                return ResponseEntity.status(404).build();
+            }
             return ResponseEntity.status(403).build();
         }
         String savePath = (String) fileRecord.get("save_path");
@@ -123,5 +126,42 @@ public class CourseFileController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
                 .body(resource);
+    }
+
+    /**
+     * 5. 删除文件（教师/管理员）
+     * POST /api/course/file/delete/{fileId}
+     * 删除后家长端、学生端无法再查看和下载该文件
+     */
+    @PostMapping("/delete/{fileId}")
+    public Map<String, Object> deleteFile(@PathVariable Long fileId, HttpServletRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        Long userId = RoleAccess.getUserId(req);
+        String role = (String) req.getAttribute("role");
+        if (userId == null) {
+            result.put("code", 401);
+            result.put("msg", "未登录");
+            return result;
+        }
+        if (!"teacher".equalsIgnoreCase(role) && !"admin".equalsIgnoreCase(role)) {
+            result.put("code", 403);
+            result.put("msg", "无权限：仅教师/管理员可删除文件");
+            return result;
+        }
+        String err = courseFileService.deleteFile(fileId, userId, role);
+        if (err != null) {
+            result.put("code", 403);
+            result.put("msg", err);
+            return result;
+        }
+        String username = (String) req.getAttribute("username");
+        String ip = req.getRemoteAddr();
+        try {
+            operationLogService.log(userId, username != null ? username : String.valueOf(userId), role,
+                "删除课堂文件", "删除文件ID:" + fileId, ip);
+        } catch (Exception ignoreLog) { }
+        result.put("code", 200);
+        result.put("msg", "文件已删除");
+        return result;
     }
 }

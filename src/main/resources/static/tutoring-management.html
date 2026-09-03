@@ -1203,7 +1203,7 @@ body {
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">📄 老师下发文件</h3></div>
                     <div class="card-body">
-                        <div style="margin-bottom:14px;color:#6B7280;font-size:13px;line-height:1.8;">教师下发的课件、资料、通知文件等，点击下载即可保存到本地查看（支持 Word / Excel / PPT / PDF / 图片 / 音视频 / 压缩包等格式）</div>
+                        <div style="margin-bottom:14px;color:#6B7280;font-size:13px;line-height:1.8;">教师下发的文件、资料、通知等，点击下载即可保存到本地查看（支持 Word / Excel / PPT / PDF / 图片 / 音视频 / 压缩包等格式）</div>
                         <div id="parentFileList"><div style="text-align:center;color:#999;padding:40px 0;">加载中...</div></div>
                     </div>
                 </div>
@@ -2986,10 +2986,28 @@ function startClassroomSession(){
 }
 /* 课堂文件互传功能 */
 let courseFileListCache=[];
-async function loadCourseFiles(){
-    if(!currentClassroomSession||!currentClassroomSession.classId){return;}
+let teacherClassListCache=null;
+async function ensureTeacherClassList(){
+    if(teacherClassListCache)return teacherClassListCache;
     try{
-        const res=await apiService.getCourseFiles(currentClassroomSession.classId);
+        const res=await apiService.getMyClasses();
+        teacherClassListCache=(res&&res.code===200)?(res.data||[]):[];
+    }catch(e){teacherClassListCache=[];}
+    return teacherClassListCache;
+}
+function getCourseFileClassId(){
+    const sel=document.getElementById('courseFileClassSelect');
+    if(sel&&sel.value)return sel.value;
+    return currentClassroomSession&&currentClassroomSession.classId;
+}
+async function loadCourseFiles(){
+    if(apiService.isTeacher()||apiService.isAdmin()){
+        await ensureTeacherClassList();
+    }
+    const classId=getCourseFileClassId();
+    if(!classId){courseFileListCache=[];renderCourseFiles();return;}
+    try{
+        const res=await apiService.getCourseFiles(classId);
         courseFileListCache=(res&&res.code===200)?(res.data||[]):[];
     }catch(e){courseFileListCache=[];}
     renderCourseFiles();
@@ -2998,15 +3016,23 @@ function renderCourseFiles(){
     const container=document.getElementById('courseFileArea');
     if(!container)return;
     const isParent=apiService.isParent()||apiService.isStudent();
+    const isTeacherAdmin=apiService.isTeacher()||apiService.isAdmin();
     const teacherFiles=courseFileListCache.filter(f=>f.is_teacher_upload==1||f.is_teacher_upload===true);
     const studentFiles=courseFileListCache.filter(f=>f.is_teacher_upload==0||f.is_teacher_upload===false||(f.is_teacher_upload===null&&f.student_id));
     container.innerHTML=`
+        ${isTeacherAdmin?'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">'+
+            '<label style="font-size:13px;color:#666;font-weight:500;">按班级查看文件：</label>'+
+            '<select id="courseFileClassSelect" onchange="loadCourseFiles()" style="padding:6px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:13px;min-width:180px;background:#fff;">'+
+            renderCourseFileClassOptions()+
+            '</select>'+
+            '<span style="font-size:12px;color:#999;">切换班级后，下方列表显示该班级已下发的文件</span>'+
+          '</div>':''}
         <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;">
             <div style="flex:1;min-width:300px;">
                 <div style="background:#f5f7fa;padding:15px;border-radius:8px;margin-bottom:15px;">
                     <div style="font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-                        <span>📂 教师下发课件 (${teacherFiles.length})</span>
-                        ${!isParent?'<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'teacherFileInput\').click()">📤 上传课件</button>':''}
+                        <span>📂 教师下发文件 (${teacherFiles.length})</span>
+                        ${!isParent?'<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'teacherFileInput\').click()">📤 上传文件</button>':''}
                     </div>
                     <input type="file" id="teacherFileInput" style="display:none;" onchange="uploadTeacherFile(this)" accept=".xlsx,.xls,.docx,.doc,.pptx,.png,.jpg,.jpeg">
                     <div id="teacherFileList">${renderFileList(teacherFiles,'teacher')}</div>
@@ -3041,7 +3067,10 @@ function renderFileList(files,listType){
                 <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.file_name||'')}</div>
                 <div style="font-size:12px;color:#999;">${suffix} · ${sizeStr} · ${timeStr}</div>
             </div>
-            <button class="btn btn-sm btn-secondary" onclick="downloadCourseFile(${f.id})" style="margin-left:10px;flex-shrink:0;">下载</button>
+            <div style="display:flex;align-items:center;flex-shrink:0;">
+                <button class="btn btn-sm btn-secondary" onclick="downloadCourseFile(${f.id})" style="margin-left:10px;">下载</button>
+                ${apiService.isTeacher()||apiService.isAdmin()?'<button class="btn btn-sm btn-danger" onclick="deleteCourseFile('+f.id+')" style="margin-left:8px;flex-shrink:0;">删除</button>':''}
+            </div>
         </div>`;
     }).join('');
 }
@@ -3050,6 +3079,29 @@ function formatFileSize(bytes){
     if(bytes<1024)return bytes+'B';
     if(bytes<1024*1024)return (bytes/1024).toFixed(1)+'KB';
     return (bytes/1024/1024).toFixed(1)+'MB';
+}
+function renderCourseFileClassOptions(){
+    const curId=currentClassroomSession&&currentClassroomSession.classId;
+    let classes=teacherClassListCache||[];
+    if((!classes||!classes.length)&&apiService.isAdmin())classes=getAllClasses();
+    if(!classes||!classes.length)return '<option value="">暂无班级</option>';
+    return classes.map(function(c){
+        const sel=String(c.id)===String(curId)?' selected':'';
+        return '<option value="'+c.id+'"'+sel+'>'+escapeHtml(c.name||('班级'+c.id))+'</option>';
+    }).join('');
+}
+async function deleteCourseFile(fileId){
+    if(!confirm('确定删除该文件吗？删除后家长端和学生端将无法再查看和下载此文件。'))return;
+    const btnEl=event&&event.currentTarget;
+    if(btnEl){btnEl.disabled=true;btnEl.textContent='删除中...';}
+    try{
+        const res=await apiService.deleteCourseFile(fileId);
+        if(res&&res.code===200){showToast('文件已删除','success');loadCourseFiles();}
+        else{showToast((res&&res.msg)||'删除失败','error');if(btnEl){btnEl.disabled=false;btnEl.textContent='删除';}}
+    }catch(e){
+        showToast('删除失败：'+(e.message||''),'error');
+        if(btnEl){btnEl.disabled=false;btnEl.textContent='删除';}
+    }
 }
 async function uploadTeacherFile(input){
     const file=input.files[0];
@@ -3060,7 +3112,7 @@ async function uploadTeacherFile(input){
     try{
         const res=await apiService.uploadCourseFile(file,currentClassroomSession.classId);
         if(res.code===200){
-            showToast('课件上传成功');
+            showToast('文件上传成功');
             loadCourseFiles();
             // 教师下发课件不再推送消息通知（学生/家长在对应页面按需加载）
         }else{

@@ -341,6 +341,10 @@ class ApiService {
     async getCourseFiles(classId) {
         return this.request('GET', '/course/file/listByClassId?classId=' + classId);
     }
+    /** 删除课堂文件（教师/管理员） */
+    async deleteCourseFile(fileId) {
+        return this.request('POST', '/course/file/delete/' + fileId);
+    }
     getCourseFileDownloadUrl(fileId) {
         return this.baseURL + '/course/file/download/' + fileId + '?token=' + encodeURIComponent(this.token);
     }

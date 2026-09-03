@@ -55,7 +55,7 @@ public class CourseFileService {
         Long classTeacherId = getClassTeacherId(classId);
         if (classTeacherId == null || !classTeacherId.equals(teacherId)) {
             result.put("code", 403);
-            result.put("error", "无权向该班级下发课件");
+            result.put("error", "无权向该班级下发文件");
             return result;
         }
         try {
@@ -71,7 +71,7 @@ public class CourseFileService {
 
             result.put("code", 200);
             result.put("id", fileId);
-            result.put("msg", "课件上传成功");
+            result.put("msg", "文件上传成功");
         } catch (IOException e) {
             result.put("code", 500);
             result.put("error", "文件保存失败：" + e.getMessage());
@@ -187,7 +187,11 @@ public class CourseFileService {
                 classId, userId, classId
             );
         }
-        // 教师视角
+        // 教师视角：仅允许查看自己所带班级的文件（教师数据按班级隔离）
+        Long classTeacherId = getClassTeacherId(classId);
+        if (classTeacherId == null || !classTeacherId.equals(userId)) {
+            return Collections.emptyList();
+        }
         return jdbc.queryForList(
             "SELECT cf.*, " +
             "CASE WHEN cf.is_teacher_upload=1 THEN u.display_name ELSE s.name END as uploader_name, " +
@@ -281,6 +285,47 @@ public class CourseFileService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // ==================== 删除文件（教师/管理员） ====================
+
+    /**
+     * 删除文件：物理删除磁盘文件 + 数据库记录
+     * - admin：可删除任意文件
+     * - teacher：仅能删除自己所带班级的文件；教师下发的文件仅上传者本人可删，学生作业本班教师可删
+     * @return 成功返回 null，失败返回错误信息
+     */
+    public String deleteFile(Long fileId, Long userId, String role) {
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM course_file WHERE id=?", fileId);
+        if (rows.isEmpty()) {
+            return "文件不存在或已被删除";
+        }
+        Map<String, Object> rec = rows.get(0);
+        Long classId = ((Number) rec.get("class_id")).longValue();
+        Long teacherId = rec.get("teacher_id") == null ? null : ((Number) rec.get("teacher_id")).longValue();
+        boolean isTeacherUpload = rec.get("is_teacher_upload") != null
+            && ((Number) rec.get("is_teacher_upload")).intValue() == 1;
+
+        if (!"admin".equalsIgnoreCase(role)) {
+            // 教师：文件所属班级必须是自己所带的班级
+            Long classTeacherId = getClassTeacherId(classId);
+            if (classTeacherId == null || !classTeacherId.equals(userId)) {
+                return "无权限：只能管理自己所带班级的文件";
+            }
+            // 教师下发的文件：仅上传者本人可删除
+            if (isTeacherUpload && (teacherId == null || !teacherId.equals(userId))) {
+                return "无权限：只能删除自己下发的文件";
+            }
+        }
+        // 物理删除磁盘文件（删除后家长端、学生端无法再查看和下载）
+        try {
+            File f = new File(String.valueOf(rec.get("save_path"))).getAbsoluteFile();
+            if (f.exists() && f.isFile()) {
+                f.delete();
+            }
+        } catch (Exception ignore) { }
+        jdbc.update("DELETE FROM course_file WHERE id=?", fileId);
+        return null;
     }
 
     /** 文件校验：非空、大小、后缀白名单、危险后缀黑名单 */
