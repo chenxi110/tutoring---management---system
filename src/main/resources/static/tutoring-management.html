@@ -11119,6 +11119,7 @@ async function loadNotifications(){
                     '<span class="tag" style="margin-left:8px;">'+escapeHtml(msgType)+'</span>' +
                     '<span style="font-size:12px;color:#999;margin-left:8px;">'+escapeHtml(m.sender_name||'')+'('+escapeHtml(senderRole)+')</span></div>' +
                     '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
+                        '<span class="msg-status" style="font-size:12px;color:'+(isUnread?'#ff4d4f':'#999')+';font-weight:'+(isUnread?'600':'400')+';">'+(isUnread?'未读':'已读')+'</span>' +
                         '<span style="font-size:12px;color:#999;">'+new Date(m.created_at).toLocaleString()+'</span>' +
                         (isUnread&&!apiService.isParent()?'<button class="btn btn-sm btn-success" onclick="event.stopPropagation();markNotificationRead('+m.id+',this.closest(\'[id^=msg-item]\'))" style="font-size:12px;padding:4px 10px;">✓ 已读</button>':'') +
                         (!apiService.isParent()&&m.sender_role==='teacher'?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();showReadReceipts('+m.id+')" style="font-size:12px;padding:4px 10px;">👁 已读回执</button>':'') +
@@ -11254,15 +11255,20 @@ async function sendQuickReply(){
 
 async function markNotificationRead(id,el){
     try{
-        await apiService.markMessageRead(id);
+        const res=await apiService.markMessageRead(id);
+        if(!res||res.code!==200){ showToast((res&&(res.message||res.error))||'标记已读失败','error'); return; }
         if(el){
             el.style.background='';
             el.style.borderColor='#e8e8e8';
             const dot=el.querySelector('span[style*="color:#ff4d4f"]');
             if(dot&&dot.textContent==='●')dot.remove();
+            const st=el.querySelector('.msg-status');
+            if(st){st.textContent='已读';st.style.color='#999';st.style.fontWeight='400';}
+            const rb=el.querySelector('.btn-success');
+            if(rb)rb.remove();
         }
         updateUnreadBadge();
-    }catch(e){/* ignore */}
+    }catch(e){ showToast('标记已读失败：'+(e.message||''),'error'); }
 }
 
 /* ========== 教师端家校互通 · 家长私信中心（主界面内） ========== */

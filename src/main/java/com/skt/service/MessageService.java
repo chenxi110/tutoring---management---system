@@ -68,7 +68,8 @@ public class MessageService {
         if ("parent".equalsIgnoreCase(role)) {
             sql = "SELECT m.*, s.name AS student_name FROM messages m LEFT JOIN students s ON s.id = m.student_id " +
                     "WHERE m.receiver_id = ? OR m.sender_id = ? OR (m.student_id IN (SELECT id FROM students WHERE parent_user_id = ?)) " +
-                    "OR (m.class_id IN (SELECT class_id FROM students WHERE parent_user_id = ? AND class_id IS NOT NULL) AND m.student_id IS NULL) " +
+                    "OR (m.class_id IN (SELECT class_id FROM students WHERE parent_user_id = ? AND class_id IS NOT NULL) " +
+                    "    AND m.msg_type = 'notice' AND m.receiver_id IS NULL) " +
                     "ORDER BY m.created_at DESC";
             list = jdbc.queryForList(sql, userId, userId, userId, userId);
         } else {
@@ -82,6 +83,16 @@ public class MessageService {
 
         for (Map<String, Object> item : list) {
             Long messageId = ((Number) item.get("id")).longValue();
+            // 按当前用户的已读回执计算消息状态，保证列表展示与未读数统计口径一致；
+            // 无收据的消息（自己发送/系统消息）视为已读，避免发送方看到自己消息显示"未读"却无法标记
+            try {
+                Integer rd = jdbc.queryForObject(
+                        "SELECT is_read FROM message_read_receipts WHERE message_id=? AND receiver_id=? LIMIT 1",
+                        Integer.class, messageId, userId);
+                item.put("status", (rd != null && rd == 1) ? "read" : "unread");
+            } catch (Exception e) {
+                item.put("status", "read");
+            }
             List<Map<String, Object>> replyList = jdbc.queryForList(
                     "SELECT * FROM message_reply WHERE message_id = ? ORDER BY created_at ASC",
                     messageId
@@ -178,10 +189,21 @@ public class MessageService {
 
     public Map<String, Object> markRead(Long msgId, Long userId) {
         Map<String, Object> result = new HashMap<>();
-        int rows = jdbc.update(
-            "UPDATE messages SET status='read', read_at=NOW() WHERE id=? AND (receiver_id=? OR receiver_id IS NULL OR sender_id=?)",
-            msgId, userId, userId
-        );
+        // 权限校验：本人存在已读回执（班级公告/私信均按收据归属），或消息接收者就是本人
+        Integer rc = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM message_read_receipts WHERE message_id=? AND receiver_id=?",
+            Integer.class, msgId, userId);
+        boolean hasReceipt = (rc != null && rc > 0);
+        Integer own = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM messages WHERE id=? AND receiver_id=?",
+            Integer.class, msgId, userId);
+        boolean isReceiver = (own != null && own > 0);
+        if (!hasReceipt && !isReceiver) {
+            result.put("code", 400);
+            result.put("message", "无权限");
+            return result;
+        }
+        int rows = jdbc.update("UPDATE messages SET status='read', read_at=NOW() WHERE id=?", msgId);
         // 同步更新已读回执
         try {
             jdbc.update("UPDATE message_read_receipts SET is_read=1, read_at=NOW() WHERE message_id=? AND receiver_id=?", msgId, userId);
