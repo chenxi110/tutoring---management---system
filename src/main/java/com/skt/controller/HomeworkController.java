@@ -143,6 +143,139 @@ public class HomeworkController {
         return result;
     }
 
+    /**
+     * 发布作业（支持附带文件，multipart）
+     * POST /api/homework/createWithFile
+     * 参数：classId/className/title/content/deadline + file(可选)
+     */
+    @PostMapping("/homework/createWithFile")
+    public Map<String, Object> createWithFile(
+            @RequestParam(value = "classId", required = false) Long classId,
+            @RequestParam(value = "className", required = false) String className,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam(value = "deadline", required = false) String deadline,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            HttpServletRequest req) {
+        if (RoleAccess.isParent(req)) {
+            return RoleAccess.forbidParentWrite("家长账号无权发布作业");
+        }
+        Long createdBy = (Long) req.getAttribute("userId");
+        if (classId == null && className != null && !className.isEmpty()) {
+            List<Map<String, Object>> clsRows = jdbc.queryForList(
+                "SELECT id FROM classes WHERE name=? AND (teacher_id=? OR ?=0) LIMIT 1", className, createdBy, createdBy);
+            if (!clsRows.isEmpty()) {
+                classId = ((Number) clsRows.get(0).get("id")).longValue();
+            }
+        }
+        Map<String, Object> result = new HashMap<>();
+        if (classId == null) {
+            result.put("code", 400);
+            result.put("msg", "班级不存在，无法发布作业到家长/学生端，请确认班级已创建");
+            return result;
+        }
+        if (title == null || title.trim().isEmpty()) {
+            result.put("code", 400);
+            result.put("msg", "作业标题不能为空");
+            return result;
+        }
+        String fileName = null;
+        String filePath = null;
+        String fileSuffix = null;
+        Long fileSize = null;
+        if (file != null && !file.isEmpty()) {
+            String validation = validateHomeworkFile(file);
+            if (validation != null) {
+                result.put("code", 400);
+                result.put("msg", validation);
+                return result;
+            }
+            try {
+                filePath = storeFile(file);
+                fileName = file.getOriginalFilename();
+                fileSize = file.getSize();
+                fileSuffix = fileName.contains(".")
+                    ? fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase() : "bin";
+            } catch (java.io.IOException e) {
+                result.put("code", 500);
+                result.put("msg", "文件保存失败：" + e.getMessage());
+                return result;
+            }
+        }
+        String teacherName = (String) req.getAttribute("displayName");
+        Long id = homeworkService.create(classId, title, content, deadline, createdBy, teacherName);
+        if (filePath != null) {
+            jdbc.update("UPDATE homework SET file_name=?, file_path=?, file_size=?, file_suffix=? WHERE id=?",
+                fileName, filePath, fileSize, fileSuffix, id);
+        }
+        result.put("code", 200);
+        result.put("id", id);
+        return result;
+    }
+
+    /** 作业附件下载（鉴权：教师/管理员可下载全部；家长/学生仅限本班级） */
+    @GetMapping("/homework/file/{id}")
+    public ResponseEntity<Resource> downloadHomeworkFile(@PathVariable Long id, HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        String role = (String) req.getAttribute("role");
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM homework WHERE id=?", id);
+        if (rows.isEmpty() || rows.get(0).get("file_path") == null) {
+            return ResponseEntity.status(404).build();
+        }
+        Map<String, Object> rec = rows.get(0);
+        Long classId = rec.get("class_id") == null ? null : ((Number) rec.get("class_id")).longValue();
+        boolean allowed = "teacher".equalsIgnoreCase(role) || "admin".equalsIgnoreCase(role);
+        if (!allowed && ("parent".equalsIgnoreCase(role) || "student".equalsIgnoreCase(role))) {
+            if (classId != null) {
+                String sql = "SELECT COUNT(*) FROM students WHERE " +
+                    ("student".equalsIgnoreCase(role) ? "user_id=?" : "parent_user_id=?") +
+                    " AND class_id=? AND (is_deleted IS NULL OR is_deleted=0)";
+                Integer cnt = jdbc.queryForObject(sql, Integer.class, userId, classId);
+                allowed = cnt != null && cnt > 0;
+            }
+        }
+        if (!allowed) {
+            return ResponseEntity.status(403).build();
+        }
+        java.io.File f = new java.io.File(String.valueOf(rec.get("file_path"))).getAbsoluteFile();
+        if (!f.exists()) {
+            return ResponseEntity.status(404).build();
+        }
+        String fileName = String.valueOf(rec.get("file_name"));
+        String encodedName = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(f.length())
+                .body(new FileSystemResource(f));
+    }
+
+    /** 作业附件校验：非空、大小、危险后缀过滤（支持全安全格式） */
+    private String validateHomeworkFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return "文件不能为空";
+        }
+        long max = 50L * 1024 * 1024;
+        if (file.getSize() > max) {
+            return "文件大小不能超过50MB";
+        }
+        String name = file.getOriginalFilename();
+        if (name == null || name.isEmpty()) {
+            return "文件名不能为空";
+        }
+        String ext = name.contains(".") ? name.substring(name.lastIndexOf(".") + 1).toLowerCase() : "";
+        if (ext.isEmpty()) {
+            return "文件缺少后缀名";
+        }
+        if (DANGEROUS_EXTENSIONS.contains(ext)) {
+            return "不允许上传可执行/危险文件类型：" + ext;
+        }
+        return null;
+    }
+
     @PostMapping("/homework/{id}/submit")
     public Map<String, Object> submit(@PathVariable Long id, @RequestBody Map<String, Object> body, HttpServletRequest req) {
         if (!RoleAccess.isTeacher(req)) {

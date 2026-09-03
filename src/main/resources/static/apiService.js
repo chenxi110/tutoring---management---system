@@ -264,6 +264,15 @@ class ApiService {
         return this.request('GET', endpoint + query);
     }
     async createHomework(data) { return this.request('POST', '/homework', data); }
+    async createHomeworkWithFile(formData) {
+        const res = await fetch(this.baseURL + '/homework/createWithFile', {
+            method: 'POST',
+            headers: this.token ? { 'Authorization': 'Bearer ' + this.token } : {},
+            body: formData
+        });
+        return await res.json();
+    }
+    getHomeworkFileUrl(id) { return this.baseURL + '/homework/file/' + id + '?token=' + encodeURIComponent(this.token); }
     async submitHomework(id, data) { return this.request('POST', '/homework/' + id + '/submit', data); }
     async gradeSubmission(id, data) { return this.request('PUT', '/homework/submissions/' + id + '/grade', data); }
   async submitHomeworkFile(id, formData) { return this.requestUpload('POST', '/homework/' + id + '/submitFile', formData); }

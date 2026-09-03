@@ -3150,6 +3150,7 @@ async function uploadStudentFile(input){
     }
     input.value='';
 }
+function downloadHomeworkFile(id){ if(!id){showToast('附件尚未同步到服务器','warning');return;} downloadFileByUrl(apiService.getHomeworkFileUrl(id),'附件下载失败'); }
 async function downloadFileByUrl(url, tip){
     try{
         const res = await fetch(url, { headers: apiService.token ? { 'Authorization': 'Bearer ' + apiService.token } : {} });
@@ -10216,6 +10217,7 @@ function openHomeworkModal(){
             </div>
             <div class="form-group"><label class="form-label">作业标题 *</label><input type="text" class="form-control" id="hwTitle" placeholder="输入作业标题" required></div>
             <div class="form-group"><label class="form-label">作业内容</label><textarea class="form-control" id="hwContent" rows="4" placeholder="输入作业内容"></textarea></div>
+            <div class="form-group"><label class="form-label">作业附件（可选）</label><input type="file" class="form-control" id="hwFile" placeholder="选择作业附件文件"></div>
             <div class="form-row">
                 <div class="form-group"><label class="form-label">截止时间</label><input type="datetime-local" class="form-control" id="hwDeadline"></div>
                 <div class="form-group"><label class="form-label">满分</label><input type="number" class="form-control" id="hwFullScore" value="100"></div>
@@ -10239,6 +10241,9 @@ function initHomeworkClassSelect(){
 }
 
 function saveHomework(){
+    const hwFileInput=document.getElementById('hwFile');
+    const hwAttachFile=hwFileInput&&hwFileInput.files&&hwFileInput.files[0];
+    if(hwAttachFile&&hwAttachFile.size>50*1024*1024){showToast('作业附件不能超过50MB','error');return;}
     const hw={
         id:Date.now().toString(),
         class:document.getElementById('hwClass').value,
@@ -10251,7 +10256,9 @@ function saveHomework(){
         allowRetry:document.getElementById('hwAllowRetry').checked,
         status:'pending',
         createTime:new Date().toISOString(),
-        submissions:[]
+        submissions:[],
+        file_name:hwAttachFile?hwAttachFile.name:null,
+        file_size:hwAttachFile?hwAttachFile.size:null
     };
     if(!hw.class||!hw.title){showToast('请填写必填项','error');return;}
     appData.homework=appData.homework||[];
@@ -10260,12 +10267,24 @@ function saveHomework(){
     // 同步到后端：家长端/学生端可见并收到通知
     try{
         if(window.apiService && apiService.createHomework){
-            apiService.createHomework({
-                className:hw.class,
-                title:hw.title,
-                content:hw.content,
-                deadline:hw.deadline
-            }).then(function(r){
+            let syncPromise;
+            if(hwAttachFile){
+                const fd=new FormData();
+                fd.append('className',hw.class);
+                fd.append('title',hw.title);
+                fd.append('content',hw.content);
+                fd.append('deadline',hw.deadline);
+                fd.append('file',hwAttachFile);
+                syncPromise=apiService.createHomeworkWithFile(fd);
+            }else{
+                syncPromise=apiService.createHomework({
+                    className:hw.class,
+                    title:hw.title,
+                    content:hw.content,
+                    deadline:hw.deadline
+                });
+            }
+            syncPromise.then(function(r){
                 if(r && (r.code===200 || r.id)){
                     if(r.id){
                         const idx=appData.homework.findIndex(function(x){return x.id===hw.id;});
@@ -10329,6 +10348,7 @@ function loadHomeworkList(){
                 <div>满分：${h.fullScore}分</div>
                 <div>已提交：${h.submissions?h.submissions.length:0}人</div>
             </div>
+            ${h.file_name?`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#666;margin-bottom:10px;">📎 ${escapeHtml(h.file_name)}${h.backendId?`<button class="btn btn-sm btn-secondary" onclick="downloadHomeworkFile(${h.backendId})">下载附件</button>`:'<span style="color:#999;font-size:12px;">（附件待服务器同步）</span>'}</div>`:''}
             <div class="action-btns">
                 <button class="btn btn-sm btn-primary" onclick="viewHomeworkSubmissions('${h.id}')">查看提交</button>
                 <button class="btn btn-sm btn-info" onclick="getHomeworkLink('${h.id}')">学生提交链接</button>
@@ -13174,14 +13194,15 @@ async function loadParentHomework(showOnlyCount = false) {
                     <td>${escapeHtml(item.deadline || '-')}</td>
                     <td>${item.deadline ? (new Date(item.deadline) < new Date() ? '<span class="badge badge-danger">已过期</span>' : '<span class="badge badge-warning">待完成</span>') : '<span class="badge badge-secondary">未设置</span>'}</td>
                     <td>${item.submitted ? '<span class="badge badge-success">已提交</span>' : '<button class="btn btn-sm btn-primary" onclick="openHomeworkSubmitModal(' + (item.id||0) + ', this)">提交作业</button>'}</td>
+                    <td>${item.file_name ? '<button class="btn btn-sm btn-secondary" onclick="downloadHomeworkFile(' + item.id + ')">📎 下载附件</button>' : '-'}</td>
                 </tr>
-            `).join('') : '<tr><td colspan="6" class="empty-state">暂无作业</td></tr>';
+            `).join('') : '<tr><td colspan="7" class="empty-state">暂无作业</td></tr>';
             view.innerHTML = `
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">我的待到期作业</h3></div>
                     <div class="table-wrapper">
                         <table>
-                            <thead><tr><th>班级</th><th>作业标题</th><th>内容</th><th>截至日期</th><th>状态</th><th>提交</th></tr></thead>
+                            <thead><tr><th>班级</th><th>作业标题</th><th>内容</th><th>截至日期</th><th>状态</th><th>提交</th><th>附件</th></tr></thead>
                             <tbody>${rows}</tbody>
                         </table>
                     </div>
