@@ -10326,6 +10326,17 @@ async function loadHomeworkList(){
     const status=document.getElementById('hwFilterStatus')?document.getElementById('hwFilterStatus').value:'';
     const type=document.getElementById('hwFilterType')?document.getElementById('hwFilterType').value:'';
     initHomeworkClassSelect();
+    // 填充班级筛选下拉（后端班级，保留当前选中）
+    try{
+        const cr=await apiService.getClasses();
+        const classList=(cr&&cr.code===200&&Array.isArray(cr.data))?cr.data:[];
+        if(classList.length>0){
+            const curSel=document.getElementById('hwFilterClass').value;
+            const opts=['<option value="">全部班级</option>'].concat(classList.map(c=>'<option value="'+escapeHtml(c.name||'')+'">'+escapeHtml(c.name||'')+'</option>')).join('');
+            document.getElementById('hwFilterClass').innerHTML=opts;
+            if(curSel)document.getElementById('hwFilterClass').value=curSel;
+        }
+    }catch(e){}
     document.getElementById('hwFilterClass').value=cls;
     let list=[];
     try{
