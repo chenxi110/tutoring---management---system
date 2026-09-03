@@ -48,13 +48,21 @@ public class StudentService {
         if (st.isEmpty()) return Collections.emptyList();
         String studentName = String.valueOf(st.get(0).get("name"));
         Object cid = st.get(0).get("class_id");
+        // 班级名（用于匹配 class_id 为空的历史考勤记录）；班级已删除时允许为 null
+        String className = null;
+        if (cid != null) {
+            List<Map<String, Object>> cs = jdbc.queryForList("SELECT name FROM classes WHERE id=?", cid);
+            if (!cs.isEmpty()) className = String.valueOf(cs.get(0).get("name"));
+        }
         List<Map<String, Object>> records;
         if (cid != null) {
             records = jdbc.queryForList(
-                "SELECT * FROM records WHERE class_id=? OR (class_id IS NULL AND class_name=?) ORDER BY date DESC",
-                cid, studentName);
+                "SELECT * FROM records WHERE class_id=? OR (class_id IS NULL AND (class_name=? OR absent_json LIKE ?)) ORDER BY date DESC",
+                cid, className, "%" + studentName + "%");
         } else {
-            records = jdbc.queryForList("SELECT * FROM records WHERE class_name=? ORDER BY date DESC", studentName);
+            records = jdbc.queryForList(
+                "SELECT * FROM records WHERE class_name=? OR absent_json LIKE ? ORDER BY date DESC",
+                studentName, "%" + studentName + "%");
         }
         ObjectMapper om = new ObjectMapper();
         for (Map<String, Object> r : records) {

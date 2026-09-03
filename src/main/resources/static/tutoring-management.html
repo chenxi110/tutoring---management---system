@@ -14172,20 +14172,6 @@ function loadStudentHomework(){
         }
     }).catch(e=>{document.getElementById('studentHomeworkContent').innerHTML='<div class="empty-state">加载失败</div>';});
 }
-function loadStudentAttendance(){
-    apiService.get('/api/student/attendance').then(res=>{
-        if(res.code===200){
-            const list=res.data||[];
-            let html='<div class="table-wrapper"><table><thead><tr><th>日期</th><th>课程</th><th>状态</th><th>备注</th></tr></thead><tbody>';
-            list.forEach(r=>{
-                const statusText=r.type==='absent'?'<span style="color:#ff4d4f;">缺勤</span>':'<span style="color:#52c41a;">出勤</span>';
-                html+=`<tr><td>${r.date||'-'}</td><td>${r.course||'-'}</td><td>${statusText}</td><td>${r.remark||'-'}</td></tr>`;
-            });
-            html+='</tbody></table></div>';
-            document.getElementById('studentAttendanceContent').innerHTML=html||'<div class="empty-state">暂无出勤记录</div>';
-        }
-    }).catch(e=>{document.getElementById('studentAttendanceContent').innerHTML='<div class="empty-state">加载失败</div>';});
-}
 function loadStudentPoints(){
     apiService.get('/api/student/behavior-stats').then(res=>{
         if(res.code===200){
