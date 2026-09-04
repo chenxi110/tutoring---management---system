@@ -84,6 +84,7 @@
         select.form-control { appearance: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center; padding-right: 36px; }
         .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s; }
+        .modal-overlay.confirm-modal { z-index: 1100; } /* 确认弹窗永远在最上层，避免被其他弹窗遮挡 */
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal { background: var(--card-bg); border-radius: var(--radius); box-shadow: 0 4px 24px rgba(0,0,0,0.2); width: 90%; max-width: 650px; max-height: 90vh; overflow-y: auto; transform: translateY(-20px); transition: transform 0.3s; }
         .modal-overlay.active .modal { transform: translateY(0); }
