@@ -1,28 +1,58 @@
 @echo off
 chcp 936 >nul
-title ä¸Šè¯¾é€š - ä¸€é”®å¯åŠ¨
+title ÉÏ¿ÎÍ¨ - Ò»¼üÆô¶¯
 cd /d "%~dp0"
 
+if not exist "%~dp0logs" mkdir "%~dp0logs"
+set LOG=%~dp0logs\app.log
+
 echo ============================================================
-echo   ä¸Šè¯¾é€š - æ•™å­¦ç®¡ç†ç³»ç»Ÿ ä¸€é”®å¯åŠ¨
+echo   ÉÏ¿ÎÍ¨ - ½ÌÑ§¹ÜÀíÏµÍ³ Ò»¼üÆô¶¯
 echo ============================================================
 echo.
 
-REM å·²å¯åŠ¨åˆ™ç›´æŽ¥æ‰“å¼€æµè§ˆå™¨
+REM 1) µÈ´ý MySQL ¾ÍÐ÷£¨×î¶à90Ãë£¬·ÀÖ¹¿ª»úÊ± MySQL ÉÐÎ´ÍêÈ«Æô¶¯£©
+echo [1/4] ¼ì²é MySQL Êý¾Ý¿â·þÎñ...
+set /a mc=0
+:waitmysql
+netstat -ano | findstr ":3306" | findstr "LISTENING" >nul
+if %errorlevel% equ 0 goto mysqlok
+set /a mc+=1
+if %mc% geq 30 (
+    echo [ERROR] MySQL Êý¾Ý¿âÎ´Æô¶¯£¬ÇëÏÈÆô¶¯ MySQL ·þÎñ
+    echo         £¨·þÎñÃû MySQL80£¬¿ÉÔÚ ·þÎñ ÖÐÊÖ¶¯Æô¶¯£©
+    pause
+    exit /b 1
+)
+timeout /t 3 >nul
+goto waitmysql
+:mysqlok
+echo [OK] MySQL Êý¾Ý¿âÒÑ¾ÍÐ÷
+
+REM 2) ·þÎñÒÑÔÚÔËÐÐÔòÖ±½Ó´ò¿ªÍøÒ³
 netstat -ano | findstr ":8081" | findstr "LISTENING" >nul
 if %errorlevel% equ 0 (
-    echo [INFO] æœåŠ¡å·²åœ¨è¿è¡Œï¼Œç›´æŽ¥æ‰“å¼€ç½‘é¡µ...
+    echo [INFO] ·þÎñÒÑÔÚÔËÐÐ£¬Ö±½Ó´ò¿ªÍøÒ³...
     start "" "http://localhost:8081/tutoring-management.html"
     timeout /t 2 >nul
     exit /b 0
 )
 
-echo [START] æ­£åœ¨å¯åŠ¨æœåŠ¡ï¼ˆé¦–æ¬¡å¯åŠ¨çº¦éœ€ 30-60 ç§’ï¼‰...
-echo [START] å¯åŠ¨çª—å£è¯·ä¿æŒå¼€å¯ï¼Œå…³é—­å³åœæ­¢æœåŠ¡
-echo.
-start "Shangketong Server" cmd /c "%~dp0start-app.bat"
+REM 3) ¼ì²é³ÌÐòÎÄ¼þ
+if not exist "%~dp0target\skt-server-1.0.0.jar" (
+    echo [ERROR] ³ÌÐòÎÄ¼þÈ±Ê§: target\skt-server-1.0.0.jar
+    echo         ÇëÖØÐÂÖ´ÐÐ mvn package -DskipTests ´ò°ü
+    pause
+    exit /b 1
+)
 
-REM ç­‰å¾…ç«¯å£å°±ç»ªï¼Œæœ€å¤šç­‰ 120 ç§’
+REM 4) Æô¶¯·þÎñ£¨¶ÀÁ¢´°¿Ú£¬±£³Ö¿ªÆô¼´·þÎñÔËÐÐ£»ÈÕÖ¾Ð´Èë logs\app.log£©
+echo [2/4] ÕýÔÚÆô¶¯·þÎñ£¨Ê×´ÎÔ¼Ðè30-60Ãë£¬ÇëÎð¹Ø±Õ·þÎñ´°¿Ú£©...
+echo [%date% %time%] ===== ÉÏ¿ÎÍ¨ ÊÖ¶¯Æô¶¯ ===== >> "%LOG%"
+start "Shangketong Server" cmd /c "cd /d %~dp0 && java -Xms128m -Xmx512m -jar target\skt-server-1.0.0.jar >> \"%LOG%\" 2>&1"
+
+REM µÈ´ý¶Ë¿Ú¾ÍÐ÷£¬×î¶à120Ãë
+echo [3/4] µÈ´ý·þÎñ¾ÍÐ÷...
 set /a cnt=0
 :wait
 timeout /t 3 >nul
@@ -32,12 +62,15 @@ set /a cnt+=1
 if %cnt% lss 40 goto wait
 
 echo.
-echo [WARN] ç­‰å¾…è¶…æ—¶ï¼ŒæœåŠ¡å¯èƒ½å¯åŠ¨å¤±è´¥ï¼Œè¯·æŸ¥çœ‹æœåŠ¡çª—å£æ—¥å¿—
-timeout /t 5 >nul
+echo [WARN] ·þÎñÆô¶¯³¬Ê±£¨³¬¹ý120Ãë£©£¬¿ÉÄÜÆô¶¯Ê§°Ü
+echo        Çë²é¿´ÈÕÖ¾ÎÄ¼þ: logs\app.log
+notepad "%LOG%"
+pause
 exit /b 1
 
 :opened
-echo [OK] æœåŠ¡å¯åŠ¨æˆåŠŸï¼Œæ­£åœ¨æ‰“å¼€ç½‘é¡µ...
+echo [OK] ·þÎñÆô¶¯³É¹¦£¡
+echo [4/4] ÕýÔÚ´ò¿ªÍøÒ³...
 start "" "http://localhost:8081/tutoring-management.html"
 timeout /t 2 >nul
 exit /b 0
