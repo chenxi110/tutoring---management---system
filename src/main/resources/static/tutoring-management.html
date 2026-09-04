@@ -2593,7 +2593,14 @@ function showAuthMessageModal({type='info',title='提示',message='',suggestion=
     }
 }
 let confirmCallback=null;
-function openConfirmModal(t,cb){document.getElementById('confirmText').textContent=t;document.getElementById('confirmModal').classList.add('active');confirmCallback=cb;}
+function openConfirmModal(t,cb){
+    const cm=document.getElementById('confirmModal');
+    document.getElementById('confirmText').textContent=t;
+    // 移到 body 末尾，确保 DOM 顺序最后、渲染在最上层，不被任何其他弹窗遮挡
+    if(cm&&cm.parentNode!==document.body){document.body.appendChild(cm);}
+    cm.classList.add('active');
+    confirmCallback=cb;
+}
 function closeConfirmModal(){document.getElementById('confirmModal').classList.remove('active');confirmCallback=null;}
 function doConfirm(){if(confirmCallback)confirmCallback();closeConfirmModal();}
 
